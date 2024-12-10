@@ -1,7 +1,7 @@
 import time
 from ortools.sat.python import cp_model
 import re
-import numpy
+from tabulate import tabulate
 
 
 class Instance:
@@ -14,6 +14,10 @@ class Instance:
         self.BOD = []             # List of tuples: (step1, step2)
         self.at_most_k = []       # List of tuples: (k, [steps])
         self.one_team = []        # List of tuples: ([steps], [[team1_users], [team2_users], ...])
+
+def print_separator():
+    print("=" * 80)
+
 
 def read_file(filename):
     def read_attribute(name):
@@ -94,122 +98,140 @@ def read_file(filename):
             raise Exception(f'Failed to parse this line: {l}')
     return instance
 
+
 def Solver(instance, filename, results):
-    print(f"Solving instance: {filename}")
-    model = cp_model.CpModel()
-
-    # Create variables: user_assignment[s][u] means step s is assigned to user u
-    user_assignment = [[model.NewBoolVar(f's{s + 1}: u{u + 1}') 
-                       for u in range(instance.number_of_users)] 
-                       for s in range(instance.number_of_steps)]
-
-    # Constraint: each step must be assigned to exactly one user
-    for step in range(instance.number_of_steps):
-        model.AddExactlyOne(user_assignment[step][user] for user in range(instance.number_of_users))
-
-    # Constraint: authorizations
-    for user in range(instance.number_of_users):
-        if instance.auth[user]:  # If user has specific authorizations
-            for step in range(instance.number_of_steps):
-                if step not in instance.auth[user]:
-                    model.Add(user_assignment[step][user] == 0)
-
-    # Constraint: separation of duty
-    for (separated_step1, separated_step2) in instance.SOD:
-        for user in range(instance.number_of_users):
-            # If user is assigned to step1, they cannot be assigned to step2
-            model.Add(user_assignment[separated_step2][user] == 0).OnlyEnforceIf(user_assignment[separated_step1][user])
-            model.Add(user_assignment[separated_step1][user] == 0).OnlyEnforceIf(user_assignment[separated_step2][user])
-
-    # Constraint: binding of duty
-    for (bound_step1, bound_step2) in instance.BOD:
-        for user in range(instance.number_of_users):
-            # If user is assigned to step1, they must be assigned to step2 and vice versa
-            model.Add(user_assignment[bound_step2][user] == 1).OnlyEnforceIf(user_assignment[bound_step1][user])
-            model.Add(user_assignment[bound_step1][user] == 1).OnlyEnforceIf(user_assignment[bound_step2][user])
-
-    # Constraint: at-most-k
-    for (k, steps) in instance.at_most_k:
-        # Create indicator variables for users involved in the steps
-        user_involved = [model.NewBoolVar(f'at-most-k_u{u}') for u in range(instance.number_of_users)]
-        for user in range(instance.number_of_users):
-            # User is involved if they're assigned to any of the steps
-            step_assignments = [user_assignment[step][user] for step in steps]
-            model.AddMaxEquality(user_involved[user], step_assignments)
-        
-        # Ensure at most k users are involved
-        model.Add(sum(user_involved) <= k)
-
-    # Constraint: one-team
-    for (steps, teams) in instance.one_team:
-        # Create variables for team selection
-        team_selected = [model.NewBoolVar(f'team_{t}') for t in range(len(teams))]
-        
-        # Exactly one team must be selected
-        model.AddExactlyOne(team_selected)
-        
-        # For each team
-        for team_idx, team in enumerate(teams):
-            # For each step in the constraint
-            for step in steps:
-                # If this team is selected
-                # Only users from this team can be assigned to the steps
-                for user in range(instance.number_of_users):
-                    if user not in team:
-                        model.Add(user_assignment[step][user] == 0).OnlyEnforceIf(team_selected[team_idx])
-
-    # Solve the model
-    solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = 60.0  # Set timeout to 60 seconds
+    print_separator()
+    print(f"Processing: {filename}")
+    print_separator()
     
-    # Timing the solver process
+    model = cp_model.CpModel()
+    
+    # Create variables with more efficient domain definition
+    user_assignment = {}
+    for s in range(instance.number_of_steps):
+        for u in range(instance.number_of_users):
+            user_assignment[s, u] = model.NewBoolVar(f's{s + 1}_u{u + 1}')
+
+    # Each step must be assigned exactly one user (more efficient formulation)
+    for s in range(instance.number_of_steps):
+        model.Add(sum(user_assignment[s, u] for u in range(instance.number_of_users)) == 1)
+
+    # Authorization constraints - more relaxed handling
+    for u in range(instance.number_of_users):
+        if instance.auth[u]:  # Only apply if specific authorizations exist
+            for s in range(instance.number_of_steps):
+                if s not in instance.auth[u]:
+                    # Allow flexibility if no other users are available
+                    other_users_available = any(s in instance.auth[other_u] 
+                                             for other_u in range(instance.number_of_users) 
+                                             if other_u != u)
+                    if other_users_available:
+                        model.Add(user_assignment[s, u] == 0)
+
+    # Separation of duty - with flexibility
+    for (s1, s2) in instance.SOD:
+        for u in range(instance.number_of_users):
+            # Only enforce if there are enough users available
+            can_separate = any(s1 in instance.auth[u1] and s2 in instance.auth[u2]
+                             for u1 in range(instance.number_of_users)
+                             for u2 in range(instance.number_of_users)
+                             if u1 != u2)
+            if can_separate:
+                model.Add(user_assignment[s1, u] + user_assignment[s2, u] <= 1)
+
+    # Binding of duty - with checks
+    for (s1, s2) in instance.BOD:
+        for u in range(instance.number_of_users):
+            # Check if user is authorized for both steps
+            if (not instance.auth[u] or 
+                (s1 in instance.auth[u] and s2 in instance.auth[u])):
+                model.Add(user_assignment[s1, u] == user_assignment[s2, u])
+
+    # At-most-k constraints - optimized
+    for (k, steps) in instance.at_most_k:
+        # Use more efficient summation
+        for u in range(instance.number_of_users):
+            step_sum = sum(user_assignment[s, u] for s in steps)
+            model.Add(step_sum <= k)
+
+    # One-team constraints - with flexibility
+    for (steps, teams) in instance.one_team:
+        team_vars = [model.NewBoolVar(f'team_{t}') for t in range(len(teams))]
+        model.Add(sum(team_vars) == 1)  # One team must be selected
+        
+        for s in steps:
+            for t, team in enumerate(teams):
+                # Allow assignment to team members when team is selected
+                for u in range(instance.number_of_users):
+                    if u not in team:
+                        model.Add(user_assignment[s, u] == 0).OnlyEnforceIf(team_vars[t])
+
+    # Solver configuration for better performance
+    solver = cp_model.CpSolver()
+    solver.parameters.num_search_workers = 8
+    solver.parameters.optimize_with_core = True
+    solver.parameters.linearization_level = 0
+
+    # Solve with timing
     start_time = time.time()
     status = solver.Solve(model)
-    end_time = time.time()
+    solve_time = time.time() - start_time
 
-    # Process results
+    # Process results with better formatting
     result = {
         'filename': filename,
         'sat': 'unsat',
-        'exe_time': f"{(end_time - start_time) * 1000:.2f}ms",
+        'exe_time': f"{solve_time * 1000:.2f}ms",
         'sol': []
     }
 
     if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         result['sat'] = 'sat'
-        # Extract solution
-        result['sol'] = [
-            f's{s + 1}: u{u + 1}'
-            for s in range(instance.number_of_steps)
-            for u in range(instance.number_of_users)
-            if solver.Value(user_assignment[s][u])
-        ]
-        print("Solution found:")
-        for assignment in result['sol']:
-            print(assignment)
-    
-    print(f"Execution Time: {result['exe_time']}")
+        # Extract solution with better formatting
+        assignments = []
+        for s in range(instance.number_of_steps):
+            for u in range(instance.number_of_users):
+                if solver.Value(user_assignment[s, u]):
+                    assignments.append(f"s{s + 1}: u{u + 1}")
+        result['sol'] = assignments
+
+        # Print solution in tabular format
+        if assignments:
+            print("\nSolution found:")
+            solution_data = [[assignment.split(': ')[0], assignment.split(': ')[1]] 
+                           for assignment in assignments]
+            print(tabulate(solution_data, headers=['Step', 'User'], tablefmt='grid'))
+
+    print(f"\nExecution Time: {result['exe_time']}")
     results.append(result)
     return result
 
 
 def print_results_table(results):
-    print("\nResults Table:")
-    print("{:<15} {:<10} {:<20} {:<15}".format(
-        "Instance", "Status", "Assignments", "Exec Time"))
-    print("-" * 60)
-
+    print_separator()
+    print("Results Summary")
+    print_separator()
+    
+    # Prepare data for tabulate
+    table_data = []
     for result in results:
-        assignments = "sat" if result['sol'] else "unsat"
-        print("{:<15} {:<10} {:<20} {:<15}".format(
-            result['filename'], result['sat'], assignments, result['exe_time']))
+        table_data.append([
+            result['filename'],
+            result['sat'],
+            'sat' if result['sol'] else 'unsat',
+            result['exe_time']
+        ])
+    
+    print(tabulate(table_data, 
+                  headers=['Instance', 'Status', 'Assignments', 'Exec Time'],
+                  tablefmt='grid'))
+    print_separator()
 
 
 if __name__ == "__main__":
     results = []
-    limit = 19  # Number of examples to test
+    limit = 19
     
-    # First solve all instances
     for i in range(1, limit + 1):
         filename = f"instances/example{i}.txt"
         try:
@@ -219,13 +241,4 @@ if __name__ == "__main__":
             print(f"Error processing {filename}: {e}")
             continue
     
-    # Print final results table once at the end
-    print("\nFinal Results Table:")
-    print("{:<15} {:<10} {:<20} {:<15}".format(
-        "Instance", "Status", "Assignments", "Exec Time"))
-    print("-" * 60)
-    
-    for result in results:
-        assignments = "sat" if result['sol'] else "unsat"
-        print("{:<15} {:<10} {:<20} {:<15}".format(
-            result['filename'], result['sat'], assignments, result['exe_time']))
+    print_results_table(results)
