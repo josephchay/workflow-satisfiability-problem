@@ -1,7 +1,3 @@
-import time
-from ortools.sat.python import cp_model
-
-# !pip install ortools
 from ortools.sat.python import cp_model
 import re
 import time
@@ -13,7 +9,7 @@ import numpy
 
 # Define the Instance class to store the parsed data
 class Instance:
-    def _init_(self):
+    def __init__(self):
         self.number_of_steps = 0
         self.number_of_users = 0
         self.number_of_constraints = 0
@@ -32,7 +28,7 @@ def read_file(filename):
         if match:
             return int(match.group(1))
         else:
-            raise Exception("Could not parse line {line}; expected the {name} attribute")
+            raise Exception(f"Could not parse line {line}; expected the {name} attribute")
 
     instance = Instance()
 
@@ -44,6 +40,8 @@ def read_file(filename):
 
         for i in range(instance.number_of_constraints):
             l = f.readline()
+            
+            # Parse Authorisations
             m = re.match(r"Authorisations u(\d+)(?: s\d+)*", l)
             if m:
                 user_id = int(m.group(1))
@@ -55,19 +53,22 @@ def read_file(filename):
                 instance.auth[user_id - 1].extend(steps)
                 continue
 
+            # Parse Separation-of-duty
             m = re.match(r'Separation-of-duty s(\d+) s(\d+)', l)
             if m:
                 steps = (int(m.group(1)) - 1, int(m.group(2)) - 1)
                 instance.SOD.append(steps)
                 continue
 
+            # Parse Binding-of-duty
             m = re.match(r'Binding-of-duty s(\d+) s(\d+)', l)
             if m:
                 steps = (int(m.group(1)) - 1, int(m.group(2)) - 1)
                 instance.BOD.append(steps)
                 continue
 
-            m = re.match(r'At-most-k (\d+) (s\d+)(?: (s\d+))*', l)
+            # Parse At-most-k
+            m = re.match(r'At-most-k (\d+)(?: s\d+)+', l)
             if m:
                 k = int(m.group(1))
                 steps = []
@@ -76,21 +77,28 @@ def read_file(filename):
                 instance.at_most_k.append((k, steps))
                 continue
 
-            m = re.match(r'One-team\s+(s\d+)(?: s\d+)* (\((u\d+)\))', l)
+            # Parse One-team
+            m = re.match(r'One-team\s+((?:s\d+\s*)+)\(((?:u\d+\s*)+)\)((?:\s*\((?:u\d+\s*)+\))*)', l)
             if m:
+                # Parse steps
                 steps = []
-                for m in re.finditer(r's(\d+)', l):
-                    steps.append(int(m.group(1)) - 1)
+                for step_match in re.finditer(r's(\d+)', m.group(1)):
+                    steps.append(int(step_match.group(1)) - 1)
+                
+                # Parse teams
                 teams = []
-                for m in re.finditer(r'\((u\d+\s*)+\)', l):
+                team_pattern = r'\(((?:u\d+\s*)+)\)'
+                for team_match in re.finditer(team_pattern, l):
                     team = []
-                    for users in re.finditer(r'u(\d+)', m.group(0)):
-                        team.append(int(users.group(1)) - 1)
+                    for user_match in re.finditer(r'u(\d+)', team_match.group(1)):
+                        team.append(int(user_match.group(1)) - 1)
                     teams.append(team)
+                
                 instance.one_team.append((steps, teams))
                 continue
-            else:
-                raise Exception(f'Failed to parse this line: {l}')
+
+            raise Exception(f'Failed to parse this line: {l}')
+            
     return instance
 
 
@@ -202,7 +210,7 @@ def print_results_table(results):
 
 
 # Main usage
-if __name__ == "_main_":
+if __name__ == "__main__":
     limit = 19  # Define the number of instances you want to solve
     results = []  # Store results for all instances
 
