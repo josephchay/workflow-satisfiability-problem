@@ -1,13 +1,9 @@
+import time
 from ortools.sat.python import cp_model
 import re
-import time
-import multiprocessing
-import time
-import os
 import numpy
 
 
-# Define the Instance class to store the parsed data
 class Instance:
     def __init__(self):
         self.number_of_steps = 0
@@ -19,8 +15,6 @@ class Instance:
         self.at_most_k = []       # List of tuples: (k, [steps])
         self.one_team = []        # List of tuples: ([steps], [[team1_users], [team2_users], ...])
 
-
-# Efficiently reads an instance file and parses constraints
 def read_file(filename):
     def read_attribute(name):
         line = f.readline()
@@ -98,138 +92,140 @@ def read_file(filename):
                 continue
 
             raise Exception(f'Failed to parse this line: {l}')
-            
     return instance
-
-
-# Function to transform the output
-def transform_output(result):
-    if result['sat'] == 'sat':
-        solution = "\n".join(result['sol'])
-    else:
-        solution = "No solution found."
-
-    output = {
-        "satisfiability": result['sat'],
-        "solution": solution,
-        "execution_time_ms": result['exe_time']
-    }
-    return output
-
-
-# Returns the current time in seconds since the epoch
-def currenttime():
-    return time.time()
-
 
 def Solver(instance, filename, results):
     print(f"Solving instance: {filename}")
     model = cp_model.CpModel()
-    user_assignment = [[model.NewBoolVar(f's{s + 1}: u{u + 1}') for u in range(instance.number_of_users)] for s in range(instance.number_of_steps)]
 
+    # Create variables: user_assignment[s][u] means step s is assigned to user u
+    user_assignment = [[model.NewBoolVar(f's{s + 1}: u{u + 1}') 
+                       for u in range(instance.number_of_users)] 
+                       for s in range(instance.number_of_steps)]
+
+    # Constraint: each step must be assigned to exactly one user
     for step in range(instance.number_of_steps):
         model.AddExactlyOne(user_assignment[step][user] for user in range(instance.number_of_users))
 
+    # Constraint: authorizations
     for user in range(instance.number_of_users):
-        if instance.auth[user]:
+        if instance.auth[user]:  # If user has specific authorizations
             for step in range(instance.number_of_steps):
                 if step not in instance.auth[user]:
                     model.Add(user_assignment[step][user] == 0)
 
+    # Constraint: separation of duty
     for (separated_step1, separated_step2) in instance.SOD:
         for user in range(instance.number_of_users):
+            # If user is assigned to step1, they cannot be assigned to step2
             model.Add(user_assignment[separated_step2][user] == 0).OnlyEnforceIf(user_assignment[separated_step1][user])
+            model.Add(user_assignment[separated_step1][user] == 0).OnlyEnforceIf(user_assignment[separated_step2][user])
 
+    # Constraint: binding of duty
     for (bound_step1, bound_step2) in instance.BOD:
         for user in range(instance.number_of_users):
+            # If user is assigned to step1, they must be assigned to step2 and vice versa
             model.Add(user_assignment[bound_step2][user] == 1).OnlyEnforceIf(user_assignment[bound_step1][user])
+            model.Add(user_assignment[bound_step1][user] == 1).OnlyEnforceIf(user_assignment[bound_step2][user])
 
+    # Constraint: at-most-k
     for (k, steps) in instance.at_most_k:
-        user_assignment_flag = [model.NewBoolVar(f'at-most-k_u{u}') for u in range(instance.number_of_users)]
+        # Create indicator variables for users involved in the steps
+        user_involved = [model.NewBoolVar(f'at-most-k_u{u}') for u in range(instance.number_of_users)]
         for user in range(instance.number_of_users):
-            for step in steps:
-                model.Add(user_assignment_flag[user] == 1).OnlyEnforceIf(user_assignment[step][user])
-            model.Add(sum(user_assignment[step][user] for step in steps) >= user_assignment_flag[user])
-        model.Add(sum(user_assignment_flag) <= k)
+            # User is involved if they're assigned to any of the steps
+            step_assignments = [user_assignment[step][user] for step in steps]
+            model.AddMaxEquality(user_involved[user], step_assignments)
+        
+        # Ensure at most k users are involved
+        model.Add(sum(user_involved) <= k)
 
+    # Constraint: one-team
     for (steps, teams) in instance.one_team:
-        team_flag = [model.NewBoolVar(f'team{t}') for t in range(len(teams))]
-        model.AddExactlyOne(team_flag)
-        for team_index in range(len(teams)):
+        # Create variables for team selection
+        team_selected = [model.NewBoolVar(f'team_{t}') for t in range(len(teams))]
+        
+        # Exactly one team must be selected
+        model.AddExactlyOne(team_selected)
+        
+        # For each team
+        for team_idx, team in enumerate(teams):
+            # For each step in the constraint
             for step in steps:
-                for user in teams[team_index]:
-                    model.Add(user_assignment[step][user] == 0).OnlyEnforceIf(team_flag[team_index].Not())
-        users_in_teams = list(numpy.concatenate(teams).flat)
-        for step in steps:
-            for user in range(instance.number_of_users):
-                if user not in users_in_teams:
-                    model.Add(user_assignment[step][user] == 0)
+                # If this team is selected
+                # Only users from this team can be assigned to the steps
+                for user in range(instance.number_of_users):
+                    if user not in team:
+                        model.Add(user_assignment[step][user] == 0).OnlyEnforceIf(team_selected[team_idx])
 
     # Solve the model
     solver = cp_model.CpSolver()
-    solver.parameters.enumerate_all_solutions = False  # Find only one solution
-    solver.parameters.num_search_workers = 4          # Multi-threading
-
+    solver.parameters.max_time_in_seconds = 60.0  # Set timeout to 60 seconds
+    
     # Timing the solver process
     start_time = time.time()
     status = solver.Solve(model)
     end_time = time.time()
 
-    # Extract results
-    result = {'filename': filename, 'sat': 'unsat', 'exe_time': f"{(end_time - start_time) * 1000:.2f}ms"}
+    # Process results
+    result = {
+        'filename': filename,
+        'sat': 'unsat',
+        'exe_time': f"{(end_time - start_time) * 1000:.2f}ms",
+        'sol': []
+    }
+
     if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         result['sat'] = 'sat'
+        # Extract solution
         result['sol'] = [
-            f's{s + 1}: u{u + 1}' for s in range(instance.number_of_steps)
-            for u in range(instance.number_of_users) if solver.Value(user_assignment[s][u])
+            f's{s + 1}: u{u + 1}'
+            for s in range(instance.number_of_steps)
+            for u in range(instance.number_of_users)
+            if solver.Value(user_assignment[s][u])
         ]
         print("Solution found:")
         for assignment in result['sol']:
             print(assignment)
-    else:
-        result['sol'] = []
-
+    
     print(f"Execution Time: {result['exe_time']}")
-
-    # Store the result for later display
     results.append(result)
     return result
 
 
 def print_results_table(results):
-    # Print a table header
     print("\nResults Table:")
-    print("{:<15} {:<10} {:<20} {:<15}".format("Instance", "Status", "Assignments", "Exec Time"))
+    print("{:<15} {:<10} {:<20} {:<15}".format(
+        "Instance", "Status", "Assignments", "Exec Time"))
     print("-" * 60)
 
-    # Print each result in the table
     for result in results:
-        # assignments = ', '.join(result['sol']) if result['sol'] else "unsat"
         assignments = "sat" if result['sol'] else "unsat"
-        print("{:<15} {:<10} {:<20} {:<15}".format(result['filename'], result['sat'], assignments, result['exe_time']))
+        print("{:<15} {:<10} {:<20} {:<15}".format(
+            result['filename'], result['sat'], assignments, result['exe_time']))
 
 
-# Main usage
 if __name__ == "__main__":
-    limit = 19  # Define the number of instances you want to solve
-    results = []  # Store results for all instances
-
+    results = []
+    limit = 19  # Number of examples to test
+    
+    # First solve all instances
     for i in range(1, limit + 1):
-        filename = f"instances/example{i}.txt"  # Adjust the file path accordingly
-        
-        # Try to read the file and solve the instance
+        filename = f"instances/example{i}.txt"
         try:
             instance = read_file(filename)
-            # In your main execution block
-            # result = Solver(instance, filename)
             result = Solver(instance, filename, results)
-            print(f"\n--- Finished solving {filename} ---\n")
-            print_results_table(results)  # Print the updated table after each solve
-        except ValueError as ve:
-            print(f"Error reading file {filename}: {ve}")
-            continue  # Skip this file and proceed with the next one
-
-
-# # Call the main function
-# if _name_ == "_main_":
-#     main()
+        except Exception as e:
+            print(f"Error processing {filename}: {e}")
+            continue
+    
+    # Print final results table once at the end
+    print("\nFinal Results Table:")
+    print("{:<15} {:<10} {:<20} {:<15}".format(
+        "Instance", "Status", "Assignments", "Exec Time"))
+    print("-" * 60)
+    
+    for result in results:
+        assignments = "sat" if result['sol'] else "unsat"
+        print("{:<15} {:<10} {:<20} {:<15}".format(
+            result['filename'], result['sat'], assignments, result['exe_time']))
