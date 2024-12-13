@@ -23,5 +23,5 @@ python main.py --files example1.txt --verbose
 
 To solve multiple files:
 ```bash
-python main.py --files example1.txt example2.txt example3.txt --verbose
+python main.py --files example1.txt example2.txt example3.txt
 ```
