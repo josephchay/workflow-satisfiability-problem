@@ -1,3 +1,7 @@
+.venv/
 __pycache__/
 
 .idea/
+
+users.json
+login_history.json

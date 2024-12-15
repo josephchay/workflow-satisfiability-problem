@@ -1,135 +1,68 @@
-import sys
-from PyQt5.QtWidgets import QApplication
-from PyQt5.QtCore import Qt
-import argparse
-import time
-from tabulate import tabulate
+# This import statement brings in the GUIManager class from the user_interface module
+# The GUIManager is responsible for creating and managing the graphical user interface
+# It handles all window creation, component layout, and event handling for the application
+# Without this import, we wouldn't have any visual interface for users to interact with
+from user_interface import GUIManager
 
-from solver import read_file, solve_instance
-from gui import WSPGUI
-
-
-def solve_file(filename: str, verbose: bool = False) -> dict:
-    """Solve a single WSP instance file"""
-    try:
-        # Read and parse the instance
-        instance = read_file(filename)
-
-        if verbose:
-            print(f"\nProcessing file: {filename}")
-            print("=" * 80)
-            print(f"Steps: {instance.number_of_steps}")
-            print(f"Users: {instance.number_of_users}")
-            print(f"Constraints: {instance.number_of_constraints}")
-            print("=" * 80)
-
-        # Solve the instance and measure time
-        start_time = time.time()
-        result = solve_instance(instance)
-        solve_time = time.time() - start_time
-
-        # Add timing information to result
-        result['time'] = solve_time
-        result['filename'] = filename
-
-        if verbose:
-            print_result(result)
-
-        return result
-
-    except Exception as e:
-        print(f"Error processing {filename}: {str(e)}")
-        return {'status': 'error', 'message': str(e), 'filename': filename}
+# This imports the initialize_login function from the authentication module
+# This function handles all user authentication processes including:
+# - Displaying the login window
+# - Validating user credentials
+# - Managing different user types (student vs invigilator)
+# - Returning the authentication status and user role
+from authentication import initialize_login
 
 
-def solve_batch(filenames: list, verbose: bool = False) -> list:
-    """Solve multiple WSP instance files"""
-    results = []
-
-    for filename in filenames:
-        result = solve_file(filename, verbose)
-        results.append(result)
-
-    if verbose:
-        print_summary(results)
-
-    return results
-
-
-def print_result(result: dict):
-    """Print the result of a single instance"""
-    from ortools.sat.python import cp_model
-
-    print("\nResults:")
-    print("=" * 80)
-
-    if result['status'] in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        print("Solution found!")
-        if result.get('assignments'):
-            solution_data = [["s" + str(s), "u" + str(u)] for s, u in result['assignments']]
-            print("\n" + tabulate(solution_data, headers=['Step', 'User'], tablefmt='grid'))
-        else:
-            print("\nNo assignments needed")
-    else:
-        print("Problem is unsatisfiable")
-
-    print(f"\nExecution time: {result['time'] * 1000:.2f}ms")
-    print("=" * 80)
-
-
-def print_summary(results: list):
-    """Print summary of multiple results"""
-    from ortools.sat.python import cp_model
-
-    print("\nSummary:")
-    print("=" * 80)
-
-    summary_data = []
-    for result in results:
-        status = "Error"
-        if 'status' in result:
-            if result['status'] in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-                status = "Satisfiable"
-            elif result['status'] == cp_model.INFEASIBLE:
-                status = "Unsatisfiable"
-
-        time_ms = result.get('time', 0) * 1000
-        summary_data.append([
-            result['filename'],
-            status,
-            f"{time_ms:.2f}ms"
-        ])
-
-    print(tabulate(summary_data,
-                   headers=['Instance', 'Status', 'Time'],
-                   tablefmt='grid'))
-    print("=" * 80)
-
-
+# This is the main entry point function for the application
+# It orchestrates the high-level flow of the program
+# All core application logic starts from this function
+# It's kept separate from the global scope for better organization and encapsulation
 def main():
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(description='Workflow Satisfiability Problem Solver')
-    parser.add_argument('--gui', action='store_true', help='Launch GUI interface')
-    parser.add_argument('--files', nargs='*', help='Input files to process')
-    parser.add_argument('--verbose', action='store_true', help='Show detailed output')
-    args = parser.parse_args()
+    # Call the initialize_login function to start the authentication process
+    # This will show a login dialog to the user and wait for them to log in
+    # The function returns two values:
+    # - login_success: boolean indicating if login was successful
+    # - user_type: string indicating the type of user (student/invigilator)
+    # These values are stored in variables for further processing
+    login_success, user_type = initialize_login()
 
-    # Launch GUI if requested
-    if args.gui:
-        app = QApplication(sys.argv)
-        app.setStyle('Fusion')
-        gui = WSPGUI()
-        gui.show()
-        sys.exit(app.exec_())
+    # Check if the login was successful by evaluating the login_success boolean
+    # This ensures that only authenticated users can access the main application
+    # The if statement creates a branch in program flow based on authentication
+    # This is a critical security check that prevents unauthorized access
+    if login_success:
+        # Output a success message to the console for logging purposes
+        # This helps with debugging and monitoring application usage
+        # The f-string formatting allows us to include the user_type dynamically
+        # This provides immediate feedback about who is using the system
+        print(f"Successfully logged in as: {user_type}")
 
-    # Process files if provided
-    elif args.files:
-        solve_batch(args.files, args.verbose)
+        # Create a new instance of the GUIManager class
+        # This initializes all the necessary GUI components
+        # Sets up the main application window and all its child elements
+        # Prepares the application's visual interface for user interaction
+        app = GUIManager()
 
-    # Show usage if no arguments provided
+        # Start the main application loop
+        # This begins the event processing for the GUI
+        # Handles all user interactions with the interface
+        # Keeps the application running until the user closes it
+        app.run()
     else:
-        parser.print_help()
+        # Output a failure message if login was unsuccessful
+        # This provides feedback for failed login attempts
+        # Helps with debugging authentication issues
+        # Gives users immediate feedback about the failed login
+        print("Login failed or cancelled")
 
 
-if __name__ == '__main__':
+# This is a standard Python idiom that checks if this file is being run directly
+# It prevents code from being executed if the file is imported as a module
+# This is a Python best practice for controlling code execution
+# Helps maintain clean separation between import behavior and direct execution
+if __name__ == "__main__":
+    # Call the main function to start the application
+    # This is the actual entry point of program execution
+    # Everything starts from this line when the script is run
+    # This keeps the global scope clean and follows Python best practices
     main()
