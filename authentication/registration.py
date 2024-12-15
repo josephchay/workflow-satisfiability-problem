@@ -1,7 +1,7 @@
-from gui import timetablinggui
+import customtkinter
 
 
-class RegistrationFrame(timetablinggui.GUIFrame):
+class RegistrationFrame(customtkinter.CTkFrame):
     def __init__(self, parent, register_callback):
         super().__init__(parent)
         self.register_callback = register_callback
@@ -9,17 +9,17 @@ class RegistrationFrame(timetablinggui.GUIFrame):
 
     def _create_widgets(self):
         # Title
-        label_frame = timetablinggui.GUIFrame(self)
+        label_frame = customtkinter.CTkFrame(self)
         label_frame.pack(pady=20)
 
-        self.title = timetablinggui.GUILabel(
+        self.title = customtkinter.CTkLabel(
             label_frame,
             text="Create Student Account",
             font=("Arial", 24, "bold")
         )
         self.title.pack()
 
-        self.subtitle = timetablinggui.GUILabel(
+        self.subtitle = customtkinter.CTkLabel(
             label_frame,
             text="Enter student details below",
             font=("Arial", 14)
@@ -27,14 +27,14 @@ class RegistrationFrame(timetablinggui.GUIFrame):
         self.subtitle.pack()
 
         # Full Name
-        self.name_label = timetablinggui.GUILabel(
+        self.name_label = customtkinter.CTkLabel(
             self,
             text="Student Full Name",
             font=("Arial", 12)
         )
         self.name_label.pack(pady=(20, 0), padx=30, anchor="w")
 
-        self.name_entry = timetablinggui.GUIEntry(
+        self.name_entry = customtkinter.GUIEntry(
             self,
             placeholder_text="Enter student's full name",
             width=300
@@ -42,14 +42,14 @@ class RegistrationFrame(timetablinggui.GUIFrame):
         self.name_entry.pack(pady=(5, 10), padx=30)
 
         # Generated Username Display
-        self.username_label = timetablinggui.GUILabel(
+        self.username_label = customtkinter.CTkLabel(
             self,
             text="Generated Username",
             font=("Arial", 12)
         )
         self.username_label.pack(pady=(10, 0), padx=30, anchor="w")
 
-        self.username_display = timetablinggui.GUILabel(
+        self.username_display = customtkinter.CTkLabel(
             self,
             text="Username will be generated",
             font=("Arial", 12),
@@ -58,14 +58,14 @@ class RegistrationFrame(timetablinggui.GUIFrame):
         self.username_display.pack(pady=(5, 10), padx=30)
 
         # Password
-        self.password_label = timetablinggui.GUILabel(
+        self.password_label = customtkinter.CTkLabel(
             self,
             text="Password",
             font=("Arial", 12)
         )
         self.password_label.pack(pady=(10, 0), padx=30, anchor="w")
 
-        self.password_entry = timetablinggui.GUIEntry(
+        self.password_entry = customtkinter.GUIEntry(
             self,
             placeholder_text="Enter password for student",
             show="•",
@@ -74,7 +74,7 @@ class RegistrationFrame(timetablinggui.GUIFrame):
         self.password_entry.pack(pady=(5, 20), padx=30)
 
         # Register button
-        self.register_button = timetablinggui.GUIButton(
+        self.register_button = customtkinter.GUIButton(
             self,
             text="Register Student",
             command=self._handle_register,
@@ -83,7 +83,7 @@ class RegistrationFrame(timetablinggui.GUIFrame):
         self.register_button.pack(pady=20, padx=30)
 
         # Error label
-        self.error_label = timetablinggui.GUILabel(
+        self.error_label = customtkinter.CTkLabel(
             self,
             text="",
             text_color="red",

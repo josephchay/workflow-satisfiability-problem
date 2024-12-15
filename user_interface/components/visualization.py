@@ -18,7 +18,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Import GUI components
-from gui import timetablinggui
+import customtkinter
 
 from .views import SchedulerView
 

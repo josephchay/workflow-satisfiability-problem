@@ -16,7 +16,7 @@ from factories.solver_factory import SolverFactory
 # Import file reading utilities
 from filesystem import FileReader
 # Import GUI components
-from gui import timetablinggui
+import customtkinter
 # Import utility functions
 from utilities.functions import format_elapsed_time
 
@@ -30,7 +30,7 @@ class WSPController:
     # Handle folder selection for test instances
     def select_folder(self):
         # Open folder dialog
-        folder = timetablinggui.filedialog.askdirectory(title="Select Tests Directory")
+        folder = customtkinter.filedialog.askdirectory(title="Select Tests Directory")
         if folder:
             # Store selected path
             self.view.tests_dir = Path(folder)

@@ -20,6 +20,10 @@ def transform_output(result):
     return output
 
 
+class ORToolsSolver:
+    pass
+
+
 def Solver(instance, filename, results):
     print(f"Solving instance: {filename}")
     model = cp_model.CpModel()

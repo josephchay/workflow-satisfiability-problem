@@ -3,11 +3,11 @@ from typing import List
 
 # Import solver factory and GUI components
 from factories.solver_factory import SolverFactory
-from gui import timetablinggui
+import customtkinter
 
 
-# Main view class for the scheduler GUI, inheriting from TimetablingGUI
-class SchedulerView(timetablinggui.TimetablingGUI):
+# Main view class for the scheduler GUI, inheriting
+class SchedulerView(customtkinter.CTk):
     # Initialize the view with GUI setup and instance variables
     def __init__(self):
         # Initialize GUI components
@@ -20,9 +20,9 @@ class SchedulerView(timetablinggui.TimetablingGUI):
     # Set up GUI appearance settings
     def _initialize_gui(self):
         # Set dark mode appearance
-        timetablinggui.set_appearance_mode("dark")
+        customtkinter.set_appearance_mode("dark")
         # Set blue color theme
-        timetablinggui.set_default_color_theme("blue")
+        customtkinter.set_default_color_theme("blue")
 
     # Initialize all instance variables to None or empty collections
     def _initialize_instance_variables(self):
@@ -74,7 +74,7 @@ class SchedulerView(timetablinggui.TimetablingGUI):
     # Create the sidebar panel
     def _create_sidebar(self):
         # Create frame for sidebar
-        self.sidebar_frame = timetablinggui.GUIFrame(self, width=200, corner_radius=0)
+        self.sidebar_frame = customtkinter.CTkFrame(self, width=200, corner_radius=0)
         # Position sidebar in grid
         self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
         # Configure row weight
@@ -90,10 +90,10 @@ class SchedulerView(timetablinggui.TimetablingGUI):
     # Create logo section in sidebar
     def _create_logo(self):
         # Create label for logo
-        self.logo_label = timetablinggui.GUILabel(
+        self.logo_label = customtkinter.CTkLabel(
             self.sidebar_frame,
             text="Assessment Scheduler",
-            font=timetablinggui.GUIFont(size=20, weight="bold")
+            font=customtkinter.CTkFont(size=20, weight="bold")
         )
         # Position logo label
         self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 10))
@@ -109,7 +109,7 @@ class SchedulerView(timetablinggui.TimetablingGUI):
 
         # Create each button
         for i, (text, command) in enumerate(buttons, 1):
-            button = timetablinggui.GUIButton(
+            button = customtkinter.CTkButton(
                 self.sidebar_frame,
                 width=180,
                 text=text,
@@ -121,19 +121,19 @@ class SchedulerView(timetablinggui.TimetablingGUI):
     # Create solver selection dropdown in sidebar
     def _create_solver_selection(self):
         # Create frame for solver selection
-        self.solver_frame = timetablinggui.GUIFrame(self.sidebar_frame)
+        self.solver_frame = customtkinter.CTkFrame(self.sidebar_frame)
         self.solver_frame.grid(row=4, column=0, padx=20, pady=10)
 
         # Create label for solver selection
-        self.solver_label = timetablinggui.GUILabel(
+        self.solver_label = customtkinter.CTkLabel(
             self.solver_frame,
             text="Select Solution:",
-            font=timetablinggui.GUIFont(size=12)
+            font=customtkinter.CTkFont(size=12)
         )
         self.solver_label.pack(pady=5)
 
         # Create dropdown menu for solver selection
-        self.solver_menu = timetablinggui.GUIOptionMenu(
+        self.solver_menu = customtkinter.CTkOptionMenu(
             self.solver_frame,
             values=list(SolverFactory.solvers.keys()),
             command=None
@@ -145,7 +145,7 @@ class SchedulerView(timetablinggui.TimetablingGUI):
     # Create comparison mode controls in sidebar
     def _create_comparison_controls(self):
         # Create switch for comparison mode
-        # self.comparison_mode_var = timetablinggui.GUISwitch(
+        # self.comparison_mode_var = customtkinter.CTkSwitch(
         #     self.sidebar_frame,
         #     text="Enable Comparison Mode",
         #     command=self.comparison_controller.toggle_comparison_mode
@@ -153,17 +153,17 @@ class SchedulerView(timetablinggui.TimetablingGUI):
         # self.comparison_mode_var.grid(row=5, column=0, padx=20, pady=10)
 
         # Create label for second solver selection
-        self.second_solver_label = timetablinggui.GUILabel(
+        self.second_solver_label = customtkinter.CTkLabel(
             self.sidebar_frame,
             text="Second Solver (Optional):",
-            font=timetablinggui.GUIFont(size=12)
+            font=customtkinter.CTkFont(size=12)
         )
         self.second_solver_label.grid(row=6, column=0, padx=20, pady=5)
         # Hide label initially
         self.second_solver_label.grid_remove()
 
         # Create dropdown for second solver
-        self.second_solver_menu = timetablinggui.GUIOptionMenu(
+        self.second_solver_menu = customtkinter.CTkOptionMenu(
             self.sidebar_frame,
             values=list(SolverFactory.solvers.keys()),
             command=None
@@ -177,7 +177,7 @@ class SchedulerView(timetablinggui.TimetablingGUI):
     # Create main content frame
     def _create_main_frame(self):
         # Create main frame
-        self.main_frame = timetablinggui.GUIFrame(self, corner_radius=0)
+        self.main_frame = customtkinter.CTkFrame(self, corner_radius=0)
         self.main_frame.grid(row=0, column=1, sticky="nsew")
         # Configure grid weights
         self.main_frame.grid_rowconfigure(0, weight=1)
@@ -190,7 +190,7 @@ class SchedulerView(timetablinggui.TimetablingGUI):
     # Create notebook for results tabs
     def _create_results_notebook(self):
         # Create tabview for results
-        self.results_notebook = timetablinggui.GUITabview(self.main_frame)
+        self.results_notebook = customtkinter.CTkTabview(self.main_frame)
         self.results_notebook.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
         self.results_notebook._segmented_button.configure(width=400)
 
@@ -205,9 +205,9 @@ class SchedulerView(timetablinggui.TimetablingGUI):
             tab.grid_columnconfigure(0, weight=1)
 
         # Create scrollable frames for each tab
-        self.all_scroll = timetablinggui.GUIScrollableFrame(self.all_tab)
-        self.sat_scroll = timetablinggui.GUIScrollableFrame(self.sat_tab)
-        self.unsat_scroll = timetablinggui.GUIScrollableFrame(self.unsat_tab)
+        self.all_scroll = customtkinter.CTkScrollableFrame(self.all_tab)
+        self.sat_scroll = customtkinter.CTkScrollableFrame(self.sat_tab)
+        self.unsat_scroll = customtkinter.CTkScrollableFrame(self.unsat_tab)
 
         # Pack scrollable frames
         for scroll in [self.all_scroll, self.sat_scroll, self.unsat_scroll]:
@@ -216,48 +216,48 @@ class SchedulerView(timetablinggui.TimetablingGUI):
     # Create progress bar and status label
     def _create_progress_indicators(self):
         # Create progress bar
-        self.progressbar = timetablinggui.GUIProgressBar(self.main_frame)
+        self.progressbar = customtkinter.CTkProgressBar(self.main_frame)
         self.progressbar.grid(row=1, column=0, padx=20, pady=10, sticky="ew")
         self.progressbar.set(0)
 
         # Create status label
-        self.status_label = timetablinggui.GUILabel(self.main_frame, text="Ready")
+        self.status_label = customtkinter.CTkLabel(self.main_frame, text="Ready")
         self.status_label.grid(row=2, column=0, padx=20, pady=10)
 
     # Create frame for displaying instance results
     def create_instance_frame(self, parent, instance_name, data, headers=None, solution=None, problem=None, solution_time=None, is_sat_tab=False):
         # Create main instance frame
-        instance_frame = timetablinggui.GUIFrame(parent)
+        instance_frame = customtkinter.CTkFrame(parent)
         instance_frame.pack(fill="x", padx=10, pady=5)
 
         # Create header frame
-        header_frame = timetablinggui.GUIFrame(instance_frame)
+        header_frame = customtkinter.CTkFrame(instance_frame)
         header_frame.pack(fill="x", padx=5, pady=5)
 
         # Create left frame for instance name
-        left_frame = timetablinggui.GUIFrame(header_frame)
+        left_frame = customtkinter.CTkFrame(header_frame)
         left_frame.pack(side="left", fill="x", expand=True)
 
         # Create instance label
-        instance_label = timetablinggui.GUILabel(
+        instance_label = customtkinter.CTkLabel(
             left_frame,
             text=f"Instance: {instance_name}",
-            font=timetablinggui.GUIFont(size=12, weight="bold")
+            font=customtkinter.CTkFont(size=12, weight="bold")
         )
         instance_label.pack(side="left", pady=5)
 
         # Create visualization controls for satisfiable solutions
         if is_sat_tab and solution is not None and problem is not None:
             # Create control frame
-            control_frame = timetablinggui.GUIFrame(header_frame)
+            control_frame = customtkinter.CTkFrame(header_frame)
             control_frame.pack(side="right", padx=5)
 
             # Add execution time if available
             if solution_time is not None:
-                time_label = timetablinggui.GUILabel(
+                time_label = customtkinter.CTkLabel(
                     control_frame,
                     text=f"Execution Time: {solution_time}ms",
-                    font=timetablinggui.GUIFont(size=12)
+                    font=customtkinter.CTkFont(size=12)
                 )
                 time_label.pack(side="left", padx=(0, 10), pady=5)
 
@@ -273,7 +273,7 @@ class SchedulerView(timetablinggui.TimetablingGUI):
                     self.visualization_manager._show_graph(solution, problem, instance_name, "Timetable Heatmap")
 
             # Create visualization dropdown menu
-            visualization_menu = timetablinggui.GUIOptionMenu(
+            visualization_menu = customtkinter.CTkOptionMenu(
                 control_frame,
                 values=[
                     "Select Visualization",
@@ -282,22 +282,22 @@ class SchedulerView(timetablinggui.TimetablingGUI):
                     "Visualize Student Spread",
                     "Visualize Timetable Heatmap"
                 ],
-                variable=timetablinggui.StringVar(value="Select Visualization"),
+                variable=customtkinter.StringVar(value="Select Visualization"),
                 command=on_visualization_select,
                 width=200
             )
             visualization_menu.pack(side="right")
 
         # Create scrollable table container
-        table_container = timetablinggui.GUIFrame(instance_frame)
+        table_container = customtkinter.CTkFrame(instance_frame)
         table_container.pack(fill="both", expand=True)
 
         # Create canvas for horizontal scrolling
-        canvas = timetablinggui.GUICanvas(table_container)
-        scrollbar = timetablinggui.GUIScrollbar(table_container, orientation="horizontal", command=canvas.xview)
+        canvas = customtkinter.CTkCanvas(table_container)
+        scrollbar = customtkinter.CTkScrollbar(table_container, orientation="horizontal", command=canvas.xview)
 
         # Create frame inside canvas
-        inner_frame = timetablinggui.GUIFrame(canvas)
+        inner_frame = customtkinter.CTkFrame(canvas)
 
         # Configure scrolling
         canvas.configure(xscrollcommand=scrollbar.set)
@@ -314,7 +314,7 @@ class SchedulerView(timetablinggui.TimetablingGUI):
             values = [table_headers] + data
 
             # Create table
-            table = timetablinggui.TableManager(
+            table = customtkinter.TableManager(
                 master=inner_frame,
                 row=len(values),
                 column=len(table_headers),
@@ -348,78 +348,78 @@ class SchedulerView(timetablinggui.TimetablingGUI):
     # Create constraint selection frame
     def _create_constraints_frame(self):
         # Create main constraints frame
-        self.constraints_frame = timetablinggui.GUIFrame(self.sidebar_frame)
+        self.constraints_frame = customtkinter.CTkFrame(self.sidebar_frame)
         self.constraints_frame.grid(row=8, column=0, padx=20, pady=10, sticky="ew")
 
         # Create constraints label
-        constraints_label = timetablinggui.GUILabel(
+        constraints_label = customtkinter.CTkLabel(
             self.constraints_frame,
             text="Select Constraints:",
-            font=timetablinggui.GUIFont(size=12)
+            font=customtkinter.CTkFont(size=12)
         )
         constraints_label.pack(pady=5)
 
         # Create dictionary of constraint switches
         self.constraint_vars = {
             # Core Constraints
-            'single_assignment': timetablinggui.GUISwitch(
+            'single_assignment': customtkinter.CTkSwitch(
                 self.constraints_frame,
                 text="Single Assignment",
                 onvalue=True, offvalue=False
             ),
-            'room_conflicts': timetablinggui.GUISwitch(
+            'room_conflicts': customtkinter.CTkSwitch(
                 self.constraints_frame,
                 text="Room Conflicts",
                 onvalue=True, offvalue=False
             ),
-            'room_capacity': timetablinggui.GUISwitch(
+            'room_capacity': customtkinter.CTkSwitch(
                 self.constraints_frame,
                 text="Room Capacity",
                 onvalue=True, offvalue=False
             ),
-            'student_spacing': timetablinggui.GUISwitch(
+            'student_spacing': customtkinter.CTkSwitch(
                 self.constraints_frame,
                 text="Student Spacing",
                 onvalue=True, offvalue=False
             ),
-            'max_exams_per_slot': timetablinggui.GUISwitch(
+            'max_exams_per_slot': customtkinter.CTkSwitch(
                 self.constraints_frame,
                 text="Max Exams Per Slot",
                 onvalue=True, offvalue=False
             ),
 
             # Additional Constraints
-            'morning_sessions': timetablinggui.GUISwitch(
+            'morning_sessions': customtkinter.CTkSwitch(
                 self.constraints_frame,
                 text="Morning Sessions",
                 onvalue=True, offvalue=False
             ),
-            'exam_group_size': timetablinggui.GUISwitch(
+            'exam_group_size': customtkinter.CTkSwitch(
                 self.constraints_frame,
                 text="Similar Size Groups",
                 onvalue=True, offvalue=False
             ),
-            'department_grouping': timetablinggui.GUISwitch(
+            'department_grouping': customtkinter.CTkSwitch(
                 self.constraints_frame,
                 text="Department Grouping",
                 onvalue=True, offvalue=False
             ),
-            'room_balancing': timetablinggui.GUISwitch(
+            'room_balancing': customtkinter.CTkSwitch(
                 self.constraints_frame,
                 text="Room Balancing",
                 onvalue=True, offvalue=False
             ),
-            'invigilator_assignment': timetablinggui.GUISwitch(
+            'invigilator_assignment': customtkinter.CTkSwitch(
                 self.constraints_frame,
                 text="Invigilator Assignment",
                 onvalue=True, offvalue=False
             ),
-            'break_period': timetablinggui.GUISwitch(
+            'break_period': customtkinter.CTkSwitch(
                 self.constraints_frame,
                 text="Break Period",
                 onvalue=True, offvalue=False
             ),
-            'invigilator_break': timetablinggui.GUISwitch(
+            'invigilator_break': customtkinter.CTkSwitch(
                 self.constraints_frame,
                 text="Invigilator Break",
                 onvalue=True, offvalue=False

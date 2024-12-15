@@ -1,12 +1,12 @@
 from typing import Optional, Tuple
 
-from gui import timetablinggui
+import customtkinter
 from .database import Database
 from .invigilator_access import InvigilatorOptionsFrame
 from .registration import RegistrationFrame
 
 
-class LoginFrame(timetablinggui.GUIFrame):
+class LoginFrame(customtkinter.CTkFrame):
     def __init__(self, parent, login_callback):
         super().__init__(parent)
         self.login_callback = login_callback
@@ -14,17 +14,17 @@ class LoginFrame(timetablinggui.GUIFrame):
 
     def _create_widgets(self):
         # Title
-        label_frame = timetablinggui.GUIFrame(self)
+        label_frame = customtkinter.CTkFrame(self)
         label_frame.pack(pady=20)
 
-        self.login_title = timetablinggui.GUILabel(
+        self.login_title = customtkinter.CTkLabel(
             label_frame,
             text="Assessment Scheduler",
             font=("Arial", 24, "bold")  # Using standard font
         )
         self.login_title.pack()
 
-        self.login_subtitle = timetablinggui.GUILabel(
+        self.login_subtitle = customtkinter.CTkLabel(
             label_frame,
             text="Login to continue",
             font=("Arial", 14)  # Using standard font
@@ -32,14 +32,14 @@ class LoginFrame(timetablinggui.GUIFrame):
         self.login_subtitle.pack()
 
         # Username
-        self.username_label = timetablinggui.GUILabel(
+        self.username_label = customtkinter.CTkLabel(
             self,
             text="Username",
             font=("Arial", 12)  # Using standard font
         )
         self.username_label.pack(pady=(20, 0), padx=30, anchor="w")
 
-        self.username_entry = timetablinggui.GUIEntry(
+        self.username_entry = customtkinter.CTkEntry(
             self,
             placeholder_text="Enter your username",
             width=300
@@ -47,14 +47,14 @@ class LoginFrame(timetablinggui.GUIFrame):
         self.username_entry.pack(pady=(5, 10), padx=30)
 
         # Password
-        self.password_label = timetablinggui.GUILabel(
+        self.password_label = customtkinter.CTkLabel(
             self,
             text="Password",
             font=("Arial", 12)  # Using standard font
         )
         self.password_label.pack(pady=(10, 0), padx=30, anchor="w")
 
-        self.password_entry = timetablinggui.GUIEntry(
+        self.password_entry = customtkinter.CTkEntry(
             self,
             placeholder_text="Enter your password",
             show="•",
@@ -63,7 +63,7 @@ class LoginFrame(timetablinggui.GUIFrame):
         self.password_entry.pack(pady=(5, 20), padx=30)
 
         # Login button
-        self.login_button = timetablinggui.GUIButton(
+        self.login_button = customtkinter.CTkButton(
             self,
             text="Login",
             command=self._handle_login,
@@ -72,7 +72,7 @@ class LoginFrame(timetablinggui.GUIFrame):
         self.login_button.pack(pady=10, padx=30)
 
         # Error label
-        self.error_label = timetablinggui.GUILabel(
+        self.error_label = customtkinter.CTkLabel(
             self,
             text="",
             text_color="red",
@@ -94,7 +94,7 @@ class LoginFrame(timetablinggui.GUIFrame):
         self.error_label.configure(text=message)
 
 
-class LoginWindow(timetablinggui.GUIToplevel):
+class LoginWindow(customtkinter.CTkToplevel):
     def __init__(self):
         try:
             super().__init__()
@@ -117,7 +117,7 @@ class LoginWindow(timetablinggui.GUIToplevel):
             print(f"Warning: Could not set window color: {e}")
 
         # Main container
-        self.container = timetablinggui.GUIFrame(self)
+        self.container = customtkinter.CTkFrame(self)
         self.container.pack(fill="both", expand=True, padx=20, pady=20)
 
         # Create frames

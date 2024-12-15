@@ -1,7 +1,7 @@
-from gui import timetablinggui
+import customtkinter
 
 
-class InvigilatorOptionsFrame(timetablinggui.GUIFrame):
+class InvigilatorOptionsFrame(customtkinter.CTkFrame):
     def __init__(self, parent, create_student_callback, continue_callback, logout_callback):
         super().__init__(parent)
         self.create_student_callback = create_student_callback
@@ -11,17 +11,17 @@ class InvigilatorOptionsFrame(timetablinggui.GUIFrame):
 
     def _create_widgets(self):
         # Title
-        label_frame = timetablinggui.GUIFrame(self)
+        label_frame = customtkinter.CTkFrame(self)
         label_frame.pack(pady=20)
 
-        self.title = timetablinggui.GUILabel(
+        self.title = customtkinter.CTkLabel(
             label_frame,
             text="Welcome, Invigilator",
             font=("Arial", 24, "bold")  # Using standard font
         )
         self.title.pack()
 
-        self.subtitle = timetablinggui.GUILabel(
+        self.subtitle = customtkinter.CTkLabel(
             label_frame,
             text="Please select an option",
             font=("Arial", 14)  # Using standard font
@@ -29,7 +29,7 @@ class InvigilatorOptionsFrame(timetablinggui.GUIFrame):
         self.subtitle.pack()
 
         # Create Student Account button
-        self.create_student_button = timetablinggui.GUIButton(
+        self.create_student_button = customtkinter.CTkButton(
             self,
             text="Create Student Account",
             command=self.create_student_callback,
@@ -38,7 +38,7 @@ class InvigilatorOptionsFrame(timetablinggui.GUIFrame):
         self.create_student_button.pack(pady=20, padx=30)
 
         # Continue to Main Application button
-        self.continue_button = timetablinggui.GUIButton(
+        self.continue_button = customtkinter.CTkButton(
             self,
             text="Continue to Main Application",
             command=self.continue_callback,
@@ -47,7 +47,7 @@ class InvigilatorOptionsFrame(timetablinggui.GUIFrame):
         self.continue_button.pack(pady=10, padx=30)
 
         # Logout button
-        self.logout_button = timetablinggui.GUIButton(
+        self.logout_button = customtkinter.CTkButton(
             self,
             text="Logout",
             command=self.logout_callback,
@@ -59,4 +59,3 @@ class InvigilatorOptionsFrame(timetablinggui.GUIFrame):
 
     def update_welcome_message(self, name):
         self.title.configure(text=f"Welcome, {name}")
-
