@@ -1,1 +1,1 @@
-from .reader import ProblemFileReader
+from .reader import FileReader

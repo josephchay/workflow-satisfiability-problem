@@ -46,11 +46,11 @@ class SchedulerView(timetablinggui.TimetablingGUI):
         self.current_problem = None
 
     # Set up controllers and visualization manager for the view
-    def set_controllers(self, scheduler_controller, comparison_controller, visualization_manager):
+    def set_controllers(self, scheduler_controller, visualization_manager):
         # Store reference to scheduler controller
         self.scheduler_controller = scheduler_controller
         # Store reference to comparison controller
-        self.comparison_controller = comparison_controller
+        # self.comparison_controller = comparison_controller
         # Store reference to visualization manager
         self.visualization_manager = visualization_manager
         # Create the GUI layout after setting controllers
@@ -102,8 +102,8 @@ class SchedulerView(timetablinggui.TimetablingGUI):
     def _create_buttons(self):
         # Define buttons with their text and commands
         buttons = [
-            ("Select Problem Instances", self.scheduler_controller.select_folder),
-            ("Run Scheduler", self.scheduler_controller.run_scheduler),
+            ("Select Instances", self.scheduler_controller.select_folder),
+            ("Solve", self.scheduler_controller.run),
             ("Clear Results", self.clear_results)
         ]
 
@@ -145,12 +145,12 @@ class SchedulerView(timetablinggui.TimetablingGUI):
     # Create comparison mode controls in sidebar
     def _create_comparison_controls(self):
         # Create switch for comparison mode
-        self.comparison_mode_var = timetablinggui.GUISwitch(
-            self.sidebar_frame,
-            text="Enable Comparison Mode",
-            command=self.comparison_controller.toggle_comparison_mode
-        )
-        self.comparison_mode_var.grid(row=5, column=0, padx=20, pady=10)
+        # self.comparison_mode_var = timetablinggui.GUISwitch(
+        #     self.sidebar_frame,
+        #     text="Enable Comparison Mode",
+        #     command=self.comparison_controller.toggle_comparison_mode
+        # )
+        # self.comparison_mode_var.grid(row=5, column=0, padx=20, pady=10)
 
         # Create label for second solver selection
         self.second_solver_label = timetablinggui.GUILabel(

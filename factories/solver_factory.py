@@ -1,7 +1,7 @@
 from typing import Dict, Type
 from solvers import ZThreeSolver, ORToolsSolver, GurobiSolver, CBCSolver, SCIPSolver, DEAPSolver, LocalSearchSolver, TabuSearchSolver
 
-from utilities import SchedulingProblem
+from components import Instance
 
 
 class SolverFactory:
@@ -17,11 +17,11 @@ class SolverFactory:
     }
 
     @staticmethod
-    def solve_with_all_solvers(problem: SchedulingProblem):
+    def solve_with_all_solvers(instance: Instance):
         results = {}
         for name, solver_class in SolverFactory.solvers.items():
             try:
-                solver = solver_class(problem)
+                solver = solver_class(instance)
                 solution = solver.solve()
                 results[name] = {
                     'solution': solution,
@@ -35,7 +35,7 @@ class SolverFactory:
         return results
 
     @staticmethod
-    def get_solver(name: str, problem: SchedulingProblem, active_constraints=None):
+    def get_solver(name: str, instance: Instance, active_constraints=None):
         if name not in SolverFactory.solvers:
             raise ValueError(f"Unknown solver: {name}")
-        return SolverFactory.solvers[name](problem, active_constraints)
+        return SolverFactory.solvers[name](instance, active_constraints)
