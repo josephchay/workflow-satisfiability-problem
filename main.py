@@ -24,7 +24,8 @@ def main():
     # - login_success: boolean indicating if login was successful
     # - user_type: string indicating the type of user (student/invigilator)
     # These values are stored in variables for further processing
-    login_success, user_type = initialize_login()
+    login_success = True
+    # login_success, user_type = initialize_login()
 
     # Check if the login was successful by evaluating the login_success boolean
     # This ensures that only authenticated users can access the main application
@@ -35,7 +36,8 @@ def main():
         # This helps with debugging and monitoring application usage
         # The f-string formatting allows us to include the user_type dynamically
         # This provides immediate feedback about who is using the system
-        print(f"Successfully logged in as: {user_type}")
+        print(f"Successfully logged in")
+        # print(f"Successfully logged in as {user_type}")
 
         # Create a new instance of the GUIManager class
         # This initializes all the necessary GUI components

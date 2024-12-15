@@ -1,3 +1,6 @@
+import time
+
+
 # Function that takes milliseconds as input and returns a formatted time string
 def format_elapsed_time(elapsed_ms: int) -> str:
     """Format milliseconds into minutes, seconds, and milliseconds"""
@@ -10,3 +13,8 @@ def format_elapsed_time(elapsed_ms: int) -> str:
 
     # Return formatted string - if seconds >= 1, show whole seconds, otherwise show decimal seconds
     return f"{minutes}m {seconds:.0f}s" if seconds >= 1 else f"{minutes}m {seconds:.3f}s"
+
+
+# Returns the current time in seconds since the epoch
+def currenttime():
+    return time.time()
