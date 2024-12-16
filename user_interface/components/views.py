@@ -46,11 +46,11 @@ class SchedulerView(customtkinter.CTk):
         self.current_problem = None
 
     # Set up controllers and visualization manager for the view
-    def set_controllers(self, scheduler_controller, visualization_manager):
+    def set_controllers(self, controller, comparison_controller, visualization_manager):
         # Store reference to scheduler controller
-        self.scheduler_controller = scheduler_controller
+        self.scheduler_controller = controller
         # Store reference to comparison controller
-        # self.comparison_controller = comparison_controller
+        self.comparison_controller = comparison_controller
         # Store reference to visualization manager
         self.visualization_manager = visualization_manager
         # Create the GUI layout after setting controllers
@@ -59,7 +59,7 @@ class SchedulerView(customtkinter.CTk):
     # Create the main GUI layout
     def _create_layout(self):
         # Set window title
-        self.title("Assessment Timetabling Scheduler")
+        self.title("Workflow Satisfiability Problem")
         # Set initial window size
         self.geometry("1200x800")
 
@@ -145,12 +145,12 @@ class SchedulerView(customtkinter.CTk):
     # Create comparison mode controls in sidebar
     def _create_comparison_controls(self):
         # Create switch for comparison mode
-        # self.comparison_mode_var = customtkinter.CTkSwitch(
-        #     self.sidebar_frame,
-        #     text="Enable Comparison Mode",
-        #     command=self.comparison_controller.toggle_comparison_mode
-        # )
-        # self.comparison_mode_var.grid(row=5, column=0, padx=20, pady=10)
+        self.comparison_mode_var = customtkinter.CTkSwitch(
+            self.sidebar_frame,
+            text="Enable Comparison Mode",
+            command=self.comparison_controller.toggle_comparison_mode
+        )
+        self.comparison_mode_var.grid(row=5, column=0, padx=20, pady=10)
 
         # Create label for second solver selection
         self.second_solver_label = customtkinter.CTkLabel(

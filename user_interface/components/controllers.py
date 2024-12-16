@@ -95,16 +95,16 @@ class WSPController:
         unsat_results = []
         total_solution_time = 0
 
-        # Get sorted list of test files
-        test_files = sorted(
+        # Get sorted list of instance files
+        instance_files = sorted(
             [f for f in self.view.tests_dir.iterdir()
              if (f.name.startswith('sat') or f.name.startswith('unsat')) and f.name != ".idea"],
             key=lambda x: int(re.search(r'\d+', x.stem).group() or 0)
         )
 
-        # Process each test file
-        total_files = len(test_files)
-        for i, test_file in enumerate(test_files):
+        # Process each instance file
+        total_files = len(instance_files)
+        for i, test_file in enumerate(instance_files):
             try:
                 # Process individual file
                 self._process_single_file(
@@ -120,21 +120,21 @@ class WSPController:
         self._display_results(solver1, solver2, comparison_results, unsat_results, total_solution_time)
 
     # Process a single instance file
-    def _process_single_file(self, test_file, solver1, solver2, comparison_results, unsat_results,
+    def _process_single_file(self, instance_file, solver1, solver2, comparison_results, unsat_results,
                              total_solution_time, current_index, total_files, active_constraints):
         """Process a single test file and update the results."""
         # Update status display
-        self.view.status_label.configure(text=f"Processing {test_file.name}...")
+        self.view.status_label.configure(text=f"Processing {instance_file.name}...")
         self.view.progressbar.set((current_index + 1) / total_files)
         self.view.update()
 
-        # Read problem file
-        problem = FileReader.read_file(str(test_file))
-        self.view.current_problem = problem
+        # Read instance file
+        instance = FileReader.read_file(str(instance_file))
+        self.view.current_problem = instance
 
         # Process first solver
         start_time1 = time_module.time()
-        solver1_instance = SolverFactory.get_solver(solver1, problem, active_constraints)
+        solver1_instance = SolverFactory.get_solver(solver1, instance, active_constraints)
         solution1 = solver1_instance.solve()
         time1 = int((time_module.time() - start_time1) * 1000)
         total_solution_time += time1
@@ -145,22 +145,22 @@ class WSPController:
                 # Format and store satisfiable solution
                 formatted_solution = self.view.format_solution(solution1)
                 comparison_results.append({
-                    'instance_name': test_file.stem,
+                    'instance_name': instance_file.stem,
                     'solution': solution1,
-                    'problem': problem,
+                    'problem': instance,
                     'formatted_solution': formatted_solution,
                     'time': time1
                 })
             else:
                 # Store unsatisfiable result
                 unsat_results.append({
-                    'instance_name': test_file.stem,
+                    'instance_name': instance_file.stem,
                     'formatted_solution': "N/A"
                 })
         else:
             # Comparison mode processing
             start_time2 = time_module.time()
-            solver2_instance = SolverFactory.get_solver(solver2, problem, active_constraints)
+            solver2_instance = SolverFactory.get_solver(solver2, instance, active_constraints)
             solution2 = solver2_instance.solve()
             time2 = int((time_module.time() - start_time2) * 1000)
             total_solution_time += time2
@@ -172,12 +172,12 @@ class WSPController:
             # Store results based on satisfiability
             if solution1 is None and solution2 is None:
                 unsat_results.append({
-                    'instance_name': test_file.stem,
+                    'instance_name': instance_file.stem,
                     'formatted_solution': "N/A"
                 })
             else:
                 comparison_results.append({
-                    'instance_name': test_file.stem,
+                    'instance_name': instance_file.stem,
                     'solver1': {
                         'name': solver1,
                         'solution': solution1,
@@ -190,7 +190,7 @@ class WSPController:
                         'formatted_solution': formatted_solution2,
                         'time': time2
                     },
-                    'problem': problem,
+                    'problem': instance,
                     'time': time1
                 })
 
@@ -258,3 +258,19 @@ class WSPController:
                 comparison_results,
                 active_constraints
             ))
+
+
+class ComparisonController:
+    def __init__(self, view):
+        self.view = view
+
+    # Toggle comparison mode UI elements
+    def toggle_comparison_mode(self):
+        if self.view.comparison_mode_var.get():
+            # Show comparison controls
+            self.view.second_solver_label.grid()
+            self.view.second_solver_menu.grid()
+        else:
+            # Hide comparison controls
+            self.view.second_solver_label.grid_remove()
+            self.view.second_solver_menu.grid_remove()

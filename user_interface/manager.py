@@ -1,7 +1,7 @@
 # Import view component for the scheduler GUI
 from .components.views import SchedulerView
 # Import controller components for workflow 
-from .components.controllers import WSPController
+from .components.controllers import WSPController, ComparisonController
 # Import manager component for visualization
 from .components.visualization import VisualizationManager
 
@@ -14,14 +14,14 @@ class GUIManager:
        self.view = SchedulerView()
 
        # Create controllers
-       self.scheduler_controller = WSPController(self.view)
-    #    self.comparison_controller = ComparisonController(self.view)
+       self.controller = WSPController(self.view)
+       self.comparison_controller = ComparisonController(self.view)
        self.visualization_manager = VisualizationManager(self.view)
 
        # Set controllers in view
        self.view.set_controllers(
-           self.scheduler_controller,
-        #    self.comparison_controller,
+           self.controller,
+           self.comparison_controller,
            self.visualization_manager
        )
 
