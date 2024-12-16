@@ -1,16 +1,17 @@
-# controllers.py
-import customtkinter
+import os
 from typing import Dict, List, Optional
 import time
+import customtkinter
+
 from instance import WSPInstance
 from solver import WSPSolver
 from utils import parse_instance_file
+
 
 class WSPController:
     def __init__(self, view):
         self.view = view
         self.current_instance: Optional[WSPInstance] = None
-        self.constraint_stats = None
         
         # Connect button callbacks
         self.view.select_button.configure(command=self.select_file)
@@ -30,10 +31,84 @@ class WSPController:
                 
                 # Display instance statistics
                 self.display_instance_stats()
-                
+
             except Exception as e:
                 self.view.update_status(f"Error loading file: {str(e)}")
-    
+
+    def select_folder(self):
+        """Handle folder selection and solve all instances"""
+        folder = customtkinter.filedialog.askdirectory(
+            title="Select Folder with WSP Instances"
+        )
+        
+        if not folder:
+            return
+
+        # Get all txt files in the folder
+        instance_files = [f for f in os.listdir(folder) if f.endswith('.txt')]
+        total_files = len(instance_files)
+        
+        if total_files == 0:
+            self.view.update_status("No .txt files found in folder")
+            return
+
+        # Create summary statistics
+        summary_stats = {
+            'total': total_files,
+            'sat': 0,
+            'unsat': 0,
+            'errors': 0,
+            'times': []
+        }
+
+        # Process each file
+        for i, filename in enumerate(instance_files, 1):
+            full_path = os.path.join(folder, filename)
+            self.view.update_file_label(full_path)
+            self.view.update_status(f"Processing file {i}/{total_files}: {filename}")
+            self.view.update_progress(i / total_files)
+
+            try:
+                # Load and solve instance
+                instance = parse_instance_file(full_path)
+                solver = WSPSolver(instance, self.get_active_constraints())
+                result = solver.solve()
+                
+                # Update statistics
+                if result['sat'] == 'sat':
+                    summary_stats['sat'] += 1
+                else:
+                    summary_stats['unsat'] += 1
+                    
+                summary_stats['times'].append(
+                    float(result['exe_time'].replace('ms', ''))
+                )
+
+            except Exception as e:
+                summary_stats['errors'] += 1
+                print(f"Error processing {filename}: {str(e)}")
+        
+        # Display final summary
+        avg_time = sum(summary_stats['times']) / len(summary_stats['times'])
+        summary = {
+            "Total Instances": summary_stats['total'],
+            "Satisfiable": summary_stats['sat'],
+            "Unsatisfiable": summary_stats['unsat'],
+            "Errors": summary_stats['errors'],
+            "Average Time": f"{avg_time:.2f}ms"
+        }
+        
+        self.view.display_statistics(summary)
+        self.view.update_status("Folder processing complete")
+        self.view.update_progress(1.0)
+
+    def get_active_constraints(self) -> Dict[str, bool]:
+        """Get current active constraints from view"""
+        return {
+            name: var.get()
+            for name, var in self.view.constraint_vars.items()
+        }
+
     def solve(self):
         """Handle solving the current instance"""
         if not self.current_instance:
@@ -41,7 +116,7 @@ class WSPController:
             return
         
         try:
-            # Get active constraints from view
+            # Get active constraints
             active_constraints = {
                 name: var.get()
                 for name, var in self.view.constraint_vars.items()
@@ -54,8 +129,15 @@ class WSPController:
             # Create solver
             solver = WSPSolver(self.current_instance, active_constraints)
             
-            # Solve instance and get result
+            # Record start time
+            start_time = time.time()
+            
+            # Solve instance
             result = solver.solve()
+            
+            # Record end time
+            end_time = time.time()
+            solve_time = end_time - start_time
             
             # Update progress
             self.view.update_progress(0.8)
@@ -70,19 +152,18 @@ class WSPController:
                     step = int(parts[0][1:])  # Remove 's' and convert to int
                     user = int(parts[1][1:])  # Remove 'u' and convert to int
                     solution.append({'step': step, 'user': user})
-            
+
             # Display solution
             self.view.display_solution(solution)
             
-            # Collect and display statistics
-            exe_time = float(result['exe_time'].replace('ms', '')) / 1000  # Convert ms to seconds
-            stats = self.collect_solution_stats(solution, exe_time, active_constraints)
+            # Display statistics
+            stats = self.collect_solution_stats(solution, solve_time, active_constraints)
             self.view.display_statistics(stats)
             
             # Update final status
             self.view.update_progress(1.0)
             status = "Solution found!" if solution else "No solution exists (UNSAT)"
-            self.view.update_status(f"{status} ({result['exe_time']})")
+            self.view.update_status(f"{status} (solved in {solve_time:.2f} seconds)")
             
         except Exception as e:
             self.view.update_status(f"Error solving: {str(e)}")
@@ -136,12 +217,7 @@ class WSPController:
                 "Min Assignments per User": min(assignments_per_user.values()),
                 "Avg Assignments per User": f"{sum(assignments_per_user.values()) / len(used_users):.1f}"
             })
-        
-        # Analyze constraint satisfaction for active constraints
-        if active_constraints:
-            constraint_stats = self._analyze_constraint_satisfaction(solution, active_constraints)
-            stats.update(constraint_stats)
-        
+            
         return stats
     
     def _analyze_constraint_satisfaction(self, solution: List[Dict[str, int]], active_constraints: Dict[str, bool]) -> Dict:

@@ -1,5 +1,6 @@
-import customtkinter
+import os
 from typing import List, Dict, Optional
+import customtkinter
 from CTkTable import CTkTable
 
 
@@ -8,10 +9,10 @@ class WSPView(customtkinter.CTk):
         super().__init__()
         
         # Initialize instance variables
-        self.tests_dir = None
+        self.current_file = None
         self.status_label = None
         self.progressbar = None
-        self.current_problem = None
+        self.file_label = None
         self.results_table = None
         
         # Set appearance
@@ -33,13 +34,13 @@ class WSPView(customtkinter.CTk):
         # Create sidebar and main frame
         self._create_sidebar()
         self._create_main_frame()
-    
+
     def _create_sidebar(self):
         # Create sidebar frame
         self.sidebar_frame = customtkinter.CTkFrame(self, width=200, corner_radius=0)
         self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
-        self.sidebar_frame.grid_rowconfigure(8, weight=1)
-        
+        self.sidebar_frame.grid_rowconfigure(10, weight=1)  # Increased for new button
+
         # Create logo
         self.logo_label = customtkinter.CTkLabel(
             self.sidebar_frame,
@@ -47,35 +48,53 @@ class WSPView(customtkinter.CTk):
             font=customtkinter.CTkFont(size=20, weight="bold")
         )
         self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 10))
-        
+
+        # Create current file label
+        self.file_label = customtkinter.CTkLabel(
+            self.sidebar_frame,
+            text="No file selected",
+            wraplength=180
+        )
+        self.file_label.grid(row=1, column=0, padx=20, pady=5)
+
         # Create buttons
         self.select_button = customtkinter.CTkButton(
             self.sidebar_frame,
             text="Select File",
-            command=None  # Will be set by controller
+            command=None
         )
-        self.select_button.grid(row=1, column=0, padx=20, pady=10)
-        
+        self.select_button.grid(row=2, column=0, padx=20, pady=10)
+
+        # Add folder selection button
+        self.select_folder_button = customtkinter.CTkButton(
+            self.sidebar_frame,
+            text="Select Folder",
+            command=None
+        )
+        self.select_folder_button.grid(row=3, column=0, padx=20, pady=10)
+
+        # Create solve button before constraints frame
         self.solve_button = customtkinter.CTkButton(
             self.sidebar_frame,
             text="Solve",
-            command=None  # Will be set by controller
+            command=None
         )
-        self.solve_button.grid(row=2, column=0, padx=20, pady=10)
+        self.solve_button.grid(row=6, column=0, padx=20, pady=10)
 
+        # Create clear button
         self.clear_button = customtkinter.CTkButton(
             self.sidebar_frame,
             text="Clear Results",
             command=self.clear_results
         )
-        self.clear_button.grid(row=3, column=0, padx=20, pady=10)
-        
-        # Create constraints frame
+        self.clear_button.grid(row=7, column=0, padx=20, pady=10)
+
+        # Create constraints frame (moved to row 4-5)
         self._create_constraints_frame()
-     
+
     def _create_constraints_frame(self):
         self.constraints_frame = customtkinter.CTkFrame(self.sidebar_frame)
-        self.constraints_frame.grid(row=4, column=0, padx=20, pady=10, sticky="ew")
+        self.constraints_frame.grid(row=4, column=0, rowspan=2, padx=20, pady=10, sticky="ew")
         
         # Create constraints label
         constraints_label = customtkinter.CTkLabel(
@@ -119,6 +138,15 @@ class WSPView(customtkinter.CTk):
             switch.pack(pady=2)
             switch.select()  # Enable all constraints by default
 
+    def update_file_label(self, filename: str):
+        if filename:
+            display_name = os.path.basename(filename)
+            self.file_label.configure(text=f"Current file:\n{display_name}")
+            self.current_file = filename
+        else:
+            self.file_label.configure(text="No file selected")
+            self.current_file = None
+
     def _create_main_frame(self):
         # Create main frame
         self.main_frame = customtkinter.CTkFrame(self, corner_radius=0)
@@ -144,16 +172,17 @@ class WSPView(customtkinter.CTk):
             tab.grid_rowconfigure(0, weight=1)
             tab.grid_columnconfigure(0, weight=1)
         
-        # Create table frame in results tab
-        self.table_frame = customtkinter.CTkFrame(self.results_tab)
-        self.table_frame.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # Initialize empty table
-        self.init_results_table()
+        # Create scrollable frame for results
+        self.results_frame = customtkinter.CTkScrollableFrame(self.results_tab)
+        self.results_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
         # Create stats frame
         self.stats_frame = customtkinter.CTkFrame(self.stats_tab)
         self.stats_frame.pack(fill="both", expand=True)
+        
+        # Initialize result display variables
+        self.results_table = None
+        self.unsat_label = None
     
     def init_results_table(self):
         """Initialize or reinitialize the results table"""
@@ -188,50 +217,84 @@ class WSPView(customtkinter.CTk):
     
     def update_progress(self, value: float):
         self.progressbar.set(value)
-
-    def clear_results(self):
-        # Reinitialize results table
-        self.init_results_table()
-        
-        # Clear stats
-        for widget in self.stats_frame.winfo_children():
-            widget.destroy()
-
-        # Reset progress and status
-        self.progressbar.set(0)
-        self.status_label.configure(text="Ready")
     
     def display_solution(self, solution: Optional[List[Dict[str, int]]]):
-        # Reinitialize table with headers
-        self.init_results_table()
+        # Clear previous results
+        for widget in self.results_frame.winfo_children():
+            widget.destroy()
         
         if solution is None:
-            # Display UNSAT result
-            self.results_table.add_row(values=["No solution exists (UNSAT)", ""])
+            # Display UNSAT result using label
+            self.unsat_label = customtkinter.CTkLabel(
+                self.results_frame,
+                text="No solution exists (UNSAT)",
+                font=customtkinter.CTkFont(size=14, weight="bold")
+            )
+            self.unsat_label.pack(pady=20)
             return
         
-        # Add solution rows
-        for assignment in solution:
-            self.results_table.add_row(values=[f"s{assignment['step']}", f"u{assignment['user']}"])
-    
+        # For SAT solutions, create and display table
+        values = [["Step", "Assigned User"]]
+        values.extend([[f"s{assignment['step']}", f"u{assignment['user']}"] 
+                      for assignment in solution])
+        
+        self.results_table = CTkTable(
+            master=self.results_frame,
+            row=len(values),
+            column=2,
+            values=values,
+            header_color="gray20",
+            hover_color="gray30",
+            border_width=2,
+            corner_radius=10,
+            width=200,  # Fixed cell width
+            height=40,  # Fixed cell height
+            padx=5,    # Cell padding
+            pady=5
+        )
+        self.results_table.pack(fill="both", expand=True, padx=10, pady=10)
+
     def display_statistics(self, stats: Dict):
         # Clear previous stats
         for widget in self.stats_frame.winfo_children():
             widget.destroy()
         
-        # Create stats table
-        stats_data = [["Statistic", "Value"]]
-        stats_data.extend([[key, str(value)] for key, value in stats.items()])
-        
-        stats_table = CTkTable(
-            master=self.stats_frame,
-            row=len(stats_data),
-            column=2,
-            values=stats_data,
-            header_color="gray20",
-            hover_color="gray30",
-            border_width=2,
-            corner_radius=10
+        # Create stats display
+        stats_label = customtkinter.CTkLabel(
+            self.stats_frame,
+            text="Solution Statistics",
+            font=customtkinter.CTkFont(size=16, weight="bold")
         )
+        stats_label.pack(pady=10)
         
-        stats_table.pack(fill="both", expand=True, padx=20, pady=20)
+        for key, value in stats.items():
+            stat_frame = customtkinter.CTkFrame(self.stats_frame)
+            stat_frame.pack(fill="x", padx=20, pady=5)
+            
+            key_label = customtkinter.CTkLabel(
+                stat_frame,
+                text=f"{key}:",
+                font=customtkinter.CTkFont(weight="bold")
+            )
+            key_label.pack(side="left", padx=5)
+            
+            value_label = customtkinter.CTkLabel(
+                stat_frame,
+                text=str(value)
+            )
+            value_label.pack(side="left", padx=5)
+
+    def clear_results(self):
+        # Clear all widgets in results frame
+        for widget in self.results_frame.winfo_children():
+            widget.destroy()
+        
+        # Clear stats
+        for widget in self.stats_frame.winfo_children():
+            widget.destroy()
+        
+        # Do not clear file label
+        
+        # Reset progress and status
+        self.progressbar.set(0)
+        self.status_label.configure(text="Ready")
