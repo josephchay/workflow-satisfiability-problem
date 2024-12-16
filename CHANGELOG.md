@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     3. Results display in the main panel
     4. Statistics on usage, violations, and adherence in the main panel.
     5. Progress feedback and bar at the bottom of the main panel.
+    6. Added formatted Table design for results.
 
 ### Changed
 

@@ -1,6 +1,7 @@
 import customtkinter
 from typing import List, Dict, Optional
-import tkinter as tk
+from CTkTable import CTkTable
+
 
 class WSPView(customtkinter.CTk):
     def __init__(self):
@@ -11,6 +12,7 @@ class WSPView(customtkinter.CTk):
         self.status_label = None
         self.progressbar = None
         self.current_problem = None
+        self.results_table = None
         
         # Set appearance
         customtkinter.set_appearance_mode("dark")
@@ -70,7 +72,7 @@ class WSPView(customtkinter.CTk):
         
         # Create constraints frame
         self._create_constraints_frame()
-        
+     
     def _create_constraints_frame(self):
         self.constraints_frame = customtkinter.CTkFrame(self.sidebar_frame)
         self.constraints_frame.grid(row=4, column=0, padx=20, pady=10, sticky="ew")
@@ -116,7 +118,7 @@ class WSPView(customtkinter.CTk):
         for switch in self.constraint_vars.values():
             switch.pack(pady=2)
             switch.select()  # Enable all constraints by default
-    
+
     def _create_main_frame(self):
         # Create main frame
         self.main_frame = customtkinter.CTkFrame(self, corner_radius=0)
@@ -142,13 +144,35 @@ class WSPView(customtkinter.CTk):
             tab.grid_rowconfigure(0, weight=1)
             tab.grid_columnconfigure(0, weight=1)
         
-        # Create scrollable frames
-        self.results_scroll = customtkinter.CTkScrollableFrame(self.results_tab)
-        self.results_scroll.pack(fill="both", expand=True)
+        # Create table frame in results tab
+        self.table_frame = customtkinter.CTkFrame(self.results_tab)
+        self.table_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
+        # Initialize empty table
+        self.init_results_table()
+        
+        # Create stats frame
         self.stats_frame = customtkinter.CTkFrame(self.stats_tab)
         self.stats_frame.pack(fill="both", expand=True)
     
+    def init_results_table(self):
+        """Initialize or reinitialize the results table"""
+        if self.results_table is not None:
+            self.results_table.destroy()
+        
+        # Create empty table with headers
+        self.results_table = CTkTable(
+            master=self.table_frame,
+            row=1,
+            column=2,
+            values=[["Step", "Assigned User"]],
+            header_color="gray20",
+            hover_color="gray30",
+            border_width=2,
+            corner_radius=10
+        )
+        self.results_table.pack(fill="both", expand=True, padx=10, pady=10)
+
     def _create_progress_indicators(self):
         # Create progress bar
         self.progressbar = customtkinter.CTkProgressBar(self.main_frame)
@@ -164,89 +188,50 @@ class WSPView(customtkinter.CTk):
     
     def update_progress(self, value: float):
         self.progressbar.set(value)
-    
+
     def clear_results(self):
-        # Clear results tab
-        for widget in self.results_scroll.winfo_children():
-            widget.destroy()
+        # Reinitialize results table
+        self.init_results_table()
         
-        # Clear stats tab
+        # Clear stats
         for widget in self.stats_frame.winfo_children():
             widget.destroy()
-        
+
         # Reset progress and status
         self.progressbar.set(0)
         self.status_label.configure(text="Ready")
     
     def display_solution(self, solution: Optional[List[Dict[str, int]]]):
-        # Clear previous results
-        for widget in self.results_scroll.winfo_children():
-            widget.destroy()
+        # Reinitialize table with headers
+        self.init_results_table()
         
         if solution is None:
             # Display UNSAT result
-            unsat_label = customtkinter.CTkLabel(
-                self.results_scroll,
-                text="No solution exists (UNSAT)",
-                font=customtkinter.CTkFont(size=14, weight="bold")
-            )
-            unsat_label.pack(pady=20)
+            self.results_table.add_row(values=["No solution exists (UNSAT)", ""])
             return
-            
-        # Create solution table
-        table_frame = customtkinter.CTkFrame(self.results_scroll)
-        table_frame.pack(fill="x", padx=10, pady=5)
-        
-        # Create headers
-        headers = ["Step", "Assigned User"]
-        for col, header in enumerate(headers):
-            label = customtkinter.CTkLabel(
-                table_frame,
-                text=header,
-                font=customtkinter.CTkFont(weight="bold")
-            )
-            label.grid(row=0, column=col, padx=5, pady=5)
         
         # Add solution rows
-        for row, assignment in enumerate(solution, start=1):
-            step_label = customtkinter.CTkLabel(
-                table_frame,
-                text=f"s{assignment['step']}"
-            )
-            step_label.grid(row=row, column=0, padx=5, pady=2)
-            
-            user_label = customtkinter.CTkLabel(
-                table_frame,
-                text=f"u{assignment['user']}"
-            )
-            user_label.grid(row=row, column=1, padx=5, pady=2)
+        for assignment in solution:
+            self.results_table.add_row(values=[f"s{assignment['step']}", f"u{assignment['user']}"])
     
     def display_statistics(self, stats: Dict):
         # Clear previous stats
         for widget in self.stats_frame.winfo_children():
             widget.destroy()
         
-        # Create stats display
-        stats_label = customtkinter.CTkLabel(
-            self.stats_frame,
-            text="Solution Statistics",
-            font=customtkinter.CTkFont(size=16, weight="bold")
-        )
-        stats_label.pack(pady=10)
+        # Create stats table
+        stats_data = [["Statistic", "Value"]]
+        stats_data.extend([[key, str(value)] for key, value in stats.items()])
         
-        for key, value in stats.items():
-            stat_frame = customtkinter.CTkFrame(self.stats_frame)
-            stat_frame.pack(fill="x", padx=20, pady=5)
-            
-            key_label = customtkinter.CTkLabel(
-                stat_frame,
-                text=f"{key}:",
-                font=customtkinter.CTkFont(weight="bold")
-            )
-            key_label.pack(side="left", padx=5)
-            
-            value_label = customtkinter.CTkLabel(
-                stat_frame,
-                text=str(value)
-            )
-            value_label.pack(side="left", padx=5)
+        stats_table = CTkTable(
+            master=self.stats_frame,
+            row=len(stats_data),
+            column=2,
+            values=stats_data,
+            header_color="gray20",
+            hover_color="gray30",
+            border_width=2,
+            corner_radius=10
+        )
+        
+        stats_table.pack(fill="both", expand=True, padx=20, pady=20)

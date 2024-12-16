@@ -1,1 +1,3 @@
 ortools>=9.11.4210
+customtkinter>=5.2.2
+CTkTable==1.1
