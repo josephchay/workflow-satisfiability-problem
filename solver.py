@@ -5,6 +5,7 @@ import time
 
 class SolutionCounter(cp_model.CpSolverSolutionCallback):
     """Callback to count number of solutions"""
+
     def __init__(self, variables):
         cp_model.CpSolverSolutionCallback.__init__(self)
         self._variables = variables
@@ -28,19 +29,19 @@ class SolutionCounter(cp_model.CpSolverSolutionCallback):
         # when we only care about uniqueness
         # if self._solution_count > 1:
         #     self.StopSearch()
-    
+
     def solution_count(self):
         return self._solution_count
-    
+
     def get_solutions(self):
         return self._solutions
-    
+
 
 class WSPSolver:
     def __init__(self, instance, active_constraints):
         self.instance = instance
         self.active_constraints = active_constraints
-        
+
     def solve(self) -> Dict:
         """Solve the WSP instance and return the result with solution count"""
         # Create model
@@ -58,16 +59,16 @@ class WSPSolver:
         # Add active constraints
         if self.active_constraints['authorizations']:
             self._add_authorization_constraints(model, user_assignment)
-        
+
         if self.active_constraints['separation_of_duty']:
             self._add_separation_of_duty_constraints(model, user_assignment)
-        
+
         if self.active_constraints['binding_of_duty']:
             self._add_binding_of_duty_constraints(model, user_assignment)
-        
+
         if self.active_constraints['at_most_k']:
             self._add_at_most_k_constraints(model, user_assignment)
-        
+
         if self.active_constraints['one_team']:
             self._add_one_team_constraints(model, user_assignment)
 
@@ -99,7 +100,7 @@ class WSPSolver:
                 result['sol'] = solution_counter.get_solutions()[0]
 
         return result
-    
+
     def _add_authorization_constraints(self, model, user_assignment):
         for user in range(self.instance.number_of_users):
             if self.instance.auth[user]:  # If user has specific authorizations
