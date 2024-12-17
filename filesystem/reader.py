@@ -1,7 +1,5 @@
 
-# utils.py
 import re
-from typing import List, Tuple
 from instance import WSPInstance
 
 

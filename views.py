@@ -3,6 +3,8 @@ from typing import List, Dict, Optional
 import customtkinter
 from CTkTable import CTkTable
 
+from typings import SolverType
+
 
 class WSPView(customtkinter.CTk):
     def __init__(self):
@@ -39,7 +41,7 @@ class WSPView(customtkinter.CTk):
         # Create sidebar frame
         self.sidebar_frame = customtkinter.CTkFrame(self, width=200, corner_radius=0)
         self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
-        self.sidebar_frame.grid_rowconfigure(10, weight=1)  # Increased for new button
+        self.sidebar_frame.grid_rowconfigure(12, weight=1)  # Increased for solver frame
 
         # Create logo
         self.logo_label = customtkinter.CTkLabel(
@@ -73,13 +75,19 @@ class WSPView(customtkinter.CTk):
         # )
         # self.select_folder_button.grid(row=3, column=0, padx=20, pady=10)
 
-        # Create solve button before constraints frame
+        # Create solver selection frame
+        self._create_solver_frame()
+
+        # Create constraints frame
+        self._create_constraints_frame()
+
+        # Create solve button
         self.solve_button = customtkinter.CTkButton(
             self.sidebar_frame,
             text="Solve",
             command=None
         )
-        self.solve_button.grid(row=6, column=0, padx=20, pady=10)
+        self.solve_button.grid(row=8, column=0, padx=20, pady=10)
 
         # Create clear button
         self.clear_button = customtkinter.CTkButton(
@@ -87,10 +95,37 @@ class WSPView(customtkinter.CTk):
             text="Clear Results",
             command=self.clear_results
         )
-        self.clear_button.grid(row=7, column=0, padx=20, pady=10)
+        self.clear_button.grid(row=9, column=0, padx=20, pady=10)
 
-        # Create constraints frame (moved to row 4-5)
-        self._create_constraints_frame()
+    def _create_solver_frame(self):
+        """Create solver selection frame"""
+        self.solver_frame = customtkinter.CTkFrame(self.sidebar_frame)
+        self.solver_frame.grid(row=3, column=0, padx=20, pady=10, sticky="ew")
+        
+        # Create solver label
+        solver_label = customtkinter.CTkLabel(
+            self.solver_frame,
+            text="Solver Selection:",
+            font=customtkinter.CTkFont(size=12, weight="bold")
+        )
+        solver_label.pack(pady=5)
+        
+        # Create solver type selector
+        self.solver_type = customtkinter.CTkOptionMenu(
+            self.solver_frame,
+            values=[st.value for st in SolverType],
+            command=None  # Will be set by controller
+        )
+        self.solver_type.pack(pady=5)
+        
+        # Create solver description
+        self.solver_description = customtkinter.CTkLabel(
+            self.solver_frame,
+            text="",
+            wraplength=160,
+            font=customtkinter.CTkFont(size=10)
+        )
+        self.solver_description.pack(pady=5)
 
     def _create_constraints_frame(self):
         self.constraints_frame = customtkinter.CTkFrame(self.sidebar_frame)
@@ -197,7 +232,7 @@ class WSPView(customtkinter.CTk):
         # Initialize result display variables
         self.results_table = None
         self.unsat_label = None
-    
+
     def display_instance_details(self, stats: Dict):
         """Display instance details in the Instance Details tab"""
         # Clear previous content
@@ -207,7 +242,7 @@ class WSPView(customtkinter.CTk):
         # Create main content frame that will stretch
         content_frame = customtkinter.CTkFrame(self.instance_frame, fg_color="gray17")
         content_frame.pack(fill="both", expand=True, padx=2, pady=2)
-        
+
         # Create instance details title
         title_label = customtkinter.CTkLabel(
             content_frame,
@@ -239,7 +274,7 @@ class WSPView(customtkinter.CTk):
         # Add empty frame at bottom to push content up
         spacer = customtkinter.CTkFrame(content_frame, fg_color="gray17", height=200)
         spacer.pack(fill="x", expand=True)
-            
+
     def init_results_table(self):
         """Initialize or reinitialize the results table"""
         if self.results_table is not None:
@@ -263,11 +298,24 @@ class WSPView(customtkinter.CTk):
         self.progressbar = customtkinter.CTkProgressBar(self.main_frame)
         self.progressbar.grid(row=1, column=0, padx=20, pady=10, sticky="ew")
         self.progressbar.set(0)
-        
+
         # Create status label
         self.status_label = customtkinter.CTkLabel(self.main_frame, text="Ready")
         self.status_label.grid(row=2, column=0, padx=20, pady=10)
-    
+
+    def update_solver_description(self, solver_type: SolverType):
+        """Update the solver description based on selected type"""
+        descriptions = {
+            SolverType.ORTOOLS_CS: "Constraint Satisfaction encoding using OR-Tools",
+            SolverType.ORTOOLS_PBPB: "Pattern-Based Pseudo-Boolean encoding using OR-Tools",
+            SolverType.ORTOOLS_UDPB: "User-Dependent Pseudo-Boolean encoding using OR-Tools",
+            SolverType.Z3_PBPB: "Pattern-Based Pseudo-Boolean encoding using Z3",
+            SolverType.Z3_UDPB: "User-Dependent Pseudo-Boolean encoding using Z3",
+            SolverType.SAT4J_PBPB: "Pattern-Based Pseudo-Boolean encoding using SAT4J",
+            SolverType.SAT4J_UDPB: "User-Dependent Pseudo-Boolean encoding using SAT4J"
+        }
+        self.solver_description.configure(text=descriptions.get(solver_type, ""))
+
     def update_status(self, message: str):
         self.status_label.configure(text=message)
     
@@ -288,7 +336,7 @@ class WSPView(customtkinter.CTk):
             )
             self.unsat_label.pack(pady=20)
             return
-        
+
         # For SAT solutions, create and display table
         values = [["Step", "Assigned User"]]
         values.extend([[f"s{assignment['step']}", f"u{assignment['user']}"] 
@@ -332,7 +380,7 @@ class WSPView(customtkinter.CTk):
         for key, value in stats.items():
             stat_frame = customtkinter.CTkFrame(content_frame, fg_color="gray20")
             stat_frame.pack(fill="x", padx=20, pady=2)
-            
+
             key_label = customtkinter.CTkLabel(
                 stat_frame,
                 text=f"{key}:",
@@ -340,7 +388,7 @@ class WSPView(customtkinter.CTk):
                 fg_color="gray20"
             )
             key_label.pack(side="left", padx=10, pady=8)
-            
+
             value_label = customtkinter.CTkLabel(
                 stat_frame,
                 text=str(value),

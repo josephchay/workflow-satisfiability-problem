@@ -18,10 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Number of solutions found and whether if its Unique or not (single solution) - displayed on the statistics tab
 - Instance details to displayed on "instance details" new tab to ensure that information about the particularly instance before processing it
+- New Constraint Satisfaction (CS) encoding for ORTools
+- New Pattern-Based Pseudo-Boolean (PBPB) encoding for ORTools
+- Implementation of Z3 Solvers
+- New PBPB encoding for Z3 Solver
+- New UDPB encoding for Z3 Solver
 
 ### Changed
+- Segregated out and specified our current implementation of ORTools as UDPB (User-Dependent Pseudo-Boolean)
 
 ### Improved
 
 ### Refactoring
 - Refactored the code to have each deserving components segregated into own files, clases, methods, and functions.
+- Folder directories storing multiple related files.
+- __init__.py initialization files for each directory, effectively turning each of them into a package.

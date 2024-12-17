@@ -4,20 +4,30 @@ import time
 import customtkinter
 
 from instance import WSPInstance
-from solver import WSPSolver
-from utils import parse_instance_file
+from filesystem import parse_instance_file
+from typings import SolverType
+from factories import WSPSolverFactory
 
 
 class WSPController:
-    def __init__(self, view):
+    def __init__(self, view, factory):
         self.view = view
         self.current_instance: Optional[WSPInstance] = None
-        
+        self.current_solver_type = SolverType.ORTOOLS_CS  # Default solver
+
         # Connect button callbacks
         self.view.select_button.configure(command=self.select_file)
         # self.view.select_folder_button.configure(command=self.select_folder)
         self.view.solve_button.configure(command=self.solve)
-    
+        
+        # Create solver factory
+        self.solver_factory = factory
+ 
+    def on_solver_change(self, value: str):
+        """Handle solver type selection change"""
+        self.current_solver_type = SolverType(value)
+        self.view.update_status(f"Selected solver: {value}")
+
     def select_file(self):
         """Handle file selection"""
         filename = customtkinter.filedialog.askopenfilename(
@@ -31,19 +41,19 @@ class WSPController:
                 # Update file label with the selected file name
                 self.view.update_file_label(filename)
                 self.view.update_status(f"Loaded: {filename}")
-                
+
                 # Display instance statistics
                 self.display_instance_stats()
-                
+
             except Exception as e:
                 self.view.update_status(f"Error loading file: {str(e)}")
-            
+
     def select_folder(self):
         """Handle folder selection and solve all instances"""
         folder = customtkinter.filedialog.askdirectory(
             title="Select Folder with WSP Instances"
         )
-        
+
         if not folder:
             return
 
@@ -74,9 +84,13 @@ class WSPController:
             try:
                 # Load and solve instance
                 instance = parse_instance_file(full_path)
-                solver = WSPSolver(instance, self.get_active_constraints())
+                solver = self.solver_factory.create_solver(
+                    self.current_solver_type,
+                    instance,
+                    self.get_active_constraints()
+                )
                 result = solver.solve()
-                
+
                 # Update statistics
                 if result['sat'] == 'sat':
                     summary_stats['sat'] += 1
@@ -90,7 +104,7 @@ class WSPController:
             except Exception as e:
                 summary_stats['errors'] += 1
                 print(f"Error processing {filename}: {str(e)}")
-        
+
         # Display final summary
         avg_time = sum(summary_stats['times']) / len(summary_stats['times'])
         summary = {
@@ -100,7 +114,7 @@ class WSPController:
             "Errors": summary_stats['errors'],
             "Average Time": f"{avg_time:.2f}ms"
         }
-        
+
         self.view.display_statistics(summary)
         self.view.update_status("Folder processing complete")
         self.view.update_progress(1.0)
@@ -111,6 +125,29 @@ class WSPController:
             name: var.get()
             for name, var in self.view.constraint_vars.items()
         }
+
+    def _create_solver_settings(self):
+        """Create solver selection frame"""
+        self.solver_frame = customtkinter.CTkFrame(self.sidebar_frame)
+        self.solver_frame.grid(row=3, column=0, padx=20, pady=10, sticky="ew")
+        
+        solver_label = customtkinter.CTkLabel(
+            self.solver_frame,
+            text="Solver Settings:",
+            font=customtkinter.CTkFont(size=12, weight="bold")
+        )
+        solver_label.pack(pady=5)
+        
+        # Create solver type dropdown
+        self.solver_type = customtkinter.CTkOptionMenu(
+            self.solver_frame,
+            values=[st.value for st in SolverType],
+            command=self.on_solver_change
+        )
+        self.solver_type.pack(pady=5)
+        
+        # Set default solver
+        self.current_solver_type = SolverType.ORTOOLS_CS
 
     def solve(self):
         """Handle solving the current instance"""
@@ -123,17 +160,21 @@ class WSPController:
             active_constraints = self.get_active_constraints()
             
             # Start solving
-            self.view.update_status("Solving...")
+            self.view.update_status(f"Solving with {self.current_solver_type.value}...")
             self.view.update_progress(0.2)
             
-            # Create solver
-            solver = WSPSolver(self.current_instance, active_constraints)
+            # Create solver using factory
+            solver = self.solver_factory.create_solver(
+                self.current_solver_type,
+                self.current_instance,
+                active_constraints
+            )
             
             # Record start time
             start_time = time.time()
             
             # Solve instance
-            self.current_result = solver.solve()  # No more find_all parameter
+            self.current_result = solver.solve()
             
             # Record end time
             end_time = time.time()
@@ -145,35 +186,33 @@ class WSPController:
             # Convert solution format for display
             solution = None
             if self.current_result['sat'] == 'sat':
-                solution = []
-                for assignment in self.current_result['sol']:
-                    # Parse strings like 's1: u2' into dict format
-                    parts = assignment.split(': ')
-                    step = int(parts[0][1:])  # Remove 's' and convert to int
-                    user = int(parts[1][1:])  # Remove 'u' and convert to int
-                    solution.append({'step': step, 'user': user})
-
+                solution = self.current_result['sol']
+            
             # Display solution
             self.view.display_solution(solution)
             
             # Display statistics
             stats = self.collect_solution_stats(solution, solve_time, active_constraints)
+            stats["Solver Type"] = self.current_solver_type.value  # Add solver info to stats
             self.view.display_statistics(stats)
             
             # Update final status
             self.view.update_progress(1.0)
             status = "Solution found!" if solution else "No solution exists (UNSAT)"
-            self.view.update_status(f"{status} (solved in {solve_time:.2f} seconds)")
+            self.view.update_status(
+                f"{status} using {self.current_solver_type.value} " \
+                f"(solved in {solve_time:.2f} seconds)"
+            )
             
         except Exception as e:
             self.view.update_status(f"Error solving: {str(e)}")
             self.view.update_progress(0)
-    
+
     def display_instance_stats(self):
         """Display statistics about the loaded instance"""
         if not self.current_instance:
             return
-        
+
         stats = {
             "Number of Steps": self.current_instance.number_of_steps,
             "Number of Users": self.current_instance.number_of_users,
@@ -187,11 +226,14 @@ class WSPController:
 
         self.view.display_instance_details(stats)
 
-    def collect_solution_stats(self, solution: Optional[List[Dict[str, int]]], solve_time: float, active_constraints: Dict[str, bool]) -> Dict:
+    def collect_solution_stats(self, solution: Optional[List[Dict[str, int]]], 
+                             solve_time: float, 
+                             active_constraints: Dict[str, bool]) -> Dict:
         """Collect statistics about the solution"""
         if not solution:
             return {
                 "Status": "UNSAT",
+                "Solver Type": self.current_solver_type.value,
                 "Solve Time": f"{solve_time:.2f} seconds",
                 "Number of Solutions": 0,
                 "Solution is Unique": "N/A"
@@ -202,6 +244,7 @@ class WSPController:
         
         stats = {
             "Status": "SAT",
+            "Solver Type": self.current_solver_type.value,
             "Solve Time": f"{solve_time:.2f} seconds",
             "Number of Solutions": self.current_result.get('solution_count', 1),
             "Solution is Unique": "Yes" if self.current_result.get('is_unique', False) else "No",
@@ -223,7 +266,7 @@ class WSPController:
             })
         
         return stats
-    
+
     def _analyze_constraint_satisfaction(self, solution: List[Dict[str, int]], active_constraints: Dict[str, bool]) -> Dict:
         """Analyze how the solution satisfies different constraints"""
         stats = {}
