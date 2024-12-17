@@ -1,7 +1,40 @@
-# solver.py
 from ortools.sat.python import cp_model
-from typing import List, Dict, Optional
+from typing import Dict
 import time
+
+
+class SolutionCounter(cp_model.CpSolverSolutionCallback):
+    """Callback to count number of solutions"""
+    def __init__(self, variables):
+        cp_model.CpSolverSolutionCallback.__init__(self)
+        self._variables = variables
+        self._solution_count = 0
+        self._solutions = []
+        self._number_of_steps = len(variables)
+        self._number_of_users = len(variables[0])
+
+    def on_solution_callback(self):
+        """Called each time a solution is found"""
+        self._solution_count += 1
+        current_solution = [
+            f's{s + 1}: u{u + 1}'
+            for s in range(self._number_of_steps)
+            for u in range(self._number_of_users)
+            if self.Value(self._variables[s][u])
+        ]
+        self._solutions.append(current_solution)
+
+        # Option to stop early if we find more than one solution
+        # when we only care about uniqueness
+        # if self._solution_count > 1:
+        #     self.StopSearch()
+    
+    def solution_count(self):
+        return self._solution_count
+    
+    def get_solutions(self):
+        return self._solutions
+    
 
 class WSPSolver:
     def __init__(self, instance, active_constraints):
@@ -9,6 +42,7 @@ class WSPSolver:
         self.active_constraints = active_constraints
         
     def solve(self) -> Dict:
+        """Solve the WSP instance and return the result with solution count"""
         # Create model
         model = cp_model.CpModel()
 
@@ -37,31 +71,32 @@ class WSPSolver:
         if self.active_constraints['one_team']:
             self._add_one_team_constraints(model, user_assignment)
 
-        # Solve the model
+        # Create solver and solution counter
         solver = cp_model.CpSolver()
-        solver.parameters.max_time_in_seconds = 60.0  # Set timeout to 60 seconds
-        
-        # Timing the solver process
+        solver.parameters.max_time_in_seconds = 60.0  # Set timeout
+        solution_counter = SolutionCounter(user_assignment)
+
+        # Solve and time the model
         start_time = time.time()
-        status = solver.Solve(model)
+        status = solver.SearchForAllSolutions(model, solution_counter)
         end_time = time.time()
 
         # Process results
         result = {
             'sat': 'unsat',
             'exe_time': f"{(end_time - start_time) * 1000:.2f}ms",
-            'sol': []
+            'sol': [],
+            'solution_count': 0,
+            'is_unique': False
         }
 
-        if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
             result['sat'] = 'sat'
-            # Extract solution
-            result['sol'] = [
-                f's{s + 1}: u{u + 1}'
-                for s in range(self.instance.number_of_steps)
-                for u in range(self.instance.number_of_users)
-                if solver.Value(user_assignment[s][u])
-            ]
+            result['solution_count'] = solution_counter.solution_count()
+            result['is_unique'] = result['solution_count'] == 1
+            if solution_counter.get_solutions():
+                # Store first solution in result
+                result['sol'] = solution_counter.get_solutions()[0]
 
         return result
     

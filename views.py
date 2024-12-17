@@ -66,12 +66,12 @@ class WSPView(customtkinter.CTk):
         self.select_button.grid(row=2, column=0, padx=20, pady=10)
 
         # Add folder selection button
-        self.select_folder_button = customtkinter.CTkButton(
-            self.sidebar_frame,
-            text="Select Folder",
-            command=None
-        )
-        self.select_folder_button.grid(row=3, column=0, padx=20, pady=10)
+        # self.select_folder_button = customtkinter.CTkButton(
+        #     self.sidebar_frame,
+        #     text="Select Folder",
+        #     command=None
+        # )
+        # self.select_folder_button.grid(row=3, column=0, padx=20, pady=10)
 
         # Create solve button before constraints frame
         self.solve_button = customtkinter.CTkButton(
@@ -139,7 +139,9 @@ class WSPView(customtkinter.CTk):
             switch.select()  # Enable all constraints by default
 
     def update_file_label(self, filename: str):
+        """Update the file label with the selected filename"""
         if filename:
+            # Extract just the filename from the full path
             display_name = os.path.basename(filename)
             self.file_label.configure(text=f"Current file:\n{display_name}")
             self.current_file = filename

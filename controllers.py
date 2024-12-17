@@ -15,6 +15,7 @@ class WSPController:
         
         # Connect button callbacks
         self.view.select_button.configure(command=self.select_file)
+        # self.view.select_folder_button.configure(command=self.select_folder)
         self.view.solve_button.configure(command=self.solve)
     
     def select_file(self):
@@ -27,14 +28,16 @@ class WSPController:
         if filename:
             try:
                 self.current_instance = parse_instance_file(filename)
+                # Update file label with the selected file name
+                self.view.update_file_label(filename)
                 self.view.update_status(f"Loaded: {filename}")
                 
                 # Display instance statistics
                 self.display_instance_stats()
-
+                
             except Exception as e:
                 self.view.update_status(f"Error loading file: {str(e)}")
-
+            
     def select_folder(self):
         """Handle folder selection and solve all instances"""
         folder = customtkinter.filedialog.askdirectory(
@@ -117,10 +120,7 @@ class WSPController:
         
         try:
             # Get active constraints
-            active_constraints = {
-                name: var.get()
-                for name, var in self.view.constraint_vars.items()
-            }
+            active_constraints = self.get_active_constraints()
             
             # Start solving
             self.view.update_status("Solving...")
@@ -133,7 +133,7 @@ class WSPController:
             start_time = time.time()
             
             # Solve instance
-            result = solver.solve()
+            self.current_result = solver.solve()  # No more find_all parameter
             
             # Record end time
             end_time = time.time()
@@ -144,9 +144,9 @@ class WSPController:
             
             # Convert solution format for display
             solution = None
-            if result['sat'] == 'sat':
+            if self.current_result['sat'] == 'sat':
                 solution = []
-                for assignment in result['sol']:
+                for assignment in self.current_result['sol']:
                     # Parse strings like 's1: u2' into dict format
                     parts = assignment.split(': ')
                     step = int(parts[0][1:])  # Remove 's' and convert to int
@@ -186,13 +186,15 @@ class WSPController:
         }
         
         self.view.display_statistics(stats)
-    
+
     def collect_solution_stats(self, solution: Optional[List[Dict[str, int]]], solve_time: float, active_constraints: Dict[str, bool]) -> Dict:
         """Collect statistics about the solution"""
         if not solution:
             return {
                 "Status": "UNSAT",
-                "Solve Time": f"{solve_time:.2f} seconds"
+                "Solve Time": f"{solve_time:.2f} seconds",
+                "Number of Solutions": 0,
+                "Solution is Unique": "N/A"
             }
         
         # Count users actually used in solution
@@ -201,6 +203,8 @@ class WSPController:
         stats = {
             "Status": "SAT",
             "Solve Time": f"{solve_time:.2f} seconds",
+            "Number of Solutions": self.current_result.get('solution_count', 1),
+            "Solution is Unique": "Yes" if self.current_result.get('is_unique', False) else "No",
             "Number of Users Used": len(used_users),
             "User Utilization": f"{(len(used_users) / self.current_instance.number_of_users * 100):.1f}%"
         }
@@ -217,7 +221,7 @@ class WSPController:
                 "Min Assignments per User": min(assignments_per_user.values()),
                 "Avg Assignments per User": f"{sum(assignments_per_user.values()) / len(used_users):.1f}"
             })
-            
+        
         return stats
     
     def _analyze_constraint_satisfaction(self, solution: List[Dict[str, int]], active_constraints: Dict[str, bool]) -> Dict:
