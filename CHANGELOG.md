@@ -25,9 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New UDPB encoding for Z3 Solver
 
 ### Changed
-- Segregated out and specified our current implementation of ORTools as UDPB (User-Dependent Pseudo-Boolean)
+- Segregated out and specified our current implementation of ORTools as UDPB (User-Dependent Pseudo-Boolean).
 
 ### Improved
+- Better implementation for Z3 solvers of both PBPB and UDPB encodings.
 
 ### Refactoring
 - Refactored the code to have each deserving components segregated into own files, clases, methods, and functions.

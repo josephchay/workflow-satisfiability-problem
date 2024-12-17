@@ -92,7 +92,7 @@ class ORToolsPBPBWSPSolver(BaseWSPSolver):
               for u in range(self.instance.number_of_users)]
              for s in range(self.instance.number_of_steps)]
 
-        # M[s1][s2] means steps s1 and s2 are assigned to the same user
+        # M[s1][s2] means steps s1 and s2 are assigned to same user
         M = [[model.NewBoolVar(f'M_{s1}_{s2}') if s1 != s2 else None
               for s2 in range(self.instance.number_of_steps)]
              for s1 in range(self.instance.number_of_steps)]
@@ -104,10 +104,15 @@ class ORToolsPBPBWSPSolver(BaseWSPSolver):
         # Link M variables with x variables
         for s1, s2 in itertools.combinations(range(self.instance.number_of_steps), 2):
             for u in range(self.instance.number_of_users):
-                # If s1 and s2 are assigned same user, M[s1][s2] must be 1
+                # If M[s1][s2] = 1, then x[s1][u] = x[s2][u]
                 model.Add(x[s1][u] == x[s2][u]).OnlyEnforceIf(M[s1][s2])
-                # If M[s1][s2] is 1, s1 and s2 must be assigned same user
-                model.AddImplication(M[s1][s2], x[s1][u] == x[s2][u])
+                model.Add(x[s1][u] != x[s2][u]).OnlyEnforceIf(M[s1][s2].Not())
+
+        # Add transitivity constraints for M variables
+        for s1, s2 in itertools.combinations(range(self.instance.number_of_steps), 2):
+            for s3 in range(s2 + 1, self.instance.number_of_steps):
+                model.AddBoolOr([M[s1][s2].Not(), M[s2][s3].Not(), M[s1][s3]])
+                model.AddBoolOr([M[s1][s2], M[s2][s3], M[s1][s3].Not()])
 
         # Add constraints
         if self.active_constraints['authorizations']:
@@ -128,11 +133,23 @@ class ORToolsPBPBWSPSolver(BaseWSPSolver):
         if self.active_constraints['at_most_k']:
             for k, steps in self.instance.at_most_k:
                 for subset in itertools.combinations(steps, k + 1):
-                    # At least one pair in subset must be assigned same user
                     same_user_vars = []
                     for s1, s2 in itertools.combinations(subset, 2):
-                        same_user_vars.append(M[s1][s2])
+                        same_user_vars.append(M[min(s1,s2)][max(s1,s2)])
                     model.AddBoolOr(same_user_vars)
+
+        if self.active_constraints['one_team']:
+            for steps, teams in self.instance.one_team:
+                # Create team selection variables
+                team_selected = [model.NewBoolVar(f'team_{t}') for t in range(len(teams))]
+                model.AddExactlyOne(team_selected)
+                
+                # If team is selected, only its members can be assigned
+                for team_idx, team in enumerate(teams):
+                    for s in steps:
+                        for u in range(self.instance.number_of_users):
+                            if u not in team:
+                                model.Add(x[s][u] == 0).OnlyEnforceIf(team_selected[team_idx])
 
         # Solve
         solver = cp_model.CpSolver()
@@ -193,6 +210,23 @@ class ORToolsUDPBWSPSolver(BaseWSPSolver):
                     step_vars = [x[s][u] for s in steps]
                     model.AddMaxEquality(z[u], step_vars)
                 model.Add(sum(z) <= k)
+
+        if self.active_constraints['one_team']:
+            for steps, teams in self.instance.one_team:
+                # Create team selection variables
+                team_selected = [model.NewBoolVar(f'team_{t}') for t in range(len(teams))]
+                # Exactly one team must be selected
+                model.AddExactlyOne(team_selected)
+                
+                # If team is selected, only its members can be assigned
+                for team_idx, team in enumerate(teams):
+                    team_users = set(team)
+                    for s in steps:
+                        # Create implications for each non-team user
+                        for u in range(self.instance.number_of_users):
+                            if u not in team_users:
+                                # When team is selected, user cannot be assigned
+                                model.Add(x[s][u] == 0).OnlyEnforceIf(team_selected[team_idx])
 
         # Solve
         solver = cp_model.CpSolver()
