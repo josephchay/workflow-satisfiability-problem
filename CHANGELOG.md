@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     6. Added formatted Table design for results.
 
 - Number of solutions found and whether if its Unique or not (single solution) - displayed on the statistics tab
+- Instance details to displayed on "instance details" new tab to ensure that information about the particularly instance before processing it
 
 ### Changed
 

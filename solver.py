@@ -73,7 +73,7 @@ class WSPSolver:
 
         # Create solver and solution counter
         solver = cp_model.CpSolver()
-        solver.parameters.max_time_in_seconds = 60.0  # Set timeout
+        # solver.parameters.max_time_in_seconds = 60.0  # Set timeout
         solution_counter = SolutionCounter(user_assignment)
 
         # Solve and time the model

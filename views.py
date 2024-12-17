@@ -167,25 +167,79 @@ class WSPView(customtkinter.CTk):
         
         # Add tabs
         self.results_tab = self.results_notebook.add("Results")
+        self.instance_tab = self.results_notebook.add("Instance Details")
         self.stats_tab = self.results_notebook.add("Statistics")
         
         # Configure tabs
-        for tab in [self.results_tab, self.stats_tab]:
+        for tab in [self.results_tab, self.instance_tab, self.stats_tab]:
             tab.grid_rowconfigure(0, weight=1)
             tab.grid_columnconfigure(0, weight=1)
         
+        # Create instance label for results tab
+        self.results_instance_label = customtkinter.CTkLabel(
+            self.results_tab,
+            text="No instance loaded",
+            font=customtkinter.CTkFont(size=14, weight="bold")
+        )
+        self.results_instance_label.pack(pady=5)
+        
         # Create scrollable frame for results
         self.results_frame = customtkinter.CTkScrollableFrame(self.results_tab)
-        self.results_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        self.results_frame.pack(fill="both", expand=True, padx=10, pady=5)
         
-        # Create stats frame
+        # Create frames for instance details and statistics that will stretch vertically
+        self.instance_frame = customtkinter.CTkFrame(self.instance_tab)
+        self.instance_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
         self.stats_frame = customtkinter.CTkFrame(self.stats_tab)
-        self.stats_frame.pack(fill="both", expand=True)
+        self.stats_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
         # Initialize result display variables
         self.results_table = None
         self.unsat_label = None
     
+    def display_instance_details(self, stats: Dict):
+        """Display instance details in the Instance Details tab"""
+        # Clear previous content
+        for widget in self.instance_frame.winfo_children():
+            widget.destroy()
+        
+        # Create main content frame that will stretch
+        content_frame = customtkinter.CTkFrame(self.instance_frame, fg_color="gray17")
+        content_frame.pack(fill="both", expand=True, padx=2, pady=2)
+        
+        # Create instance details title
+        title_label = customtkinter.CTkLabel(
+            content_frame,
+            text=f"Instance Details: {os.path.basename(self.current_file) if self.current_file else 'No instance loaded'}",
+            font=customtkinter.CTkFont(size=16, weight="bold")
+        )
+        title_label.pack(pady=10)
+        
+        # Display stats in table-like format
+        for key, value in stats.items():
+            stat_frame = customtkinter.CTkFrame(content_frame, fg_color="gray20")
+            stat_frame.pack(fill="x", padx=20, pady=2)
+            
+            key_label = customtkinter.CTkLabel(
+                stat_frame,
+                text=f"{key}:",
+                font=customtkinter.CTkFont(weight="bold"),
+                fg_color="gray20"
+            )
+            key_label.pack(side="left", padx=10, pady=8)
+            
+            value_label = customtkinter.CTkLabel(
+                stat_frame,
+                text=str(value),
+                fg_color="gray20"
+            )
+            value_label.pack(side="left", padx=5, pady=8)
+        
+        # Add empty frame at bottom to push content up
+        spacer = customtkinter.CTkFrame(content_frame, fg_color="gray17", height=200)
+        spacer.pack(fill="x", expand=True)
+            
     def init_results_table(self):
         """Initialize or reinitialize the results table"""
         if self.results_table is not None:
@@ -238,7 +292,7 @@ class WSPView(customtkinter.CTk):
         # For SAT solutions, create and display table
         values = [["Step", "Assigned User"]]
         values.extend([[f"s{assignment['step']}", f"u{assignment['user']}"] 
-                      for assignment in solution])
+                    for assignment in solution])
         
         self.results_table = CTkTable(
             master=self.results_frame,
@@ -257,34 +311,46 @@ class WSPView(customtkinter.CTk):
         self.results_table.pack(fill="both", expand=True, padx=10, pady=10)
 
     def display_statistics(self, stats: Dict):
+        """Display solution statistics in the Statistics tab"""
         # Clear previous stats
         for widget in self.stats_frame.winfo_children():
             widget.destroy()
         
-        # Create stats display
-        stats_label = customtkinter.CTkLabel(
-            self.stats_frame,
+        # Create main content frame that will stretch
+        content_frame = customtkinter.CTkFrame(self.stats_frame, fg_color="gray17")
+        content_frame.pack(fill="both", expand=True, padx=2, pady=2)
+        
+        # Create stats display title
+        title_label = customtkinter.CTkLabel(
+            content_frame,
             text="Solution Statistics",
             font=customtkinter.CTkFont(size=16, weight="bold")
         )
-        stats_label.pack(pady=10)
+        title_label.pack(pady=10)
         
+        # Display stats in table-like format
         for key, value in stats.items():
-            stat_frame = customtkinter.CTkFrame(self.stats_frame)
-            stat_frame.pack(fill="x", padx=20, pady=5)
+            stat_frame = customtkinter.CTkFrame(content_frame, fg_color="gray20")
+            stat_frame.pack(fill="x", padx=20, pady=2)
             
             key_label = customtkinter.CTkLabel(
                 stat_frame,
                 text=f"{key}:",
-                font=customtkinter.CTkFont(weight="bold")
+                font=customtkinter.CTkFont(weight="bold"),
+                fg_color="gray20"
             )
-            key_label.pack(side="left", padx=5)
+            key_label.pack(side="left", padx=10, pady=8)
             
             value_label = customtkinter.CTkLabel(
                 stat_frame,
-                text=str(value)
+                text=str(value),
+                fg_color="gray20"
             )
-            value_label.pack(side="left", padx=5)
+            value_label.pack(side="left", padx=5, pady=8)
+        
+        # Add empty frame at bottom to push content up
+        spacer = customtkinter.CTkFrame(content_frame, fg_color="gray17", height=200)
+        spacer.pack(fill="x", expand=True)
 
     def clear_results(self):
         # Clear all widgets in results frame

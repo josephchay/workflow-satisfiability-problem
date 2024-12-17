@@ -184,8 +184,8 @@ class WSPController:
             "At-Most-K Constraints": len(self.current_instance.at_most_k),
             "One-Team Constraints": len(self.current_instance.one_team)
         }
-        
-        self.view.display_statistics(stats)
+
+        self.view.display_instance_details(stats)
 
     def collect_solution_stats(self, solution: Optional[List[Dict[str, int]]], solve_time: float, active_constraints: Dict[str, bool]) -> Dict:
         """Collect statistics about the solution"""
