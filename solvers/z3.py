@@ -73,7 +73,7 @@ class Z3UDPBWSPSolver(BaseWSPSolver):
 
         return {
             'sat': 'sat' if solutions else 'unsat',
-            'exe_time': f"{(end_time - start_time) * 1000:.2f}ms",
+            'result_exe_time': (end_time - start_time) * 1000,
             'sol': solutions[0] if solutions else [],
             'solution_count': solution_count,
             'is_unique': solution_count == 1
@@ -220,7 +220,7 @@ class Z3PBPBWSPSolver(BaseWSPSolver):
 
         return {
             'sat': 'sat' if solutions else 'unsat',
-            'exe_time': f"{(end_time - start_time) * 1000:.2f}ms",
+            'result_exe_time': (end_time - start_time) * 1000,
             'sol': solutions[0] if solutions else [],
             'solution_count': solution_count,
             'is_unique': solution_count == 1

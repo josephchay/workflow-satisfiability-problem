@@ -6,6 +6,7 @@ import customtkinter
 from typings import WSPInstance
 from filesystem import parse_instance_file
 from typings import WSPSolverType
+from stats import WSPMetadataHandler
 
 
 class WSPController:
@@ -22,6 +23,12 @@ class WSPController:
         # Create solver factory
         self.solver_factory = factory
  
+        # Initialize metadata handler
+        self.metadata_handler = WSPMetadataHandler()
+        
+        # Add visualization button to view
+        self.view.add_visualization_button(self.generate_visualizations)
+
     def on_solver_change(self, value: str):
         """Handle solver type selection change"""
         self.current_solver_type = WSPSolverType(value)
@@ -97,7 +104,7 @@ class WSPController:
                     summary_stats['unsat'] += 1
                     
                 summary_stats['times'].append(
-                    float(result['exe_time'].replace('ms', ''))
+                    float(result['result_exe_time'].replace('ms', ''))
                 )
 
             except Exception as e:
@@ -150,6 +157,7 @@ class WSPController:
 
     def solve(self):
         """Handle solving the current instance"""
+
         if not self.current_instance:
             self.view.update_status("Please select a file first")
             return
@@ -178,6 +186,8 @@ class WSPController:
             # Record end time
             end_time = time.time()
             solve_time = end_time - start_time
+
+            self.current_result['result_exe_time'] = solve_time * 1000  # Convert to milliseconds
             
             # Update progress
             self.view.update_progress(0.8)
@@ -189,6 +199,18 @@ class WSPController:
             
             # Display solution
             self.view.display_solution(solution)
+            
+            # Get instance details
+            instance_details = self.collect_instance_details()
+            
+            # Save metadata
+            self.metadata_handler.save_result_metadata(
+                instance_details=instance_details,
+                solver_result=self.current_result,
+                solver_type=self.current_solver_type.value,
+                active_constraints=active_constraints,
+                filename=os.path.basename(self.view.current_file)
+            )
             
             # Display statistics
             stats = self.collect_solution_stats(solution, solve_time, active_constraints)
@@ -206,6 +228,38 @@ class WSPController:
         except Exception as e:
             self.view.update_status(f"Error solving: {str(e)}")
             self.view.update_progress(0)
+
+    def collect_instance_details(self) -> Dict:
+        """Collect details about the current instance"""
+        if not self.current_instance:
+            return {}
+            
+        return {
+            "k": self.current_instance.number_of_steps,
+            "number_of_steps": self.current_instance.number_of_steps,
+            "number_of_users": self.current_instance.number_of_users,
+            "number_of_constraints": self.current_instance.number_of_constraints,
+            "authorization_constraints": len([u for u in self.current_instance.auth if u]),
+            "separation_of_duty_constraints": len(self.current_instance.SOD),
+            "binding_of_duty_constraints": len(self.current_instance.BOD),
+            "at_most_k_constraints": len(self.current_instance.at_most_k),
+            "one_team_constraints": len(self.current_instance.one_team),
+            # Add derived metrics
+            "auth_density": len([u for u in self.current_instance.auth if u]) / 
+                        (self.current_instance.number_of_steps * self.current_instance.number_of_users),
+            "constraint_density": self.current_instance.number_of_constraints /
+                                (self.current_instance.number_of_steps * self.current_instance.number_of_users),
+            "step_user_ratio": self.current_instance.number_of_steps / self.current_instance.number_of_users
+    }
+
+    def generate_visualizations(self):
+        """Generate visualizations from saved metadata"""
+        try:
+            self.view.update_status("Generating visualizations...")
+            self.metadata_handler.generate_visualizations()
+            self.view.update_status("Visualizations generated successfully!")
+        except Exception as e:
+            self.view.update_status(f"Error generating visualizations: {str(e)}")
 
     def display_instance_stats(self):
         """Display statistics about the loaded instance"""
@@ -226,43 +280,23 @@ class WSPController:
         self.view.display_instance_details(stats)
 
     def collect_solution_stats(self, solution: Optional[List[Dict[str, int]]], 
-                             solve_time: float, 
-                             active_constraints: Dict[str, bool]) -> Dict:
+                         solve_time: float, 
+                         active_constraints: Dict[str, bool]) -> Dict:
         """Collect statistics about the solution"""
         if not solution:
             return {
-                "Status": "UNSAT",
-                "Solver Type": self.current_solver_type.value,
-                "Solve Time": f"{solve_time:.2f} seconds",
-                "Number of Solutions": 0,
-                "Solution is Unique": "N/A"
+                "sat": "unsat",
+                "result_exe_time": solve_time * 1000,  # Convert to milliseconds
+                "result_solution_count": 0,
+                "result_is_unique": False
             }
         
-        # Count users actually used in solution
-        used_users = set(assignment['user'] for assignment in solution)
-        
         stats = {
-            "Status": "SAT",
-            "Solver Type": self.current_solver_type.value,
-            "Solve Time": f"{solve_time:.2f} seconds",
-            "Number of Solutions": self.current_result.get('solution_count', 1),
-            "Solution is Unique": "Yes" if self.current_result.get('is_unique', False) else "No",
-            "Number of Users Used": len(used_users),
-            "User Utilization": f"{(len(used_users) / self.current_instance.number_of_users * 100):.1f}%"
+            "sat": "sat",
+            "result_exe_time": solve_time * 1000,  # Convert to milliseconds
+            "result_solution_count": self.current_result.get('solution_count', 1),
+            "result_is_unique": self.current_result.get('is_unique', False),
         }
-        
-        # Count assignments per user
-        assignments_per_user = {}
-        for assignment in solution:
-            user = assignment['user']
-            assignments_per_user[user] = assignments_per_user.get(user, 0) + 1
-        
-        if assignments_per_user:
-            stats.update({
-                "Max Assignments per User": max(assignments_per_user.values()),
-                "Min Assignments per User": min(assignments_per_user.values()),
-                "Avg Assignments per User": f"{sum(assignments_per_user.values()) / len(used_users):.1f}"
-            })
         
         return stats
 

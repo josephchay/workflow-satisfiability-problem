@@ -17,7 +17,7 @@ class BaseWSPSolver(ABC):
         Returns:
             Dict with:
             - sat: 'sat' or 'unsat'
-            - exe_time: execution time in ms
+            - result_exe_time: execution time in ms
             - sol: list of assignments (step -> user)
             - solution_count: number of solutions found
             - is_unique: whether solution is unique

@@ -400,6 +400,15 @@ class WSPView(customtkinter.CTk):
         spacer = customtkinter.CTkFrame(content_frame, fg_color="gray17", height=200)
         spacer.pack(fill="x", expand=True)
 
+    def add_visualization_button(self, command):
+        """Add a button to generate visualizations"""
+        self.visualize_button = customtkinter.CTkButton(
+            self.sidebar_frame,
+            text="Generate Visualizations",
+            command=command
+        )
+        self.visualize_button.grid(row=10, column=0, padx=20, pady=10)
+
     def clear_results(self):
         # Clear all widgets in results frame
         for widget in self.results_frame.winfo_children():

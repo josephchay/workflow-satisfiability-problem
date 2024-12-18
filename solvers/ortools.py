@@ -99,7 +99,7 @@ class ORToolsCSWSPSolver(BaseWSPSolver):
 
         result = {
             'sat': 'unsat',
-            'exe_time': f"{(end_time - start_time) * 1000:.2f}ms",
+            'result_exe_time': (end_time - start_time) * 1000,
             'sol': [],
             'solution_count': 0,
             'is_unique': False
@@ -190,7 +190,7 @@ class ORToolsPBPBWSPSolver(BaseWSPSolver):
 
         result = {
             'sat': 'unsat',
-            'exe_time': f"{(end_time - start_time) * 1000:.2f}ms",
+            'result_exe_time': (end_time - start_time) * 1000,
             'sol': [],
             'solution_count': 0,
             'is_unique': False
@@ -268,7 +268,7 @@ class ORToolsUDPBWSPSolver(BaseWSPSolver):
 
         result = {
             'sat': 'unsat', 
-            'exe_time': f"{(end_time - start_time) * 1000:.2f}ms",
+            'result_exe_time': (end_time - start_time) * 1000,
             'sol': []
         }
 
