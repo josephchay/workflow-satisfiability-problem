@@ -210,12 +210,14 @@ class ORToolsUDPBWSPSolver(BaseWSPSolver):
         print(f"Starting UDPB solving...")
         model = cp_model.CpModel()
         user_assignment = [[model.NewBoolVar(f'x_{s}_{u}') 
-                        for u in range(self.instance.number_of_users)] 
+                        for u in range(self.instance.number_of_users)]
                         for s in range(self.instance.number_of_steps)]
 
+        # Each step must be assigned exactly one user
         for step in range(self.instance.number_of_steps):
             model.AddExactlyOne(user_assignment[step])
 
+        # Handle authorizations 
         if self.active_constraints['authorizations']:
             for user in range(self.instance.number_of_users):
                 if self.instance.auth[user]:
@@ -223,17 +225,19 @@ class ORToolsUDPBWSPSolver(BaseWSPSolver):
                         if step not in self.instance.auth[user]:
                             model.Add(user_assignment[step][user] == 0)
 
+        # Handle separation of duty
         if self.active_constraints['separation_of_duty']:
-            for (separated_step1, separated_step2) in self.instance.SOD:
+            for s1, s2 in self.instance.SOD:
                 for user in range(self.instance.number_of_users):
-                    model.Add(user_assignment[separated_step2][user] == 0).OnlyEnforceIf(user_assignment[separated_step1][user])
-                    model.Add(user_assignment[separated_step1][user] == 0).OnlyEnforceIf(user_assignment[separated_step2][user])
+                    model.Add(user_assignment[s2][user] == 0).OnlyEnforceIf(user_assignment[s1][user])
+                    model.Add(user_assignment[s1][user] == 0).OnlyEnforceIf(user_assignment[s2][user])
 
+        # Handle binding of duty
         if self.active_constraints['binding_of_duty']:
-            for (bound_step1, bound_step2) in self.instance.BOD:
+            for s1, s2 in self.instance.BOD:
                 for user in range(self.instance.number_of_users):
-                    model.Add(user_assignment[bound_step2][user] == 1).OnlyEnforceIf(user_assignment[bound_step1][user])
-                    model.Add(user_assignment[bound_step1][user] == 1).OnlyEnforceIf(user_assignment[bound_step2][user])
+                    model.Add(user_assignment[s2][user] == 1).OnlyEnforceIf(user_assignment[s1][user])
+                    model.Add(user_assignment[s1][user] == 1).OnlyEnforceIf(user_assignment[s2][user])
 
         if self.active_constraints['at_most_k']:
             for (k, steps) in self.instance.at_most_k:

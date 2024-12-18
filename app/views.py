@@ -365,7 +365,7 @@ class WSPView(customtkinter.CTk):
             widget.destroy()
         
         # Create main content frame that will stretch
-        content_frame = customtkinter.CTkFrame(self.stats_frame, fg_color="gray17")
+        content_frame = customtkinter.CTkScrollableFrame(self.stats_frame, fg_color="gray17")
         content_frame.pack(fill="both", expand=True, padx=2, pady=2)
         
         # Create stats display title
@@ -375,30 +375,47 @@ class WSPView(customtkinter.CTk):
             font=customtkinter.CTkFont(size=16, weight="bold")
         )
         title_label.pack(pady=10)
+
+        def add_stat_entry(parent, key, value, level=0):
+            """Recursively add stat entries"""
+            if isinstance(value, dict):
+                # Create section header
+                section_frame = customtkinter.CTkFrame(parent, fg_color="gray20")
+                section_frame.pack(fill="x", padx=20-level*5, pady=2)
+                
+                section_label = customtkinter.CTkLabel(
+                    section_frame,
+                    text=f"{key}:",
+                    font=customtkinter.CTkFont(weight="bold"),
+                    fg_color="gray20"
+                )
+                section_label.pack(side="left", padx=10+level*5, pady=8)
+                
+                # Add subsections
+                for sub_key, sub_value in value.items():
+                    add_stat_entry(parent, sub_key, sub_value, level+1)
+            else:
+                stat_frame = customtkinter.CTkFrame(parent, fg_color="gray20")
+                stat_frame.pack(fill="x", padx=20+level*5, pady=2)
+                
+                key_label = customtkinter.CTkLabel(
+                    stat_frame,
+                    text=f"{key}:",
+                    font=customtkinter.CTkFont(weight="bold"),
+                    fg_color="gray20"
+                )
+                key_label.pack(side="left", padx=10+level*5, pady=8)
+                
+                value_label = customtkinter.CTkLabel(
+                    stat_frame,
+                    text=str(value),
+                    fg_color="gray20"
+                )
+                value_label.pack(side="left", padx=5, pady=8)
         
-        # Display stats in table-like format
+        # Display stats recursively
         for key, value in stats.items():
-            stat_frame = customtkinter.CTkFrame(content_frame, fg_color="gray20")
-            stat_frame.pack(fill="x", padx=20, pady=2)
-
-            key_label = customtkinter.CTkLabel(
-                stat_frame,
-                text=f"{key}:",
-                font=customtkinter.CTkFont(weight="bold"),
-                fg_color="gray20"
-            )
-            key_label.pack(side="left", padx=10, pady=8)
-
-            value_label = customtkinter.CTkLabel(
-                stat_frame,
-                text=str(value),
-                fg_color="gray20"
-            )
-            value_label.pack(side="left", padx=5, pady=8)
-        
-        # Add empty frame at bottom to push content up
-        spacer = customtkinter.CTkFrame(content_frame, fg_color="gray17", height=200)
-        spacer.pack(fill="x", expand=True)
+            add_stat_entry(content_frame, key, value)
 
     def add_visualization_button(self, command):
         """Add a button to generate visualizations"""
