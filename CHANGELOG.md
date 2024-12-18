@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Metadata with detailed metrics information based on each instance solution
 - Graph visualizations on information of each instance.
 - Instance-specific metrics collection for visualization and metadata storage.
+- User distribution, metrics, and constraint satisfaction metadata added to be recorded for visualiations.
 
 ### Changed
 - Segregated out and specified our current implementation of ORTools as UDPB (User-Dependent Pseudo-Boolean).

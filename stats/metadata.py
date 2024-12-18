@@ -17,6 +17,16 @@ class WSPMetadataHandler:
 
     def save_result_metadata(self, instance_details: Dict, solver_result: Dict, solver_type: str, active_constraints: Dict, filename: str) -> str:
         """Update this method to include more comprehensive data"""
+        # Calculate additional metrics if solution exists
+        solution_metrics = {}
+        if solver_result['sat'] == 'sat' and solver_result['sol']:
+            user_distribution = self._calculate_user_distribution(solver_result['sol'])
+            user_metrics = self._calculate_user_metrics(user_distribution)
+            solution_metrics = {
+                "users_distribution": user_distribution,
+                "user_metrics": user_metrics
+            }
+
         metadata = {
             "timestamp": datetime.now().isoformat(),
             "instance_file": filename,
@@ -24,6 +34,7 @@ class WSPMetadataHandler:
             "instance_details": instance_details,
             "solver_result": solver_result,
             "active_constraints": active_constraints,
+            "solution_metrics": solution_metrics,  # Add this line
             "stats_summary": self._generate_stats_summary([instance_details, solver_result, active_constraints])
         }
 
@@ -36,6 +47,24 @@ class WSPMetadataHandler:
             json.dump(metadata, f, indent=2)
             
         return filepath
+
+    def _calculate_user_distribution(self, solution: List[Dict]) -> Dict:
+        """Calculate distribution of assignments per user"""
+        user_counts = {}
+        for assignment in solution:
+            user = f"user_{assignment['user']}"
+            user_counts[user] = user_counts.get(user, 0) + 1
+        return user_counts
+
+    def _calculate_user_metrics(self, user_distribution: Dict) -> Dict:
+        """Calculate user-related metrics"""
+        assignments = list(user_distribution.values())
+        return {
+            "unique_users": len(user_distribution),
+            "max_assignments": max(assignments),
+            "min_assignments": min(assignments),
+            "avg_assignments": sum(assignments) / len(assignments)
+        }
 
     def _generate_stats_summary(self, data: List[Dict]) -> Dict:
         """Helper method to generate stats summary - replaces generate_stats_summary in visualize.py"""
@@ -100,11 +129,11 @@ class WSPMetadataHandler:
         for key, value in metadata['solver_result'].items():
             # No need to modify exe_time since it's already a float
             flat[f'result_{key}'] = value
-                
+
         # Active constraints
         for key, value in metadata['active_constraints'].items():
             flat[f'constraint_{key}'] = value
-        
+
         return flat
 
     def generate_visualizations(self):
@@ -118,7 +147,7 @@ class WSPMetadataHandler:
             
         # Import visualization code
         from stats import plot_all_metrics
-        
+
         # Generate visualizations
         plot_all_metrics(all_metadata, self.visualizations_dir)
 
