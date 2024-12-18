@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class SolverType(Enum):
+class WSPSolverType(Enum):
     ORTOOLS_CS = "OR-Tools (CS)"
     ORTOOLS_PBPB = "OR-Tools (PBPB)"
     ORTOOLS_UDPB = "OR-Tools (UDPB)"

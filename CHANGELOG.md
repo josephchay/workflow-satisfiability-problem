@@ -37,3 +37,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactored the code to have each deserving components segregated into own files, clases, methods, and functions.
 - Folder directories storing multiple related files.
 - __init__.py initialization files for each directory, effectively turning each of them into a package.
+- Moved root files to related respetive directories, effectively leaving only the `main.py` file in the root for easier terminal execution.
+- Moved instance text files folder into a more appropriated embeded folder `assets`.

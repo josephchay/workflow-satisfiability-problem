@@ -1,4 +1,3 @@
-# instance.py
 class WSPInstance:
     def __init__(self):
         self.number_of_steps = 0

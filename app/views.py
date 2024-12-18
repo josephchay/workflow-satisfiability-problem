@@ -3,7 +3,7 @@ from typing import List, Dict, Optional
 import customtkinter
 from CTkTable import CTkTable
 
-from typings import SolverType
+from typings import WSPSolverType
 
 
 class WSPView(customtkinter.CTk):
@@ -113,7 +113,7 @@ class WSPView(customtkinter.CTk):
         # Create solver type selector
         self.solver_type = customtkinter.CTkOptionMenu(
             self.solver_frame,
-            values=[st.value for st in SolverType],
+            values=[st.value for st in WSPSolverType],
             command=None  # Will be set by controller
         )
         self.solver_type.pack(pady=5)
@@ -303,16 +303,16 @@ class WSPView(customtkinter.CTk):
         self.status_label = customtkinter.CTkLabel(self.main_frame, text="Ready")
         self.status_label.grid(row=2, column=0, padx=20, pady=10)
 
-    def update_solver_description(self, solver_type: SolverType):
+    def update_solver_description(self, solver_type: WSPSolverType):
         """Update the solver description based on selected type"""
         descriptions = {
-            SolverType.ORTOOLS_CS: "Constraint Satisfaction encoding using OR-Tools",
-            SolverType.ORTOOLS_PBPB: "Pattern-Based Pseudo-Boolean encoding using OR-Tools",
-            SolverType.ORTOOLS_UDPB: "User-Dependent Pseudo-Boolean encoding using OR-Tools",
-            SolverType.Z3_PBPB: "Pattern-Based Pseudo-Boolean encoding using Z3",
-            SolverType.Z3_UDPB: "User-Dependent Pseudo-Boolean encoding using Z3",
-            SolverType.SAT4J_PBPB: "Pattern-Based Pseudo-Boolean encoding using SAT4J",
-            SolverType.SAT4J_UDPB: "User-Dependent Pseudo-Boolean encoding using SAT4J"
+            WSPSolverType.ORTOOLS_CS: "Constraint Satisfaction encoding using OR-Tools",
+            WSPSolverType.ORTOOLS_PBPB: "Pattern-Based Pseudo-Boolean encoding using OR-Tools",
+            WSPSolverType.ORTOOLS_UDPB: "User-Dependent Pseudo-Boolean encoding using OR-Tools",
+            WSPSolverType.Z3_PBPB: "Pattern-Based Pseudo-Boolean encoding using Z3",
+            WSPSolverType.Z3_UDPB: "User-Dependent Pseudo-Boolean encoding using Z3",
+            WSPSolverType.SAT4J_PBPB: "Pattern-Based Pseudo-Boolean encoding using SAT4J",
+            WSPSolverType.SAT4J_UDPB: "User-Dependent Pseudo-Boolean encoding using SAT4J"
         }
         self.solver_description.configure(text=descriptions.get(solver_type, ""))
 

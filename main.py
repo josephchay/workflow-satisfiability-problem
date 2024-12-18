@@ -1,9 +1,8 @@
 # main.py
 import os
 import sys
-from views import WSPView
-from controllers import WSPController
-from typings import SolverType
+from app import WSPView, WSPController
+from typings import WSPSolverType
 from factories import WSPSolverFactory
 
 
@@ -46,8 +45,8 @@ def main():
         controller = WSPController(app, factory)
         
         # Initialize solver type combobox in view
-        app.solver_type.configure(values=[st.value for st in SolverType])
-        app.solver_type.set(SolverType.ORTOOLS_CS.value)  # Set default solver
+        app.solver_type.configure(values=[st.value for st in WSPSolverType])
+        app.solver_type.set(WSPSolverType.ORTOOLS_CS.value)  # Set default solver
         
         # Connect solver change callback
         app.solver_type.configure(command=controller.on_solver_change)

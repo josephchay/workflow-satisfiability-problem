@@ -3,17 +3,16 @@ from typing import Dict, List, Optional
 import time
 import customtkinter
 
-from instance import WSPInstance
+from typings import WSPInstance
 from filesystem import parse_instance_file
-from typings import SolverType
-from factories import WSPSolverFactory
+from typings import WSPSolverType
 
 
 class WSPController:
     def __init__(self, view, factory):
         self.view = view
         self.current_instance: Optional[WSPInstance] = None
-        self.current_solver_type = SolverType.ORTOOLS_CS  # Default solver
+        self.current_solver_type = WSPSolverType.ORTOOLS_CS  # Default solver
 
         # Connect button callbacks
         self.view.select_button.configure(command=self.select_file)
@@ -25,7 +24,7 @@ class WSPController:
  
     def on_solver_change(self, value: str):
         """Handle solver type selection change"""
-        self.current_solver_type = SolverType(value)
+        self.current_solver_type = WSPSolverType(value)
         self.view.update_status(f"Selected solver: {value}")
 
     def select_file(self):
@@ -141,13 +140,13 @@ class WSPController:
         # Create solver type dropdown
         self.solver_type = customtkinter.CTkOptionMenu(
             self.solver_frame,
-            values=[st.value for st in SolverType],
+            values=[st.value for st in WSPSolverType],
             command=self.on_solver_change
         )
         self.solver_type.pack(pady=5)
         
         # Set default solver
-        self.current_solver_type = SolverType.ORTOOLS_CS
+        self.current_solver_type = WSPSolverType.ORTOOLS_CS
 
     def solve(self):
         """Handle solving the current instance"""

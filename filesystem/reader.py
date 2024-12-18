@@ -1,6 +1,6 @@
 
 import re
-from instance import WSPInstance
+from typings import WSPInstance
 
 
 def parse_instance_file(filename: str) -> WSPInstance:
