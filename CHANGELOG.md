@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation of Z3 Solvers
 - New PBPB encoding for Z3 Solver
 - New UDPB encoding for Z3 Solver
+- `get_M()` function to handle M-variable access regardless of step order.
 
 ### Changed
 - Segregated out and specified our current implementation of ORTools as UDPB (User-Dependent Pseudo-Boolean).
@@ -30,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Improved
 - Better implementation for Z3 solvers of both PBPB and UDPB encodings.
 - Cleaner Code logic using mathematical symbols and representations instead of wording for shorter, precise, more accurate and research-based style.
-- Improved `str` and `int` related logics for ORTools
+- Improved `str` and `int` related logics for ORTools.
 
 ### Refactoring
 - Refactored the code to have each deserving components segregated into own files, clases, methods, and functions.
