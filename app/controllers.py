@@ -282,38 +282,54 @@ class WSPController:
     def collect_solution_stats(self, solution: Optional[List[Dict[str, int]]], 
                          solve_time: float, 
                          active_constraints: Dict[str, bool]) -> Dict:
-        """Collect statistics about the solution"""
         if not solution:
-            return {
-                "Status": "UNSAT",
-                "Solver Type": self.current_solver_type.value,
-                "Solve Time": f"{solve_time:.2f} seconds",
-                "Number of Solutions": 0,
-                "Solution is Unique": "N/A"
+            stats = {
+                "status": "unsat",
+                "performance_metrics": {
+                    "execution_time_ms": solve_time * 1000,
+                    "solution_count": 0,
+                    "is_unique": False
+                }
             }
-        
-        # Count users actually used in solution
+            return stats
+
+        # Count users and assignments
         used_users = set(assignment['user'] for assignment in solution)
-        
-        # Count assignments per user
         assignments_per_user = {}
         for assignment in solution:
             user = assignment['user']
             assignments_per_user[user] = assignments_per_user.get(user, 0) + 1
-        
+
         stats = {
-            "Status": "SAT",
-            "Solver Type": self.current_solver_type.value,
-            "Solve Time": f"{solve_time:.2f} seconds",
-            "Number of Solutions": self.current_result.get('solution_count', 1),
-            "Solution is Unique": "Yes" if self.current_result.get('is_unique', False) else "No",
-            "Number of Users Used": len(used_users),
-            "User Utilization": f"{(len(used_users) / self.current_instance.number_of_users * 100):.1f}%",
-            "Max Assignments per User": max(assignments_per_user.values()),
-            "Min Assignments per User": min(assignments_per_user.values()),
-            "Avg Assignments per User": f"{sum(assignments_per_user.values()) / len(used_users):.1f}"
+            "status": "sat",
+            "performance_metrics": {
+                "execution_time_ms": solve_time * 1000,
+                "solution_count": self.current_result.get('solution_count', 1),
+                "is_unique": self.current_result.get('is_unique', False)
+            },
+            "solution_metrics": {
+                "users_used": len(used_users),
+                "user_utilization": len(used_users) / self.current_instance.number_of_users,
+                "assignments_per_user": {
+                    "max": max(assignments_per_user.values()),
+                    "min": min(assignments_per_user.values()),
+                    "avg": sum(assignments_per_user.values()) / len(used_users)
+                }
+            },
+            "constraint_metrics": {
+                "constraint_density": self.current_instance.number_of_constraints / 
+                                    (self.current_instance.number_of_steps * self.current_instance.number_of_users),
+                "authorization_density": len([u for u in self.current_instance.auth if u]) / 
+                                    (self.current_instance.number_of_steps * self.current_instance.number_of_users),
+                "constraint_distribution": {
+                    "auth": len([u for u in self.current_instance.auth if u]),
+                    "sod": len(self.current_instance.SOD),
+                    "bod": len(self.current_instance.BOD),
+                    "at_most_k": len(self.current_instance.at_most_k),
+                    "one_team": len(self.current_instance.one_team)
+                }
+            }
         }
-        
         return stats
 
     def _analyze_constraint_satisfaction(self, solution: List[Dict[str, int]], active_constraints: Dict[str, bool]) -> Dict:

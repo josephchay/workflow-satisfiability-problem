@@ -1,3 +1,4 @@
+import json
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -9,6 +10,7 @@ from datetime import datetime
 class WSPVisualizer:
     def __init__(self, results_dir: str):
         self.results_dir = results_dir
+
         # Create results directory if it doesn't exist
         os.makedirs(results_dir, exist_ok=True)
         
@@ -295,6 +297,83 @@ class WSPVisualizer:
         plt.savefig(os.path.join(self.results_dir, 'extended_instance_metrics.png'))
         plt.close()
 
+    def generate_stats_summary(self, data: List[Dict], output_file: Optional[str] = None):
+        """Generate JSON summary of performance statistics"""
+        df = pd.DataFrame(data)
+        
+        if output_file is None:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            output_file = os.path.join(self.results_dir, f'stats_summary_{timestamp}.json')
+        
+        summary = {
+            "performance_summary": {
+                "by_solver": {
+                    solver: {
+                        "execution_time": {
+                            "mean": group['result_exe_time'].mean(),
+                            "std": group['result_exe_time'].std(),
+                            "min": group['result_exe_time'].min(),
+                            "max": group['result_exe_time'].max()
+                        },
+                        "solutions": {
+                            "mean": group['result_solution_count'].mean(),
+                            "min": group['result_solution_count'].min(),
+                            "max": group['result_solution_count'].max()
+                        },
+                        "unique_solutions": group['result_is_unique'].mean()
+                    }
+                    for solver, group in df.groupby('solver_type')
+                }
+            },
+            "instance_summary": {
+                "steps": {
+                    "mean": df['number_of_steps'].mean(),
+                    "std": df['number_of_steps'].std(),
+                    "min": df['number_of_steps'].min(),
+                    "max": df['number_of_steps'].max()
+                },
+                "users": {
+                    "mean": df['number_of_users'].mean(),
+                    "std": df['number_of_users'].std(),
+                    "min": df['number_of_users'].min(),
+                    "max": df['number_of_users'].max()
+                },
+                "constraints": {
+                    "mean": df['number_of_constraints'].mean(),
+                    "std": df['number_of_constraints'].std(),
+                    "min": df['number_of_constraints'].min(),
+                    "max": df['number_of_constraints'].max()
+                },
+                "auth_density": {
+                    "mean": df['auth_density'].mean(),
+                    "std": df['auth_density'].std(),
+                    "min": df['auth_density'].min(),
+                    "max": df['auth_density'].max()
+                },
+                "constraint_density": {
+                    "mean": df['constraint_density'].mean(),
+                    "std": df['constraint_density'].std(),
+                    "min": df['constraint_density'].min(),
+                    "max": df['constraint_density'].max()
+                }
+            },
+            "constraint_analysis": {
+                constraint: {
+                    "mean": df[df[f'constraint_{constraint}']]['result_exe_time'].mean(),
+                    "std": df[df[f'constraint_{constraint}']]['result_exe_time'].std(),
+                    "min": df[df[f'constraint_{constraint}']]['result_exe_time'].min(),
+                    "max": df[df[f'constraint_{constraint}']]['result_exe_time'].max()
+                }
+                for constraint in ['authorizations', 'separation_of_duty', 'binding_of_duty', 
+                                'at_most_k', 'one_team']
+            }
+        }
+        
+        with open(output_file, 'w') as f:
+            json.dump(summary, f, indent=2)
+
+        return summary
+
 
 def plot_all_metrics(data: List[Dict], output_dir: str):
     """Helper function to generate all visualizations"""
@@ -322,8 +401,11 @@ def plot_all_metrics(data: List[Dict], output_dir: str):
         print("Generating extended instance metrics...")
         visualizer.plot_extended_instance_metrics(data)
 
-        print("Generating report...")
-        visualizer.generate_report(data)
+        # print("Generating report...")
+        # visualizer.generate_report(data)
+
+        print("Generating stats summary...")
+        visualizer.generate_stats_summary(data)
         
         print("All visualizations completed!")
     except Exception as e:
