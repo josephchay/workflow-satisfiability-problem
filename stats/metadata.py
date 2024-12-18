@@ -15,32 +15,58 @@ class WSPMetadataHandler:
         os.makedirs(self.metadata_dir, exist_ok=True)
         os.makedirs(self.visualizations_dir, exist_ok=True)
 
-    def save_result_metadata(self, 
-                           instance_details: Dict,
-                           solver_result: Dict,
-                           solver_type: str,
-                           active_constraints: Dict,
-                           filename: str) -> str:
-        """Save metadata for a single solving instance"""
+    def save_result_metadata(self, instance_details: Dict, solver_result: Dict, solver_type: str, active_constraints: Dict, filename: str) -> str:
+        """Update this method to include more comprehensive data"""
         metadata = {
             "timestamp": datetime.now().isoformat(),
             "instance_file": filename,
             "solver_type": solver_type,
             "instance_details": instance_details,
             "solver_result": solver_result,
-            "active_constraints": active_constraints
+            "active_constraints": active_constraints,
+            "stats_summary": self._generate_stats_summary([instance_details, solver_result, active_constraints])
         }
 
         # Create unique filename for metadata
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         metadata_filename = f"metadata_{timestamp}.json"
         
-        # Save metadata
         filepath = os.path.join(self.metadata_dir, metadata_filename)
         with open(filepath, 'w') as f:
             json.dump(metadata, f, indent=2)
             
         return filepath
+
+    def _generate_stats_summary(self, data: List[Dict]) -> Dict:
+        """Helper method to generate stats summary - replaces generate_stats_summary in visualize.py"""
+        df = pd.DataFrame(data)
+        
+        def safe_stats(series):
+            stats = series.agg(['mean', 'std', 'min', 'max']).to_dict()
+            return {k: 0 if pd.isna(v) else v for k, v in stats.items()}
+        
+        return {
+            "performance_metrics": {
+                "execution_time": safe_stats(df['result_exe_time']),
+                "solution_count": safe_stats(df['solution_count']),
+                "unique_solutions": df['is_unique'].mean()
+            },
+            "instance_metrics": {
+                "steps": safe_stats(df['number_of_steps']),
+                "users": safe_stats(df['number_of_users']),
+                "constraints": safe_stats(df['number_of_constraints']),
+                "densities": {
+                    "auth": safe_stats(df['auth_density']),
+                    "constraint": safe_stats(df['constraint_density'])
+                }
+            },
+            "constraint_metrics": {
+                "distribution": {
+                    c: safe_stats(df[f'{c}_constraints']) 
+                    for c in ['authorization', 'separation_of_duty', 'binding_of_duty', 'at_most_k', 'one_team']
+                }
+            }
+        }
 
     def load_all_metadata(self) -> List[Dict]:
         """Load all metadata files and return as list of dictionaries"""

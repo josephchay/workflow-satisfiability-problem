@@ -169,43 +169,6 @@ class WSPVisualizer:
         plt.savefig(os.path.join(self.results_dir, 'instance_complexity.png'))
         plt.close()
 
-    def generate_report(self, data: List[Dict], output_file: Optional[str] = None):
-        """Generate a comprehensive analysis report"""
-        df = pd.DataFrame(data)
-        
-        if output_file is None:
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            output_file = os.path.join(self.results_dir, f'analysis_report_{timestamp}.md')
-        
-        with open(output_file, 'w') as f:
-            f.write('# WSP Solver Analysis Report\n\n')
-            
-            f.write('## Performance Summary\n\n')
-            perf_summary = df.groupby('solver_type').agg({
-                'result_exe_time': ['mean', 'std', 'min', 'max'],
-                'result_sat': lambda x: (x == 'sat').mean(),
-                'result_is_unique': 'mean'
-            }).round(2)
-            f.write(f'```\n{perf_summary}\n```\n\n')
-            
-            f.write('## Instance Characteristics\n\n')
-            instance_summary = df.agg({
-                'number_of_steps': ['mean', 'std', 'min', 'max'],
-                'number_of_users': ['mean', 'std', 'min', 'max'],
-                'number_of_constraints': ['mean', 'std', 'min', 'max']
-            }).round(2)
-            f.write(f'```\n{instance_summary}\n```\n\n')
-            
-            f.write('## Constraint Analysis\n\n')
-            constraints = ['constraint_authorizations', 'constraint_separation_of_duty', 
-                        'constraint_binding_of_duty', 'constraint_at_most_k', 
-                        'constraint_one_team']
-            for c in constraints:
-                desc = c.replace('constraint_', '').replace('_', ' ').title()
-                constraint_impact = df[df[c]]['result_exe_time'].describe().round(2)
-                f.write(f'### {desc}\n')
-                f.write(f'```\n{constraint_impact}\n```\n\n')
-    
     def plot_instance_metrics(self, data: List[Dict]):
         """Plot metrics related to instance properties only"""
         df = pd.DataFrame(data)
@@ -297,83 +260,6 @@ class WSPVisualizer:
         plt.savefig(os.path.join(self.results_dir, 'extended_instance_metrics.png'))
         plt.close()
 
-    def generate_stats_summary(self, data: List[Dict], output_file: Optional[str] = None):
-        """Generate JSON summary of performance statistics"""
-        df = pd.DataFrame(data)
-        
-        if output_file is None:
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            output_file = os.path.join(self.results_dir, f'stats_summary_{timestamp}.json')
-        
-        summary = {
-            "performance_summary": {
-                "by_solver": {
-                    solver: {
-                        "execution_time": {
-                            "mean": group['result_exe_time'].mean(),
-                            "std": group['result_exe_time'].std(),
-                            "min": group['result_exe_time'].min(),
-                            "max": group['result_exe_time'].max()
-                        },
-                        "solutions": {
-                            "mean": group['result_solution_count'].mean(),
-                            "min": group['result_solution_count'].min(),
-                            "max": group['result_solution_count'].max()
-                        },
-                        "unique_solutions": group['result_is_unique'].mean()
-                    }
-                    for solver, group in df.groupby('solver_type')
-                }
-            },
-            "instance_summary": {
-                "steps": {
-                    "mean": df['number_of_steps'].mean(),
-                    "std": df['number_of_steps'].std(),
-                    "min": df['number_of_steps'].min(),
-                    "max": df['number_of_steps'].max()
-                },
-                "users": {
-                    "mean": df['number_of_users'].mean(),
-                    "std": df['number_of_users'].std(),
-                    "min": df['number_of_users'].min(),
-                    "max": df['number_of_users'].max()
-                },
-                "constraints": {
-                    "mean": df['number_of_constraints'].mean(),
-                    "std": df['number_of_constraints'].std(),
-                    "min": df['number_of_constraints'].min(),
-                    "max": df['number_of_constraints'].max()
-                },
-                "auth_density": {
-                    "mean": df['auth_density'].mean(),
-                    "std": df['auth_density'].std(),
-                    "min": df['auth_density'].min(),
-                    "max": df['auth_density'].max()
-                },
-                "constraint_density": {
-                    "mean": df['constraint_density'].mean(),
-                    "std": df['constraint_density'].std(),
-                    "min": df['constraint_density'].min(),
-                    "max": df['constraint_density'].max()
-                }
-            },
-            "constraint_analysis": {
-                constraint: {
-                    "mean": df[df[f'constraint_{constraint}']]['result_exe_time'].mean(),
-                    "std": df[df[f'constraint_{constraint}']]['result_exe_time'].std(),
-                    "min": df[df[f'constraint_{constraint}']]['result_exe_time'].min(),
-                    "max": df[df[f'constraint_{constraint}']]['result_exe_time'].max()
-                }
-                for constraint in ['authorizations', 'separation_of_duty', 'binding_of_duty', 
-                                'at_most_k', 'one_team']
-            }
-        }
-        
-        with open(output_file, 'w') as f:
-            json.dump(summary, f, indent=2)
-
-        return summary
-
 
 def plot_all_metrics(data: List[Dict], output_dir: str):
     """Helper function to generate all visualizations"""
@@ -400,12 +286,6 @@ def plot_all_metrics(data: List[Dict], output_dir: str):
         
         print("Generating extended instance metrics...")
         visualizer.plot_extended_instance_metrics(data)
-
-        # print("Generating report...")
-        # visualizer.generate_report(data)
-
-        print("Generating stats summary...")
-        visualizer.generate_stats_summary(data)
         
         print("All visualizations completed!")
     except Exception as e:
