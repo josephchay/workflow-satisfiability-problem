@@ -259,26 +259,26 @@ class ORToolsUDPBWSPSolver(BaseWSPSolver):
                             model.Add(user_assignment[step][user] == 0)
 
         solver = cp_model.CpSolver()
-        solver.parameters.enumerate_all_solutions = False
-        solver.parameters.num_search_workers = 4
+        solution_collector = SolutionCollector("UDPB", user_assignment)
+        solver.parameters.enumerate_all_solutions = True
+        # solver.parameters.num_search_workers = 4
 
         start_time = time.time()
-        status = solver.Solve(model)
+        status = solver.Solve(model, solution_collector)
         end_time = time.time()
 
         result = {
             'sat': 'unsat', 
             'result_exe_time': (end_time - start_time) * 1000,
-            'sol': []
+            'sol': [],
+            'solution_count': 0,
+            'is_unique': False,
         }
 
         if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
             result['sat'] = 'sat'
-            solution = []
-            for s in range(self.instance.number_of_steps):
-                for u in range(self.instance.number_of_users):
-                    if solver.Value(user_assignment[s][u]):
-                        solution.append({'step': s + 1, 'user': u + 1})
-            result['sol'] = solution
+            result['sol'] = solution_collector.get_solutions()
+            result['solution_count'] = solution_collector.solution_count()
+            result['is_unique'] = result['solution_count'] == 1
 
         return result

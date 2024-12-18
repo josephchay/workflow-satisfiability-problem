@@ -13,19 +13,22 @@ class SolutionCollector(cp_model.CpSolverSolutionCallback):
 
     def on_solution_callback(self):
         self._solution_count += 1
+        solution = []
+        
         if self._solver_type == "CS":
-            solution = []
             for s, var in enumerate(self._variables):
                 user = self.Value(var)
                 solution.append({'step': s + 1, 'user': user + 1})
-            self._solutions.append(solution)
         else:  # PBPB or UDPB
-            solution = []
-            for s in range(len(self._variables)):
-                for u in range(len(self._variables[s])):
+            steps = len(self._variables)
+            users = len(self._variables[0])  # Get number of users from first step's assignments
+            
+            for s in range(steps):
+                for u in range(users):
                     if self.Value(self._variables[s][u]):
                         solution.append({'step': s + 1, 'user': u + 1})
-            self._solutions.append(solution)
+        
+        self._solutions.append(solution)
     
     def solution_count(self):
         return self._solution_count
