@@ -285,17 +285,33 @@ class WSPController:
         """Collect statistics about the solution"""
         if not solution:
             return {
-                "sat": "unsat",
-                "result_exe_time": solve_time * 1000,  # Convert to milliseconds
-                "result_solution_count": 0,
-                "result_is_unique": False
+                "Status": "UNSAT",
+                "Solver Type": self.current_solver_type.value,
+                "Solve Time": f"{solve_time:.2f} seconds",
+                "Number of Solutions": 0,
+                "Solution is Unique": "N/A"
             }
         
+        # Count users actually used in solution
+        used_users = set(assignment['user'] for assignment in solution)
+        
+        # Count assignments per user
+        assignments_per_user = {}
+        for assignment in solution:
+            user = assignment['user']
+            assignments_per_user[user] = assignments_per_user.get(user, 0) + 1
+        
         stats = {
-            "sat": "sat",
-            "result_exe_time": solve_time * 1000,  # Convert to milliseconds
-            "result_solution_count": self.current_result.get('solution_count', 1),
-            "result_is_unique": self.current_result.get('is_unique', False),
+            "Status": "SAT",
+            "Solver Type": self.current_solver_type.value,
+            "Solve Time": f"{solve_time:.2f} seconds",
+            "Number of Solutions": self.current_result.get('solution_count', 1),
+            "Solution is Unique": "Yes" if self.current_result.get('is_unique', False) else "No",
+            "Number of Users Used": len(used_users),
+            "User Utilization": f"{(len(used_users) / self.current_instance.number_of_users * 100):.1f}%",
+            "Max Assignments per User": max(assignments_per_user.values()),
+            "Min Assignments per User": min(assignments_per_user.values()),
+            "Avg Assignments per User": f"{sum(assignments_per_user.values()) / len(used_users):.1f}"
         }
         
         return stats

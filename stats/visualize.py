@@ -203,6 +203,97 @@ class WSPVisualizer:
                 constraint_impact = df[df[c]]['result_exe_time'].describe().round(2)
                 f.write(f'### {desc}\n')
                 f.write(f'```\n{constraint_impact}\n```\n\n')
+    
+    def plot_instance_metrics(self, data: List[Dict]):
+        """Plot metrics related to instance properties only"""
+        df = pd.DataFrame(data)
+        
+        fig, axes = plt.subplots(2, 2, figsize=(15, 15))
+        
+        # Constraint distribution
+        constraint_types = ['authorization_constraints', 'separation_of_duty_constraints', 
+                        'binding_of_duty_constraints', 'at_most_k_constraints', 
+                        'one_team_constraints']
+        constraint_counts = df[constraint_types].mean()
+        constraint_counts.plot(kind='bar', ax=axes[0,0])
+        axes[0,0].set_title('Distribution of Constraint Types')
+        axes[0,0].set_xticklabels(axes[0,0].get_xticklabels(), rotation=45)
+        
+        # Step vs User ratio
+        axes[0,1].scatter(df['number_of_steps'], df['number_of_users'])
+        axes[0,1].set_title('Steps vs Users')
+        axes[0,1].set_xlabel('Number of Steps')
+        axes[0,1].set_ylabel('Number of Users')
+        
+        # Authorization density vs constraint density
+        axes[1,0].scatter(df['auth_density'], df['constraint_density'])
+        axes[1,0].set_title('Authorization vs Constraint Density')
+        axes[1,0].set_xlabel('Authorization Density')
+        axes[1,0].set_ylabel('Constraint Density')
+        
+        # Total constraints vs steps
+        axes[1,1].scatter(df['number_of_steps'], df['number_of_constraints'])
+        axes[1,1].set_title('Constraints vs Steps')
+        axes[1,1].set_xlabel('Number of Steps')
+        axes[1,1].set_ylabel('Number of Constraints')
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.results_dir, 'instance_metrics.png'))
+        plt.close()
+
+    def plot_extended_instance_metrics(self, data: List[Dict]):
+        """Plot extended metrics specific to WSP instances"""
+        df = pd.DataFrame(data)
+        
+        fig, axes = plt.subplots(3, 2, figsize=(15, 20))
+        
+        # 1. Constraint Type Distribution (existing)
+        constraint_types = ['authorization_constraints', 'separation_of_duty_constraints', 
+                        'binding_of_duty_constraints', 'at_most_k_constraints', 
+                        'one_team_constraints']
+        constraint_counts = df[constraint_types].mean()
+        constraint_counts.plot(kind='bar', ax=axes[0,0])
+        axes[0,0].set_title('Distribution of Constraint Types')
+        axes[0,0].set_xticklabels(axes[0,0].get_xticklabels(), rotation=45)
+        
+        # 2. Steps/Users Relationship (existing)
+        axes[0,1].scatter(df['number_of_steps'], df['number_of_users'])
+        axes[0,1].plot([0, max(df['number_of_steps'])], [0, max(df['number_of_steps'])], '--', color='gray')
+        axes[0,1].set_title('Steps vs Users (with k=n line)')
+        axes[0,1].set_xlabel('Number of Steps (k)')
+        axes[0,1].set_ylabel('Number of Users (n)')
+        
+        # 3. Authorization Pattern
+        avg_auths_per_user = df['authorization_constraints'] / df['number_of_users']
+        axes[1,0].scatter(df['number_of_steps'], avg_auths_per_user)
+        axes[1,0].set_title('Authorization Load per User')
+        axes[1,0].set_xlabel('Number of Steps')
+        axes[1,0].set_ylabel('Average Authorizations per User')
+        
+        # 4. Constraint Density vs Problem Size
+        sizes = df['number_of_steps'] * df['number_of_users']
+        axes[1,1].scatter(sizes, df['constraint_density'])
+        axes[1,1].set_title('Constraint Density vs Problem Size')
+        axes[1,1].set_xlabel('Problem Size (k × n)')
+        axes[1,1].set_ylabel('Constraint Density')
+        
+        # 5. Constraint Type Ratios
+        total_constraints = df[constraint_types].sum(axis=1)
+        constraint_ratios = df[constraint_types].div(total_constraints, axis=0)
+        constraint_ratios.boxplot(ax=axes[2,0])
+        axes[2,0].set_title('Constraint Type Proportions')
+        axes[2,0].set_xticklabels(axes[2,0].get_xticklabels(), rotation=45)
+        
+        # 6. Authorization Coverage
+        auth_coverage = df['authorization_constraints'] / (df['number_of_steps'] * df['number_of_users'])
+        axes[2,1].hist(auth_coverage, bins=20)
+        axes[2,1].set_title('Authorization Coverage Distribution')
+        axes[2,1].set_xlabel('Coverage Ratio')
+        axes[2,1].set_ylabel('Frequency')
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.results_dir, 'extended_instance_metrics.png'))
+        plt.close()
 
 
 def plot_all_metrics(data: List[Dict], output_dir: str):
@@ -224,7 +315,13 @@ def plot_all_metrics(data: List[Dict], output_dir: str):
         
         print("Generating instance complexity...")
         visualizer.plot_instance_complexity(data)
+
+        print("Generating instance metrics...")
+        visualizer.plot_instance_metrics(data)
         
+        print("Generating extended instance metrics...")
+        visualizer.plot_extended_instance_metrics(data)
+
         print("Generating report...")
         visualizer.generate_report(data)
         
