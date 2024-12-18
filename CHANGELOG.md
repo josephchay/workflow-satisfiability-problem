@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Improved
 - Better implementation for Z3 solvers of both PBPB and UDPB encodings.
 - Cleaner Code logic using mathematical symbols and representations instead of wording for shorter, precise, more accurate and research-based style.
+- Improved `str` and `int` related logics for ORTools
 
 ### Refactoring
 - Refactored the code to have each deserving components segregated into own files, clases, methods, and functions.
