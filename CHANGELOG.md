@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Instance-specific metrics collection for visualization and metadata storage.
 - User distribution, metrics, and constraint satisfaction metadata added to be recorded for visualiations.
 - More information with indentation of groups of information under the statistics tab window.
+- SAT4J Pattern-Based Psuedo-Boolean (PBPB) and User-Dependent Psuedo-Boolean (UDPB)
 
 ### Changed
 - Segregated out and specified our current implementation of ORTools as UDPB (User-Dependent Pseudo-Boolean).
