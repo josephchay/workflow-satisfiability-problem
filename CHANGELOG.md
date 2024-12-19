@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Made statistics summary to be saved into json file format instead of MARKDOWN report.
 - Ensure that `SolutionCollector` class properly handles array dimensions.
 - Logics for SAT4J now able to solve Instance 16, 17, 18, 19 within matter of 1 second.
+- Resolved At-Most-K violations for SAT4J PBPB implementation.
 
 ### Refactoring
 - Refactored the code to have each deserving components segregated into own files, clases, methods, and functions.

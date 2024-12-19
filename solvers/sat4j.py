@@ -399,11 +399,12 @@ class SAT4JPBPBWSPSolver(BaseWSPSolver):
             }
 
     def _create_assignment_variables(self):
-        """Create assignment variables x[s][u]"""
+        """Create assignment variables x[s][u] using the working code approach"""
         x = []
         for s in range(self.instance.number_of_steps):
             row = []
             for u in range(self.instance.number_of_users):
+                # Only create variables for authorized assignments
                 if not self.instance.auth[u] or s in self.instance.auth[u]:
                     self.var_count += 1
                     row.append(self.var_count)
@@ -420,15 +421,14 @@ class SAT4JPBPBWSPSolver(BaseWSPSolver):
         return x
 
     def _create_pattern_variables(self):
-        """Create pattern variables M[s1][s2]"""
+        """Create pattern variables M[s1][s2] following working code"""
         M = [[None for _ in range(self.instance.number_of_steps)] 
-             for _ in range(self.instance.number_of_steps)]
+            for _ in range(self.instance.number_of_steps)]
         
         for s1 in range(self.instance.number_of_steps):
             for s2 in range(s1 + 1, self.instance.number_of_steps):
                 self.var_count += 1
                 M[s1][s2] = M[s2][s1] = self.var_count
-                
         return M
 
     def _add_authorization_constraints(self, x):
@@ -445,35 +445,64 @@ class SAT4JPBPBWSPSolver(BaseWSPSolver):
                         })
 
     def _add_pattern_constraints(self, x, M):
-        """Add pattern-related constraints"""
-        # Transitivity constraints with simpler encoding
-        for s1, s2, s3 in itertools.combinations(range(self.instance.number_of_steps), 3):
-            if s1 < s2 and s2 < s3:
-                # If s1,s2 same user and s2,s3 same user then s1,s3 must be same user
+        """Pattern constraints following working code approach"""
+        # For each pair of steps
+        for s1, s2 in itertools.combinations(range(self.instance.number_of_steps), 2):
+            # Link with other steps (transitivity)
+            for s3 in range(self.instance.number_of_steps):
+                if s1 == s3 or s2 == s3:
+                    continue
+                # M[s1][s2] ≥ M[s1][s3] + M[s2][s3] - 1
                 self.constraints.append({
-                    'left': [M[s1][s3]],
-                    'relation': '>=',
-                    'right': [M[s1][s2], M[s2][s3]],
+                    'left': [M[s1][s2]],
+                    'relation': '>=', 
+                    'right': [M[s1][s3], M[s2][s3]],
                     'right_const': -1
                 })
-        
-        # Link M variables with x variables - simpler encoding
-        for s1, s2 in itertools.combinations(range(self.instance.number_of_steps), 2):
+
+            # Link pattern with assignments
             for u in range(self.instance.number_of_users):
                 if x[s1][u] is not None and x[s2][u] is not None:
-                    # If either step assigned to user, pattern must match
+                    # Link assignments both ways
+                    self.constraints.append({
+                        'left': [x[s1][u], M[s1][s2]],
+                        'relation': '<=',
+                        'right': [x[s2][u]],
+                        'right_const': 1
+                    })
+                    self.constraints.append({
+                        'left': [x[s2][u], M[s1][s2]],
+                        'relation': '<=',
+                        'right': [x[s1][u]],
+                        'right_const': 1
+                    })
+                    # Force pattern if same user
                     self.constraints.append({
                         'left': [x[s1][u], x[s2][u]],
                         'relation': '<=',
                         'right': [M[s1][s2]],
                         'right_const': 1
                     })
+                # Handle unauthorized assignments
+                if x[s2][u] is None and x[s1][u] is not None:
+                    self.constraints.append({
+                        'left': [x[s1][u], M[s1][s2]],
+                        'relation': '<=',
+                        'right': [],
+                        'right_const': 1
+                    })
+                if x[s1][u] is None and x[s2][u] is not None:
+                    self.constraints.append({
+                        'left': [x[s2][u], M[s1][s2]],
+                        'relation': '<=',
+                        'right': [],
+                        'right_const': 1
+                    })
 
     def _add_separation_of_duty_constraints(self, M):
-        """Add separation of duty constraints"""
+        """SoD constraints following working code"""
         for s1, s2 in self.instance.SOD:
             if s1 < s2:
-                # If steps s1 and s2 are separated, M[s1][s2] must be 0
                 self.constraints.append({
                     'left': [M[s1][s2]],
                     'relation': '=',
@@ -494,24 +523,19 @@ class SAT4JPBPBWSPSolver(BaseWSPSolver):
                 })
 
     def _add_at_most_k_constraints(self, M):
-        """Add at-most-k constraints"""
+        """At-most-k constraints following working code approach"""
         for k, steps in self.instance.at_most_k:
+            # For each subset of size k+1
             for subset in itertools.combinations(steps, k + 1):
-                same_user_vars = []
-                # For each pair in the subset, at least one pair must be same user
-                for s1, s2 in itertools.combinations(subset, 2):
-                    if s1 < s2:
-                        same_user_vars.append(M[s1][s2])
-                    else:
-                        same_user_vars.append(M[s2][s1])
-                if same_user_vars:
-                    # At least one pair must be assigned to same user
-                    self.constraints.append({
-                        'left': same_user_vars,
-                        'relation': '>=',
-                        'right': [],
-                        'right_const': 1
-                    })
+                # Get all possible pairs in subset
+                pairs = list(itertools.combinations(subset, 2))
+                # Need at least one same-user pair
+                self.constraints.append({
+                    'left': [M[min(s1,s2)][max(s1,s2)] for s1,s2 in pairs],
+                    'relation': '>=',
+                    'right': [],
+                    'right_const': 1
+                })
 
     def _add_one_team_constraints(self, x, M):
         """Add one-team constraints"""
@@ -566,27 +590,19 @@ class SAT4JPBPBWSPSolver(BaseWSPSolver):
                         })
 
     def _write_constraint(self, f, constraint):
-        """Write a constraint in SAT4J format"""
-        # Write in SAT4J's PB format
-        line = ""
-        
+        """Write constraint following SAT4J format"""
         # Add left side terms
+        line = ''
         for var in constraint["left"]:
-            line += f"+1 x{var} "
-            
-        # Add right side terms (with negative coefficients)
-        for var in constraint["right"]:
-            line += f"-1 x{var} "
-            
-        # Add relation and right constant
-        if constraint["relation"] == "=":
-            line += f"= {constraint['right_const']}"
-        elif constraint["relation"] == ">=":
-            line += f">= {constraint['right_const']}"
-        elif constraint["relation"] == "<=":
-            line += f"<= {constraint['right_const']}"
+            line += f'+1 x{var}'
         
-        f.write(line + ";\n")
+        # Add right side terms
+        for var in constraint["right"]:
+            line += f'-1 x{var}'
+        
+        # Add relation and constant    
+        line += f' {constraint["relation"]} {constraint["right_const"]}'
+        f.write(line + ';\n')
 
     def _parse_sat4j_output(self, output, x):
         """Parse SAT4J output and convert to solution format"""
