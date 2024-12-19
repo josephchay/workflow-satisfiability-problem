@@ -313,6 +313,7 @@ class SAT4JPBPBWSPSolver(BaseWSPSolver):
 
         # Write constraints to temporary file
         with tempfile.NamedTemporaryFile(mode='w', prefix='pb-', delete=False) as f:
+            # Write correct PB format header
             f.write(f'* #variable= {self.var_count} #constraint= {len(self.constraints)}\n')
             for constraint in self.constraints:
                 self._write_constraint(f, constraint)
@@ -321,38 +322,77 @@ class SAT4JPBPBWSPSolver(BaseWSPSolver):
         # Call SAT4J solver
         start_time = time.time()
         try:
+            # Add timeout to prevent infinite runs
             result = subprocess.run(
-                ['java', '-jar', 'sat4j-pb.jar', 'Default', temp_filename],
+                ['java', '-jar', os.path.join('assets', 'sat4j-pb.jar'), 'Default', temp_filename],
                 capture_output=True,
-                text=True
+                text=True,
+                timeout=300  # 5 minute timeout
             )
-            solution = self._parse_sat4j_output(result.stdout, x)
-            end_time = time.time()
 
+            # Debug output
+            print("SAT4J Output:")
+            print(result.stdout)
+            print("SAT4J Errors:")
+            print(result.stderr)
+            
+            # Parse solution
+            solution = None
+            for line in result.stdout.splitlines():
+                if line.startswith("s SATISFIABLE"):
+                    solution = []
+                elif solution is not None and line.startswith("v "):
+                    # Extract assignments
+                    assignments = line[2:].split()
+                    for assign in assignments:
+                        if not assign.startswith("-"):  # Only look at positive assignments
+                            var_num = int(assign.replace("x", ""))
+                            # Convert variable number back to step/user assignment
+                            for s in range(self.instance.number_of_steps):
+                                for u in range(self.instance.number_of_users):
+                                    if x[s][u] == var_num:
+                                        solution.append({'step': s + 1, 'user': u + 1})
+
+            end_time = time.time()
+            
             # Clean up temp file
             os.unlink(temp_filename)
 
             if solution:
                 return {
                     'sat': 'sat',
-                    'exe_time': f"{(end_time - start_time) * 1000:.2f}ms",
+                    'result_exe_time': (end_time - start_time) * 1000,  # Convert to ms
                     'sol': solution,
-                    'solution_count': 1,
-                    'is_unique': False
+                    'solution_count': 1,  # SAT4J returns one solution
+                    'is_unique': False  # Cannot determine uniqueness
                 }
             else:
                 return {
                     'sat': 'unsat',
-                    'exe_time': f"{(end_time - start_time) * 1000:.2f}ms",
+                    'result_exe_time': (end_time - start_time) * 1000,
                     'sol': [],
                     'solution_count': 0,
                     'is_unique': False
                 }
+
+        except subprocess.TimeoutExpired:
+            print("SAT4J solver timed out after 5 minutes")
+            if os.path.exists(temp_filename):
+                os.unlink(temp_filename)
+            return {
+                'sat': 'timeout',
+                'result_exe_time': 300000,  # 5 minutes in ms
+                'sol': [],
+                'solution_count': 0,
+                'is_unique': False
+            }
         except Exception as e:
             print(f"Error running SAT4J: {str(e)}")
+            if os.path.exists(temp_filename):
+                os.unlink(temp_filename)
             return {
                 'sat': 'error',
-                'exe_time': '0ms',
+                'result_exe_time': 0,
                 'sol': [],
                 'solution_count': 0,
                 'is_unique': False
@@ -406,33 +446,22 @@ class SAT4JPBPBWSPSolver(BaseWSPSolver):
 
     def _add_pattern_constraints(self, x, M):
         """Add pattern-related constraints"""
-        # Transitivity constraints
+        # Transitivity constraints with simpler encoding
         for s1, s2, s3 in itertools.combinations(range(self.instance.number_of_steps), 3):
-            self.constraints.append({
-                'left': [M[s1][s2]],
-                'relation': '>=',
-                'right': [M[s1][s3], M[s2][s3]],
-                'right_const': -1
-            })
-            
-        # Link M variables with x variables
+            if s1 < s2 and s2 < s3:
+                # If s1,s2 same user and s2,s3 same user then s1,s3 must be same user
+                self.constraints.append({
+                    'left': [M[s1][s3]],
+                    'relation': '>=',
+                    'right': [M[s1][s2], M[s2][s3]],
+                    'right_const': -1
+                })
+        
+        # Link M variables with x variables - simpler encoding
         for s1, s2 in itertools.combinations(range(self.instance.number_of_steps), 2):
             for u in range(self.instance.number_of_users):
                 if x[s1][u] is not None and x[s2][u] is not None:
-                    # If steps assigned same user, M must be 1
-                    self.constraints.append({
-                        'left': [x[s1][u], M[s1][s2]],
-                        'relation': '<=',
-                        'right': [x[s2][u]],
-                        'right_const': 1
-                    })
-                    self.constraints.append({
-                        'left': [x[s2][u], M[s1][s2]],
-                        'relation': '<=',
-                        'right': [x[s1][u]],
-                        'right_const': 1
-                    })
-                    # If M is 1, steps must be assigned same user
+                    # If either step assigned to user, pattern must match
                     self.constraints.append({
                         'left': [x[s1][u], x[s2][u]],
                         'relation': '<=',

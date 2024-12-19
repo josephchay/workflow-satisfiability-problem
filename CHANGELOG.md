@@ -42,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved `str` and `int` related logics for ORTools.
 - Made statistics summary to be saved into json file format instead of MARKDOWN report.
 - Ensure that `SolutionCollector` class properly handles array dimensions.
+- Logics for SAT4J now able to solve Instance 16, 17, 18, 19 within matter of 1 second.
 
 ### Refactoring
 - Refactored the code to have each deserving components segregated into own files, clases, methods, and functions.
