@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Refactoring
+- Introduced `InstanceParser` class for better readability for use for global function `parse_instance_file`.
+
 ## [0.1.0] - 2024-12-22
 
 ### Added
