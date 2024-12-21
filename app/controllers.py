@@ -4,7 +4,6 @@ import time
 import customtkinter
 
 from typings import Instance
-from filesystem import parse_instance_file
 from typings import WSPSolverType, NotEquals, AtMost, OneTeam
 from stats import WSPMetadataHandler
 
@@ -67,7 +66,6 @@ class WSPController:
     def solve(self):
         """Handle solving the current instance"""
         if not self.current_instance:
-            print("No current instance found")  # Debug print
             self.view.update_status("Please select a file first")
             return
         
@@ -100,49 +98,24 @@ class WSPController:
             self.view.update_progress(0.6)
             
             # Convert solution to display format
-            if solution and solution.assignment:
-                display_solution = []
-                for s in range(len(solution.assignment)):
-                    display_solution.append({
-                        'step': s + 1,
-                        'user': solution.assignment[s] + 1
-                    })
-            else:
-                display_solution = None
+            display_solution = self._create_solution_display(solution)
             
             # Update progress
             self.view.update_progress(0.8)
             
-            # Display solution
-            self.view.display_solution(display_solution)
+            # Collect all metrics
+            instance_details = self._collect_instance_metrics()
             
-            # Get instance details
-            instance_details = {
-                "number_of_steps": self.current_instance.k,
-                "number_of_users": self.current_instance.n,
-                "number_of_constraints": self.current_instance.m,
-                "authorization_constraints": len([u for u in self.current_instance.auths if any(u.collection)]),
-                "separation_of_duty_constraints": sum(1 for c in self.current_instance.cons 
-                                                    if isinstance(c, NotEquals) and not c.is_bod),
-                "binding_of_duty_constraints": sum(1 for c in self.current_instance.cons 
-                                                    if isinstance(c, NotEquals) and c.is_bod),
-                "at_most_k_constraints": sum(1 for c in self.current_instance.cons 
-                                            if isinstance(c, AtMost)),
-                "one_team_constraints": sum(1 for c in self.current_instance.cons 
-                                            if isinstance(c, OneTeam)),
-            }
-            
-            # Create result dictionary for metadata
             result_dict = {
-                'sat': 'sat' if solution and solution.assignment else 'unsat',
-                'result_exe_time': solution.time * 1000 if solution else solve_time * 1000,  # Convert to ms
+                'sat': 'sat' if display_solution else 'unsat',
+                'result_exe_time': solution.time * 1000 if solution else solve_time * 1000,
                 'sol': display_solution if display_solution else [],
-                'solution_count': 1 if solution and solution.assignment else 0,
-                'is_unique': False  # We don't track uniqueness
+                'solution_count': 1 if display_solution else 0,
+                'is_unique': False
             }
             
             # Save metadata
-            metadata_path = self.metadata_handler.save_result_metadata(
+            self.metadata_handler.save_result_metadata(
                 instance_details=instance_details,
                 solver_result=result_dict,
                 solver_type=self.current_solver_type.value,
@@ -150,43 +123,11 @@ class WSPController:
                 filename=os.path.basename(self.view.current_file)
             )
             
-            # Calculate and display statistics
-            stats = {
-                "Status": "SAT" if solution and solution.assignment else "UNSAT",
-                "Solver Type": self.current_solver_type.value,
-                "Solve Time": f"{solve_time:.2f} seconds",
-                
-                "Instance Details": {
-                    "Steps": self.current_instance.k,
-                    "Users": self.current_instance.n,
-                    "Total Constraints": self.current_instance.m,
-                    "Active Constraints": {
-                        "Authorizations": active_constraints.get('authorizations', False),
-                        "Separation of Duty": active_constraints.get('separation_of_duty', False),
-                        "Binding of Duty": active_constraints.get('binding_of_duty', False),
-                        "At-Most-K": active_constraints.get('at_most_k', False),
-                        "One-Team": active_constraints.get('one_team', False)
-                    }
-                }
-            }
-
-            # Add solution-specific statistics if solution exists
-            if solution and solution.assignment:
-                # Count user assignments
-                user_counts = {}
-                for s in range(len(solution.assignment)):
-                    user = solution.assignment[s]
-                    user_counts[user] = user_counts.get(user, 0) + 1
-                
-                stats.update({
-                    "Solution Metrics": {
-                        "Unique Users Used": len(user_counts),
-                        "Max Steps per User": max(user_counts.values()),
-                        "Min Steps per User": min(user_counts.values()),
-                        "Avg Steps per User": sum(user_counts.values()) / len(user_counts)
-                    }
-                })
-            
+            # Collect and display statistics
+            stats = self._collect_solution_stats(solution, display_solution, 
+                                             solve_time, active_constraints)
+            # Display solution
+            self.view.display_solution(display_solution)
             self.view.display_statistics(stats)
             
             # Update final status and progress
@@ -203,40 +144,30 @@ class WSPController:
             import traceback
             traceback.print_exc()
 
-    def collect_instance_details(self) -> Dict:
-        """Collect details about the current instance"""
+    def _collect_instance_metrics(self) -> Dict:
+        """Collect metrics about the current instance"""
         if not self.current_instance:
             return {}
 
-        # Count different types of constraints
-        sod_count = sum(1 for c in self.current_instance.cons 
-                    if isinstance(c, NotEquals) and not c.is_bod)
-        bod_count = sum(1 for c in self.current_instance.cons 
-                    if isinstance(c, NotEquals) and c.is_bod)
-        atmost_count = sum(1 for c in self.current_instance.cons 
-                        if isinstance(c, AtMost))
-        oneteam_count = sum(1 for c in self.current_instance.cons 
-                        if isinstance(c, OneTeam))
-                
-        return {
-            "k": self.current_instance.k,
-            "number_of_steps": self.current_instance.k,
-            "number_of_users": self.current_instance.n,
-            "number_of_constraints": len(self.current_instance.cons),
-            "authorization_constraints": len([u for u in self.current_instance.auths 
-                                        if any(u.collection)]),
-            "separation_of_duty_constraints": sod_count,
-            "binding_of_duty_constraints": bod_count,
-            "at_most_k_constraints": atmost_count,
-            "one_team_constraints": oneteam_count,
+        constraint_counts = self._count_constraint_types()
+        total_steps = self.current_instance.k
+        total_users = self.current_instance.n
             
-            # Derived Metrics
-            "auth_density": len([u for u in self.current_instance.auths 
-                            if any(u.collection)]) / 
-                        (self.current_instance.k * self.current_instance.n),
-            "constraint_density": len(self.current_instance.cons) /
-                                (self.current_instance.k * self.current_instance.n),
-            "step_user_ratio": self.current_instance.k / self.current_instance.n
+        return {
+            "Steps": total_steps,
+            "Users": total_users,
+            "Total Constraints": len(self.current_instance.cons),
+            "Constraint Distribution": {
+                k.replace('_', ' ').title(): v 
+                for k, v in constraint_counts.items()
+            },
+            "Problem Metrics": {
+                "Auth Density": (constraint_counts["authorization"] / 
+                               (total_steps * total_users)),
+                "Constraint Density": (len(self.current_instance.cons) /
+                                    (total_steps * total_users)),
+                "Step-User Ratio": total_steps / total_users
+            }
         }
 
     def generate_visualizations(self):
@@ -277,137 +208,127 @@ class WSPController:
 
         self.view.display_instance_details(stats)
 
-    def collect_solution_stats(self, solution: Optional[List[Dict[str, int]]], 
-                         solve_time: float, 
-                         active_constraints: Dict[str, bool]) -> Dict:
+    def _collect_solution_stats(self, solution, display_solution: List[Dict[str, int]], 
+                            solve_time: float, active_constraints: Dict[str, bool]) -> Dict:
         """Collect comprehensive statistics about the solution"""
-        if not solution:
-            return {
-                "Status": "UNSAT",
-                "Solver Type": self.current_solver_type.value,
-                "Solve Time": f"{solve_time:.2f} seconds",
-            }
-        
-        # Count users and assignments
-        used_users = set(assignment['user'] for assignment in solution)
-        assignments_per_user = {}
-        for assignment in solution:
-            user = assignment['user']
-            assignments_per_user[user] = assignments_per_user.get(user, 0) + 1
-
-        # Calculate densities
-        auth_density = len([u for u in self.current_instance.auth if u]) / (
-            self.current_instance.number_of_steps * self.current_instance.number_of_users)
-        constraint_density = self.current_instance.m / (
-            self.current_instance.number_of_steps * self.current_instance.number_of_users)
-
         stats = {
-            "Status": "SAT",
+            "Status": "SAT" if display_solution else "UNSAT",
             "Solver Type": self.current_solver_type.value,
             "Solve Time": f"{solve_time:.2f} seconds",
-            "Number of Solutions": self.current_result.get('solution_count', 1),
-            "Solution is Unique": "Yes" if self.current_result.get('is_unique', False) else "No",
-            "Number of Users Used": len(used_users),
-            "User Utilization": f"{(len(used_users) / self.current_instance.number_of_users * 100):.1f}%",
-            "Max Assignments per User": max(assignments_per_user.values()),
-            "Min Assignments per User": min(assignments_per_user.values()),
-            "Avg Assignments per User": f"{sum(assignments_per_user.values()) / len(used_users):.1f}",
-            
-            "Instance Complexity": {
-                "Steps": self.current_instance.number_of_steps,
-                "Users": self.current_instance.number_of_users,
-                "Total Constraints": self.current_instance.m,
-                "Authorization Density": f"{auth_density:.2%}",
-                "Constraint Density": f"{constraint_density:.2%}",
-                "Constraint Types": {
-                    "Authorization": len([u for u in self.current_instance.auth if u]),
-                    "Separation of Duty": sum(1 for c in self.current_instance.cons 
-                                    if isinstance(c, NotEquals) and not c.is_bod),
-                    "Binding of Duty": sum(1 for c in self.current_instance.cons 
-                                    if isinstance(c, NotEquals) and c.is_bod),
-                    "At-Most-K": sum(1 for c in self.current_instance.cons 
-                                    if isinstance(c, AtMost)),
-                    "One-Team": sum(1 for c in self.current_instance.cons 
-                                    if isinstance(c, OneTeam))
-                }
-            }
+            "Instance Details": self._collect_instance_metrics()
         }
 
-        # Add constraint violations if any
-        violations = self._analyze_constraint_satisfaction(solution, active_constraints)
-        if violations:
-            stats["Constraint Violations"] = violations
+        if display_solution:
+            stats["Solution Metrics"] = self._analyze_user_metrics(display_solution)
+            violations = self._analyze_constraint_satisfaction(display_solution, active_constraints)
+            if violations:
+                stats["Constraint Violations"] = violations
 
         return stats
 
+    def _count_constraint_types(self) -> Dict[str, int]:
+        """Count different types of constraints in current instance"""
+        if not self.current_instance:
+            return {}
+            
+        return {
+            "authorization": len([u for u in self.current_instance.auths if any(u.collection)]),
+            "separation_of_duty": sum(1 for c in self.current_instance.cons 
+                                if isinstance(c, NotEquals) and not c.is_bod),
+            "binding_of_duty": sum(1 for c in self.current_instance.cons 
+                                if isinstance(c, NotEquals) and c.is_bod),
+            "at_most_k": sum(1 for c in self.current_instance.cons 
+                            if isinstance(c, AtMost)),
+            "one_team": sum(1 for c in self.current_instance.cons 
+                            if isinstance(c, OneTeam))
+        }
+
+    def _analyze_user_metrics(self, solution: List[Dict[str, int]]) -> Dict[str, float]:
+        """Calculate metrics about user assignments in solution"""
+        user_counts = {}
+        for assignment in solution:
+            user = assignment['user']
+            user_counts[user] = user_counts.get(user, 0) + 1
+
+        return {
+            "unique_users": len(user_counts),
+            "max_steps_per_user": max(user_counts.values()),
+            "min_steps_per_user": min(user_counts.values()),
+            "avg_steps_per_user": sum(user_counts.values()) / len(user_counts)
+        }
+
+    def _check_constraint_violations(self, solution: List[Dict[str, int]], c) -> bool:
+        """Check if a single constraint is violated by the solution"""
+        if isinstance(c, NotEquals):
+            if c.is_bod:
+                # Check binding of duty
+                user1 = next(a['user'] for a in solution if a['step'] - 1 == c.s1)
+                user2 = next(a['user'] for a in solution if a['step'] - 1 == c.s2)
+                return user1 != user2
+            else:
+                # Check separation of duty
+                user1 = next(a['user'] for a in solution if a['step'] - 1 == c.s1)
+                user2 = next(a['user'] for a in solution if a['step'] - 1 == c.s2)
+                return user1 == user2
+        
+        elif isinstance(c, AtMost):
+            users = set()
+            for step in c.scope:
+                user = next(a['user'] for a in solution if a['step'] - 1 == step)
+                users.add(user)
+            return len(users) > c.limit
+        
+        elif isinstance(c, OneTeam):
+            assigned_users = set()
+            for step in c.steps:
+                user = next(a['user'] for a in solution if a['step'] - 1 == step)
+                assigned_users.add(user - 1)  # Convert to 0-based
+            
+            return not any(assigned_users.issubset(set(team)) for team in c.teams)
+            
+        return False
+
     def _analyze_constraint_satisfaction(self, solution: List[Dict[str, int]], 
-                                  active_constraints: Dict[str, bool]) -> Dict:
+                                     active_constraints: Dict[str, bool]) -> Dict:
         """Analyze how the solution satisfies different constraints"""
-        stats = {}
+        violations = {}
         
         if active_constraints['authorizations']:
             # Check authorization violations
-            violations = 0
-            for assignment in solution:
-                user = assignment['user'] - 1  # Convert to 0-based
-                step = assignment['step'] - 1  # Convert to 0-based
-                if not self.current_instance.auths[user].collection[step]:
-                    violations += 1
-            stats["Authorization Violations"] = violations
-        
-        if active_constraints['separation_of_duty']:
-            # Check SOD violations
-            violations = 0
+            auth_violations = sum(
+                1 for assignment in solution
+                if not self.current_instance.auths[assignment['user'] - 1]
+                .collection[assignment['step'] - 1]
+            )
+            if auth_violations > 0:
+                violations["Authorization"] = auth_violations
+
+        # Group constraints by type and check violations
+        for constraint_type, is_active in active_constraints.items():
+            if not is_active or constraint_type == 'authorizations':
+                continue
+
+            type_violations = 0
             for c in self.current_instance.cons:
-                if isinstance(c, NotEquals) and not c.is_bod:
-                    user1 = next(a['user'] for a in solution if a['step'] - 1 == c.s1)
-                    user2 = next(a['user'] for a in solution if a['step'] - 1 == c.s2)
-                    if user1 == user2:
-                        violations += 1
-            stats["SOD Violations"] = violations
-        
-        if active_constraints['binding_of_duty']:
-            # Check BOD violations
-            violations = 0
-            for c in self.current_instance.cons:
-                if isinstance(c, NotEquals) and c.is_bod:
-                    user1 = next(a['user'] for a in solution if a['step'] - 1 == c.s1)
-                    user2 = next(a['user'] for a in solution if a['step'] - 1 == c.s2)
-                    if user1 != user2:
-                        violations += 1
-            stats["BOD Violations"] = violations
-        
-        if active_constraints['at_most_k']:
-            # Check at-most-k violations
-            violations = 0
-            for c in self.current_instance.cons:
-                if isinstance(c, AtMost):
-                    users = set()
-                    for step in c.scope:
-                        user = next(a['user'] for a in solution if a['step'] - 1 == step)
-                        users.add(user)
-                    if len(users) > c.limit:
-                        violations += 1
-            stats["At-Most-K Violations"] = violations
-        
-        if active_constraints['one_team']:
-            # Check one-team violations
-            violations = 0
-            for c in self.current_instance.cons:
-                if isinstance(c, OneTeam):
-                    assigned_users = set()
-                    for step in c.steps:
-                        user = next(a['user'] for a in solution if a['step'] - 1 == step)
-                        assigned_users.add(user - 1)  # Convert to 0-based
+                if ((constraint_type == 'separation_of_duty' and isinstance(c, NotEquals) and not c.is_bod) or
+                    (constraint_type == 'binding_of_duty' and isinstance(c, NotEquals) and c.is_bod) or
+                    (constraint_type == 'at_most_k' and isinstance(c, AtMost)) or
+                    (constraint_type == 'one_team' and isinstance(c, OneTeam))):
                     
-                    valid_assignment = False
-                    for team in c.teams:
-                        if assigned_users.issubset(set(team)):
-                            valid_assignment = True
-                            break
-                    
-                    if not valid_assignment:
-                        violations += 1
-            stats["One-Team Violations"] = violations
-        
-        return stats
+                    if self._check_constraint_violations(solution, c):
+                        type_violations += 1
+
+            if type_violations > 0:
+                violations[constraint_type.replace('_', ' ').title()] = type_violations
+
+        return violations
+
+    def _create_solution_display(self, solution) -> Optional[List[Dict[str, int]]]:
+        """Convert internal solution to display format"""
+        if not solution or not solution.assignment:
+            return None
+            
+        return [
+            {'step': s + 1, 'user': solution.assignment[s] + 1}
+            for s in range(len(solution.assignment))
+        ]

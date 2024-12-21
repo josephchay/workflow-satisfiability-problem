@@ -352,63 +352,102 @@ class WSPView(customtkinter.CTk):
         self.results_table.pack(fill="both", expand=True, padx=10, pady=10)
 
     def display_statistics(self, stats: Dict):
-        """Display solution statistics in the Statistics tab"""
+        """Display solution statistics in a human-readable format"""
         # Clear previous stats
         for widget in self.stats_frame.winfo_children():
             widget.destroy()
         
-        # Create main content frame that will stretch
+        # Create scrollable frame for content
         content_frame = customtkinter.CTkScrollableFrame(self.stats_frame, fg_color="gray17")
         content_frame.pack(fill="both", expand=True, padx=2, pady=2)
         
-        # Create stats display title
-        title_label = customtkinter.CTkLabel(
-            content_frame,
-            text="Solution Statistics",
-            font=customtkinter.CTkFont(size=16, weight="bold")
-        )
-        title_label.pack(pady=10)
+        def add_section_header(text: str):
+            """Helper to add section headers"""
+            header = customtkinter.CTkLabel(
+                content_frame,
+                text=text,
+                font=customtkinter.CTkFont(size=16, weight="bold"),
+                anchor="w"
+            )
+            header.pack(pady=(15,5), padx=10, fill="x")
 
-        def add_stat_entry(parent, key, value, level=0):
-            """Recursively add stat entries"""
-            if isinstance(value, dict):
-                # Create section header
-                section_frame = customtkinter.CTkFrame(parent, fg_color="gray20")
-                section_frame.pack(fill="x", padx=20-level*5, pady=2)
+        def add_metric(key: str, value: str, is_violation: bool = False):
+            """Helper to add individual metrics"""
+            frame = customtkinter.CTkFrame(content_frame, fg_color="gray20")
+            frame.pack(fill="x", padx=20, pady=2)
+            
+            # Determine text color based on violation status
+            text_color = "red" if is_violation and value != "0" else "white"
+            
+            # Format key to be more readable
+            key = key.replace("_", " ").title()
+            
+            label = customtkinter.CTkLabel(
+                frame,
+                text=key + ":",
+                font=customtkinter.CTkFont(weight="bold"),
+                fg_color="gray20",
+                text_color=text_color
+            )
+            label.pack(side="left", padx=10, pady=8)
+            
+            value_label = customtkinter.CTkLabel(
+                frame,
+                text=str(value),
+                fg_color="gray20",
+                text_color=text_color
+            )
+            value_label.pack(side="left", padx=5, pady=8)
+
+        # Display solution metrics
+        if "Solution Metrics" in stats:
+            add_section_header("Solution Metrics")
+            metrics = stats["Solution Metrics"]
+            add_metric("Users Involved", f"{metrics['unique_users']} unique users")
+            add_metric("Maximum Workload", f"{metrics['max_steps_per_user']} steps per user")
+            add_metric("Minimum Workload", f"{metrics['min_steps_per_user']} steps per user")
+            add_metric("Average Workload", f"{metrics['avg_steps_per_user']:.1f} steps per user")
+
+        # Display constraint violations
+        if "Constraint Violations" in stats:
+            add_section_header("Constraint Compliance")
+            violations = stats["Constraint Violations"]
+            total_violations = sum(violations.values())
+            
+            if total_violations == 0:
+                # Add a special "perfect solution" indicator
+                frame = customtkinter.CTkFrame(content_frame, fg_color="gray20")
+                frame.pack(fill="x", padx=20, pady=10)
                 
-                section_label = customtkinter.CTkLabel(
-                    section_frame,
-                    text=f"{key}:",
-                    font=customtkinter.CTkFont(weight="bold"),
-                    fg_color="gray20"
+                label = customtkinter.CTkLabel(
+                    frame,
+                    text="✓ Perfect Solution - All Constraints Satisfied",
+                    font=customtkinter.CTkFont(weight="bold", size=14),
+                    fg_color="gray20",
+                    text_color="lime"
                 )
-                section_label.pack(side="left", padx=10+level*5, pady=8)
-                
-                # Add subsections
-                for sub_key, sub_value in value.items():
-                    add_stat_entry(parent, sub_key, sub_value, level+1)
+                label.pack(pady=10)
             else:
-                stat_frame = customtkinter.CTkFrame(parent, fg_color="gray20")
-                stat_frame.pack(fill="x", padx=20+level*5, pady=2)
+                for constraint, count in violations.items():
+                    add_metric(
+                        f"{constraint} Violations", 
+                        str(count),
+                        is_violation=True
+                    )
                 
-                key_label = customtkinter.CTkLabel(
-                    stat_frame,
-                    text=f"{key}:",
-                    font=customtkinter.CTkFont(weight="bold"),
-                    fg_color="gray20"
+                # Add total violations
+                add_metric(
+                    "Total Violations",
+                    str(total_violations),
+                    is_violation=True
                 )
-                key_label.pack(side="left", padx=10+level*5, pady=8)
-                
-                value_label = customtkinter.CTkLabel(
-                    stat_frame,
-                    text=str(value),
-                    fg_color="gray20"
-                )
-                value_label.pack(side="left", padx=5, pady=8)
-        
-        # Display stats recursively
-        for key, value in stats.items():
-            add_stat_entry(content_frame, key, value)
+
+        # Display general status info
+        if "Status" in stats:
+            add_section_header("Solution Status")
+            add_metric("Status", stats["Status"])
+            add_metric("Solver", stats["Solver Type"])
+            add_metric("Solution Time", stats["Solve Time"])
 
     def add_visualization_button(self, command):
         """Add a button to generate visualizations"""
