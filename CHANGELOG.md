@@ -50,6 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Better visuals with better section headings, font sizes, different colorings, symbols usage for the statistics tab of the GUI.
 - Instance file selection now reflects on the results tab panel.
 - Constraint activation / deactivation filtering in `controllers.py`
+- Use of `parse_arg` for better argument parsing for `main_cli.py`
+- Enabled constraint activation and deactivation via CLI arguments.
 
 ### Refactoring
 - Refactored the code to have each deserving components segregated into own files, clases, methods, and functions.
