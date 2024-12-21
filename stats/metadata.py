@@ -16,7 +16,7 @@ class WSPMetadataHandler:
         os.makedirs(self.visualizations_dir, exist_ok=True)
 
     def save_result_metadata(self, instance_details: Dict, solver_result: Dict, solver_type: str, active_constraints: Dict, filename: str) -> str:
-        """Update this method to include more comprehensive data"""
+        """Save metadata for a solver run"""
         # Calculate additional metrics if solution exists
         solution_metrics = {}
         if solver_result['sat'] == 'sat' and solver_result['sol']:
@@ -34,8 +34,10 @@ class WSPMetadataHandler:
             "instance_details": instance_details,
             "solver_result": solver_result,
             "active_constraints": active_constraints,
-            "solution_metrics": solution_metrics,  # Add this line
-            "stats_summary": self._generate_stats_summary([instance_details, solver_result, active_constraints])
+            "solution_metrics": solution_metrics,
+            "stats_summary": self._generate_stats_summary(
+                instance_details, solver_result, active_constraints
+            )
         }
 
         # Create unique filename for metadata
@@ -59,6 +61,13 @@ class WSPMetadataHandler:
     def _calculate_user_metrics(self, user_distribution: Dict) -> Dict:
         """Calculate user-related metrics"""
         assignments = list(user_distribution.values())
+        if not assignments:
+            return {
+                "unique_users": 0,
+                "max_assignments": 0,
+                "min_assignments": 0,
+                "avg_assignments": 0
+            }
         return {
             "unique_users": len(user_distribution),
             "max_assignments": max(assignments),
@@ -66,34 +75,36 @@ class WSPMetadataHandler:
             "avg_assignments": sum(assignments) / len(assignments)
         }
 
-    def _generate_stats_summary(self, data: List[Dict]) -> Dict:
-        """Helper method to generate stats summary - replaces generate_stats_summary in visualize.py"""
-        df = pd.DataFrame(data)
-        
-        def safe_stats(series):
-            stats = series.agg(['mean', 'std', 'min', 'max']).to_dict()
-            return {k: 0 if pd.isna(v) else v for k, v in stats.items()}
-        
+    def _generate_stats_summary(self, instance_details: Dict, solver_result: Dict, active_constraints: Dict) -> Dict:
+        """Generate statistical summary of results"""
         return {
             "performance_metrics": {
-                "execution_time": safe_stats(df['result_exe_time']),
-                "solution_count": safe_stats(df['solution_count']),
-                "unique_solutions": df['is_unique'].mean()
+                "execution_time": {
+                    "value": solver_result.get('result_exe_time', 0),
+                    "unit": "ms"
+                },
+                "is_sat": solver_result.get('sat', 'unsat') == 'sat'
             },
             "instance_metrics": {
-                "steps": safe_stats(df['number_of_steps']),
-                "users": safe_stats(df['number_of_users']),
-                "constraints": safe_stats(df['number_of_constraints']),
+                "steps": instance_details.get('number_of_steps', 0),
+                "users": instance_details.get('number_of_users', 0),
+                "constraints": instance_details.get('number_of_constraints', 0),
                 "densities": {
-                    "auth": safe_stats(df['auth_density']),
-                    "constraint": safe_stats(df['constraint_density'])
+                    "auth": len(solver_result.get('sol', [])) / 
+                           (instance_details.get('number_of_steps', 1) * 
+                            instance_details.get('number_of_users', 1))
+                    if solver_result.get('sat') == 'sat' else 0
                 }
             },
             "constraint_metrics": {
                 "distribution": {
-                    c: safe_stats(df[f'{c}_constraints']) 
-                    for c in ['authorization', 'separation_of_duty', 'binding_of_duty', 'at_most_k', 'one_team']
-                }
+                    "authorization": instance_details.get('authorization_constraints', 0),
+                    "separation_of_duty": instance_details.get('separation_of_duty_constraints', 0),
+                    "binding_of_duty": instance_details.get('binding_of_duty_constraints', 0),
+                    "at_most_k": instance_details.get('at_most_k_constraints', 0),
+                    "one_team": instance_details.get('one_team_constraints', 0)
+                },
+                "active": active_constraints
             }
         }
 
@@ -127,28 +138,29 @@ class WSPMetadataHandler:
         
         # Solver results
         for key, value in metadata['solver_result'].items():
-            # No need to modify exe_time since it's already a float
             flat[f'result_{key}'] = value
 
         # Active constraints
         for key, value in metadata['active_constraints'].items():
             flat[f'constraint_{key}'] = value
 
+        # Solution metrics if available
+        if metadata.get('solution_metrics', {}).get('user_metrics'):
+            metrics = metadata['solution_metrics']['user_metrics']
+            for key, value in metrics.items():
+                flat[f'metric_{key}'] = value
+
         return flat
 
     def generate_visualizations(self):
         """Generate visualizations using saved metadata"""
-        # Load all metadata
         all_metadata = self.load_all_metadata()
         
         if not all_metadata:
             print("No metadata found to generate visualizations")
             return
             
-        # Import visualization code
         from stats import plot_all_metrics
-
-        # Generate visualizations
         plot_all_metrics(all_metadata, self.visualizations_dir)
 
     def get_metadata_as_dataframe(self) -> pd.DataFrame:

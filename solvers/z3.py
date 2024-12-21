@@ -1,227 +1,169 @@
 import time
-import itertools
+from itertools import combinations
 from typing import Dict
-from z3 import Optimize, PbEq, PbLe, Bool, Not, And, Or, Implies, is_true, sat
+from z3 import Bool, Not, And, Or, Implies, Solver, sat, Sum, If, BoolRef, BoolVector, IntVector
 
 from .base import BaseWSPSolver
+from typings import NotEquals, AtMost, Solution
 
 
 class Z3UDPBWSPSolver(BaseWSPSolver):
     def solve(self) -> Dict:
-        solver = Optimize()
+        solver = Solver()
 
-        x = [[Bool(f'x_{s}_{u}') 
-              for u in range(self.instance.number_of_users)]
-             for s in range(self.instance.number_of_steps)]
+        x = []
+        for s in range(self.instance.k):
+            row = []
+            for u in range(self.instance.n):
+                if self.instance.authorisations[u].authorisation_list[s]:
+                    row.append(Bool(f'x{s}_{u}'))
+                else:
+                    row.append(None)
 
-        for s in range(self.instance.number_of_steps):
-            solver.add(PbEq([(x[s][u], 1) for u in range(self.instance.number_of_users)], 1))
+            x.append(row)
 
-        if self.active_constraints['authorizations']:
-            for u in range(self.instance.number_of_users):
-                if self.instance.auth[u]:
-                    for s in range(self.instance.number_of_steps):
-                        if s not in self.instance.auth[u]:
-                            solver.add(Not(x[s][u]))
+            solver.add(1 == Sum([If(b, 1, 0) for b in row if b is not None]))
 
-        if self.active_constraints['separation_of_duty']:
-            for s1, s2 in self.instance.SOD:
-                for u in range(self.instance.number_of_users):
-                    solver.add(Not(And(x[s1][u], x[s2][u])))
+        constraint_index = 0
 
-        if self.active_constraints['binding_of_duty']:
-            for s1, s2 in self.instance.BOD:
-                for u in range(self.instance.number_of_users):
-                    solver.add(x[s1][u] == x[s2][u])
+        for c in self.instance.constraints:
+            constraint_index = constraint_index + 1
+            if isinstance(c, NotEquals):
+                for u in range(self.instance.n):
+                    if x[c.s1][u] is not None and x[c.s2][u] is not None:
+                        solver.add(Not(And(x[c.s1][u], x[c.s2][u])))
 
-        if self.active_constraints['at_most_k']:
-            for k, steps in self.instance.at_most_k:
-                z = [Bool(f'z_{u}') for u in range(self.instance.number_of_users)]
-                for u in range(self.instance.number_of_users):
-                    solver.add(z[u] == Or([x[s][u] for s in steps]))
-                solver.add(PbLe([(z[u], 1) for u in range(self.instance.number_of_users)], k))
+            elif isinstance(c, AtMost):
+                z = BoolVector(f'z{constraint_index}', self.instance.n)
+                for u in range(self.instance.n):
+                    for s in c.scope:
+                        if x[s][u] is not None:
+                            solver.add(Implies(x[s][u], z[u]))
 
-        if self.active_constraints['one_team']:
-            for steps, teams in self.instance.one_team:
-                team_selected = [Bool(f'team_{t}') for t in range(len(teams))]
-                solver.add(PbEq([(t, 1) for t in team_selected], 1))
-                for team_idx, team in enumerate(teams):
-                    for s in steps:
-                        for u in range(self.instance.number_of_users):
-                            if u not in team:
-                                solver.add(Implies(team_selected[team_idx], Not(x[s][u])))
+                solver.add(Sum([If(b, 1, 0) for b in z]) <= c.limit)
 
-        solutions = []
-        solution_count = 0
-        start_time = time.time()
+            else:
+                print('Unknown constraint ' + type(c))
+                exit(1)
 
-        while solver.check() == sat and solution_count < self.solution_limit:
-            solution_count += 1
-            model = solver.model()
-            solution = []
-            for s in range(self.instance.number_of_steps):
-                for u in range(self.instance.number_of_users):
-                    if is_true(model[x[s][u]]):
-                        solution.append({'step': s + 1, 'user': u + 1})
-            solutions.append(solution)
-            block = Not(And([x[s][u] == model[x[s][u]] 
-                                 for s in range(self.instance.number_of_steps) 
-                                 for u in range(self.instance.number_of_users)]))
-            solver.add(block)
+        start = time.time()
+        status = solver.check()
+        end = time.time()
 
-        end_time = time.time()
+        if status == sat:
+            def get_user(s):
+                for u in range(self.instance.n):
+                    if x[s][u] is not None and solver.model().eval(x[s][u]):
+                        return u
+                raise Exception()
 
-        return {
-            'sat': 'sat' if solutions else 'unsat',
-            'result_exe_time': (end_time - start_time) * 1000,
-            'sol': solutions[0] if solutions else [],
-            'solution_count': solution_count,
-            'is_unique': solution_count == 1
-        }
+            return Solution([get_user(s) for s in range(self.instance.k)], end - start)
+        else:
+            return Solution(False, end - start)
 
 
 class Z3PBPBWSPSolver(BaseWSPSolver):
     def solve(self) -> Dict:
-        solver = Optimize()
+        solver = Solver()
 
-        # Assignment variables
-        x = [[Bool(f'x_{s}_{u}') 
-              for u in range(self.instance.number_of_users)]
-             for s in range(self.instance.number_of_steps)]
+        x = []
+        for s in range(self.instance.k):
+            row = []
+            for u in range(self.instance.n):
+                if self.instance.authorisations[u].authorisation_list[s]:
+                    row.append(Bool(f'x{s}_{u}'))
+                else:
+                    row.append(None)
 
-        # Pattern variables - only create for s1 < s2 to avoid redundancy
-        M = [[Bool(f'M_{s1}_{s2}') if s1 < s2 else None
-              for s2 in range(self.instance.number_of_steps)]
-             for s1 in range(self.instance.number_of_steps)]
+            x.append(row)
 
-        # Helper function to get M[s1][s2] regardless of order
-        def get_M(s1: int, s2: int) -> Bool:
-            if s1 < s2:
-                return M[s1][s2]
-            elif s1 > s2:
-                return M[s2][s1]
+            solver.add(1 == Sum([If(b, 1, 0) for b in row if b is not None]))
+
+        M = [[BoolRef(None) for _ in range(self.instance.k)] for _ in range(self.instance.k)]
+        for s1 in range(self.instance.k):
+            M[s1][s1] = None
+            for s2 in range(s1 + 1, self.instance.k):
+                M[s1][s2] = M[s2][s1] = Bool(f'M{s1}_{s2}')
+
+        for (s1, s2) in combinations(range(self.instance.k), 2):
+            for s3 in range(self.instance.k):
+                if s1 == s3 or s2 == s3:
+                    continue
+
+                solver.add(Implies(And(M[s1][s3], M[s2][s3]), M[s1][s2]))
+                solver.add(Implies(M[s1][s3] != M[s2][s3], Not(M[s1][s2])))
+
+        for (s1, s2) in combinations(range(self.instance.k), 2):
+            for u in range(self.instance.n):
+                if x[s1][u] is not None and x[s2][u] is not None:
+                    solver.add(M[s1][s2] == (x[s1][u] == x[s2][u]))
+                if x[s2][u] is None and x[s1][u] is not None:
+                    solver.add(Implies(M[s1][s2], Not(x[s1][u])))
+                if x[s1][u] is None and x[s2][u] is not None:
+                    solver.add(Implies(M[s1][s2], Not(x[s2][u])))
+
+        constraint_index = 0
+        for c in self.instance.constraints:
+            constraint_index = constraint_index + 1
+            if isinstance(c, NotEquals):
+                solver.add(Not(M[c.s1][c.s2]))
+
+            elif isinstance(c, AtMost):
+                for T1 in combinations(c.scope, c.limit + 1):
+                    solver.add(Or([M[s1][s2] for (s1, s2) in combinations(T1, 2)]))
+
             else:
-                return True  # Same step is always assigned same user
+                print('Unknown constraint ' + type(c))
+                exit(1)
 
-        # Each step must be assigned exactly one user
-        for s in range(self.instance.number_of_steps):
-            solver.add(PbEq([(x[s][u], 1) for u in range(self.instance.number_of_users)], 1))
+        start = time.time()
+        status = solver.check()
+        end = time.time()
 
-        # Link M variables with x variables
-        for s1 in range(self.instance.number_of_steps):
-            for s2 in range(s1 + 1, self.instance.number_of_steps):
-                # Same user means M[s1][s2] must be True
-                solver.add(Implies(
-                    Or([And(x[s1][u], x[s2][u]) for u in range(self.instance.number_of_users)]),
-                    M[s1][s2]
-                ))
-                # Different users means M[s1][s2] must be False
-                solver.add(Implies(
-                    M[s1][s2],
-                    Or([And(x[s1][u], x[s2][u]) for u in range(self.instance.number_of_users)])
-                ))
-                
-                # Alternative formulation for linking
-                for u in range(self.instance.number_of_users):
-                    # If steps assigned same user, M must be true
-                    solver.add(Implies(And(x[s1][u], x[s2][u]), M[s1][s2]))
-                    # If M is true and one step assigned to u, other must also be
-                    solver.add(Implies(And(M[s1][s2], x[s1][u]), x[s2][u]))
-                    solver.add(Implies(And(M[s1][s2], x[s2][u]), x[s1][u]))
+        if status == sat:
+            def get_user(s):
+                for u in range(self.instance.n):
+                    if solver.model().eval(x[s][u]):
+                        return u
+                raise Exception()
 
-        # Transitivity constraints for M variables
-        for s1 in range(self.instance.number_of_steps):
-            for s2 in range(s1 + 1, self.instance.number_of_steps):
-                for s3 in range(s2 + 1, self.instance.number_of_steps):
-                    # If s1,s2 same user and s2,s3 same user then s1,s3 must be same user
-                    solver.add(Implies(
-                        And(get_M(s1, s2), get_M(s2, s3)),
-                        get_M(s1, s3)
-                    ))
-                    # If s1,s2 same user and s1,s3 different user then s2,s3 must be different user
-                    solver.add(Implies(
-                        And(get_M(s1, s2), Not(get_M(s1, s3))),
-                        Not(get_M(s2, s3))
-                    ))
-                    # If s1,s2 different user and s2,s3 same user then s1,s3 must be different user
-                    solver.add(Implies(
-                        And(Not(get_M(s1, s2)), get_M(s2, s3)),
-                        Not(get_M(s1, s3))
-                    ))
+            return Solution([get_user(s) for s in range(self.instance.k)], end - start)
+        else:
+            return Solution(False, end - start)
 
-        # Handle authorizations
-        if self.active_constraints['authorizations']:
-            for u in range(self.instance.number_of_users):
-                if self.instance.auth[u]:  # If user has authorizations
-                    for s in range(self.instance.number_of_steps):
-                        if s not in self.instance.auth[u]:
-                            solver.add(Not(x[s][u]))
 
-        # Handle separation of duty
-        if self.active_constraints['separation_of_duty']:
-            for s1, s2 in self.instance.SOD:
-                solver.add(Not(get_M(s1, s2)))
+class Z3CSWSPSolver(BaseWSPSolver):
+    def solve(self) -> Dict:
+        solver = Solver()
 
-        # Handle binding of duty
-        if self.active_constraints['binding_of_duty']:
-            for s1, s2 in self.instance.BOD:
-                solver.add(get_M(s1, s2))
+        y = IntVector('y', self.instance.k)
+        for s in range(self.instance.k):
+            solver.add(y[s] >= 0)
+            solver.add(y[s] < self.instance.n)
+            for u in range(self.instance.n):
+                if not self.instance.authorisations[u].authorisation_list[s]:
+                    solver.add(y[s] != u)
 
-        # Handle at-most-k
-        if self.active_constraints['at_most_k']:
-            for k, steps in self.instance.at_most_k:
-                for subset in itertools.combinations(steps, k + 1):
-                    # At least one pair in subset must be same user
-                    solver.add(Or([get_M(s1, s2) 
-                               for s1, s2 in itertools.combinations(subset, 2)]))
+        constraint_index = 0
+        for c in self.instance.constraints:
+            constraint_index = constraint_index + 1
+            if isinstance(c, NotEquals):
+                solver.add(y[c.s1] != y[c.s2])
 
-        # Handle one-team
-        if self.active_constraints['one_team']:
-            for steps, teams in self.instance.one_team:
-                # Create team selection variables
-                team_selected = [Bool(f'team_{t}') for t in range(len(teams))]
-                solver.add(PbEq([(t, 1) for t in team_selected], 1))
-                
-                for team_idx, team in enumerate(teams):
-                    # If team selected, all pairs of steps must be assigned same user
-                    for s1, s2 in itertools.combinations(steps, 2):
-                        solver.add(Implies(team_selected[team_idx], get_M(s1, s2)))
-                    
-                    # If team selected, only users from team can be assigned
-                    for step in steps:
-                        for u in range(self.instance.number_of_users):
-                            if u not in team:
-                                solver.add(Implies(team_selected[team_idx], Not(x[step][u])))
+            elif isinstance(c, AtMost):
+                import itertools
+                for T1 in itertools.combinations(c.scope, c.limit + 1):
+                    solver.add(Or([y[s1] == y[s2] for (s1, s2) in itertools.combinations(T1, 2)]))
 
-        # Find solutions
-        solutions = []
-        solution_count = 0
-        start_time = time.time()
+            else:
+                print('Unknown constraint ' + type(c))
+                exit(1)
 
-        while solver.check() == sat and solution_count < self.solution_limit:
-            solution_count += 1
-            model = solver.model()
-            
-            # Extract solution
-            solution = []
-            for s in range(self.instance.number_of_steps):
-                for u in range(self.instance.number_of_users):
-                    if is_true(model[x[s][u]]):
-                        solution.append({'step': s + 1, 'user': u + 1})
-            solutions.append(solution)
-            
-            # Block current solution
-            block = Not(And([x[s][u] == model[x[s][u]] 
-                         for s in range(self.instance.number_of_steps) 
-                         for u in range(self.instance.number_of_users)]))
-            solver.add(block)
+        start = time.time()
+        status = solver.check()
+        end = time.time()
 
-        end_time = time.time()
-
-        return {
-            'sat': 'sat' if solutions else 'unsat',
-            'result_exe_time': (end_time - start_time) * 1000,
-            'sol': solutions[0] if solutions else [],
-            'solution_count': solution_count,
-            'is_unique': solution_count == 1
-        }
+        if status == sat:
+            return Solution([solver.model().eval(y[s]).as_long() for s in range(self.instance.k)], end - start)
+        else:
+            return Solution(False, end - start)

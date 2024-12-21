@@ -1,288 +1,171 @@
 from ortools.sat.python import cp_model
 from typing import Dict
 import time
-import numpy
-import itertools
+from itertools import combinations
 
-from utils import SolutionCollector
 from solvers import BaseWSPSolver
+from typings import NotEquals, AtMost, Solution
 
 
 class ORToolsCSWSPSolver(BaseWSPSolver):
     def solve(self) -> Dict:
-        print(f"Starting CS solving...")
         model = cp_model.CpModel()
 
-        # Create variables - only once
-        y = [model.NewIntVar(0, self.instance.number_of_users - 1, f'y_{s}')
-             for s in range(self.instance.number_of_steps)]
+        y = []
+        for s in range(self.instance.k):
+            users = [u for u in range(self.instance.n) if self.instance.authorisations[u].authorisation_list[s]]
+            v = model.NewIntVarFromDomain(cp_model.Domain.FromValues(users), f'y{s}')
+            y.append(v)
 
-        # Handle authorizations
-        if self.active_constraints['authorizations']:
-            for user in range(self.instance.number_of_users):
-                if self.instance.auth[user]:  # If user has authorizations
-                    for step in range(self.instance.number_of_steps):
-                        if step not in self.instance.auth[user]:
-                            # Create a proper linear constraint
-                            model.Add(y[step] != user)
+        for c in self.instance.constraints:
+            if isinstance(c, NotEquals):
+                model.Add(y[c.s1] != y[c.s2])
 
-        # Handle separation of duty
-        if self.active_constraints['separation_of_duty']:
-            for (s1, s2) in self.instance.SOD:
-                # Create proper linear constraint for inequality
-                model.Add(y[s1] != y[s2])
+            elif isinstance(c, AtMost):
+                import itertools
+                for T1 in itertools.combinations(c.scope, c.limit + 1):
+                    a_list = []
+                    for (s1, s2) in itertools.combinations(T1, 2):
+                        a = model.NewBoolVar('a')
+                        model.Add(y[s1] == y[s2]).OnlyEnforceIf(a)
+                        a_list.append(a)
+                    model.AddBoolOr(a_list)
 
-        # Handle binding of duty
-        if self.active_constraints['binding_of_duty']:
-            for (s1, s2) in self.instance.BOD:
-                model.Add(y[s1] == y[s2])
-
-        # Handle at-most-k
-        if self.active_constraints['at_most_k']:
-            for (k, steps) in self.instance.at_most_k:
-                # Create indicator variables for each user
-                used_vars = []
-                for u in range(self.instance.number_of_users):
-                    # Create a boolean variable indicating if user u is used
-                    used = model.NewBoolVar(f'used_{u}')
-                    # Create constraints for steps
-                    step_constraints = []
-                    for s in steps:
-                        # Create linear equality constraint
-                        is_assigned = model.NewBoolVar(f'assigned_{s}_{u}')
-                        model.Add(y[s] == u).OnlyEnforceIf(is_assigned)
-                        model.Add(y[s] != u).OnlyEnforceIf(is_assigned.Not())
-                        step_constraints.append(is_assigned)
-                    
-                    # Link used variable with step assignments
-                    model.Add(sum(step_constraints) >= 1).OnlyEnforceIf(used)
-                    model.Add(sum(step_constraints) == 0).OnlyEnforceIf(used.Not())
-                    used_vars.append(used)
-                
-                # Add constraint on total number of users used
-                model.Add(sum(used_vars) <= k)
-
-        # Handle one-team
-        if self.active_constraints['one_team']:
-            for (steps, teams) in self.instance.one_team:
-                # Create team selection variables
-                team_vars = [model.NewBoolVar(f'team_{i}') for i in range(len(teams))]
-                model.AddExactlyOne(team_vars)
-                
-                for team_idx, team in enumerate(teams):
-                    for step in steps:
-                        # Create constraints for team membership
-                        team_constraints = []
-                        for user in team:
-                            # Create linear equality constraint
-                            is_member = model.NewBoolVar(f'member_{step}_{user}_{team_idx}')
-                            model.Add(y[step] == user).OnlyEnforceIf(is_member)
-                            model.Add(y[step] != user).OnlyEnforceIf(is_member.Not())
-                            team_constraints.append(is_member)
-                        
-                        # Only allow team members when team is selected
-                        model.AddBoolOr(team_constraints).OnlyEnforceIf(team_vars[team_idx])
-                        
-                        # Prevent non-team members when team is selected
-                        for user in range(self.instance.number_of_users):
-                            if user not in team:
-                                not_member = model.NewBoolVar(f'not_member_{step}_{user}_{team_idx}')
-                                model.Add(y[step] != user).OnlyEnforceIf([team_vars[team_idx], not_member])
+            else:
+                print('Unknown constraint ' + type(c))
+                exit(1)
 
         solver = cp_model.CpSolver()
-        solution_collector = SolutionCollector("CS", y)
-        solver.parameters.enumerate_all_solutions = True
 
-        start_time = time.time()
-        status = solver.Solve(model, solution_collector)
-        end_time = time.time()
+        start = time.time()
+        status = solver.Solve(model)
+        end = time.time()
 
-        result = {
-            'sat': 'unsat',
-            'result_exe_time': (end_time - start_time) * 1000,
-            'sol': [],
-            'solution_count': 0,
-            'is_unique': False
-        }
-
-        if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
-            result['sat'] = 'sat'
-            result['sol'] = solution_collector.get_solutions()
-            result['solution_count'] = solution_collector.solution_count()
-            result['is_unique'] = result['solution_count'] == 1
-
-        return result
+        if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
+            return Solution([solver.Value(y[s]) for s in range(self.instance.k)], end - start)
+        else:
+            return Solution(False, end - start)
 
 
 class ORToolsPBPBWSPSolver(BaseWSPSolver):
     def solve(self) -> Dict:
-        print(f"Starting PBPB solving...")
         model = cp_model.CpModel()
 
-        # Assignment variables
-        x = [[model.NewBoolVar(f'x_{s}_{u}') 
-              for u in range(self.instance.number_of_users)]
-             for s in range(self.instance.number_of_steps)]
+        x = []
+        for s in range(self.instance.k):
+            row = []
+            for u in range(self.instance.n):
+                if self.instance.authorisations[u].authorisation_list[s]:
+                    v = model.NewBoolVar('')
+                    row.append(v)
+                else:
+                    row.append(None)
+            model.Add(sum([v for v in row if v is not None]) == 1)
+            x.append(row)
 
-        # Pattern variables
-        M = [[model.NewBoolVar(f'm_{s1}_{s2}') if s1 < s2 else None
-              for s2 in range(self.instance.number_of_steps)]
-             for s1 in range(self.instance.number_of_steps)]
+        M = [[None for s1 in range(self.instance.k)] for s2 in range(self.instance.k)]
+        for s1 in range(self.instance.k):
+            for s2 in range(s1 + 1, self.instance.k):
+                M[s1][s2] = M[s2][s1] = model.NewBoolVar('')
 
-        # Each step must be assigned exactly one user
-        for s in range(self.instance.number_of_steps):
-            model.Add(sum(x[s]) == 1)
+        for (s1, s2) in combinations(range(self.instance.k), 2):
+            for s3 in range(self.instance.k):
+                if s1 == s3 or s2 == s3:
+                    continue
 
-        # Link M variables with x variables
-        for s1 in range(self.instance.number_of_steps):
-            for s2 in range(s1 + 1, self.instance.number_of_steps):
-                # If M[s1][s2] is true, steps must be assigned same user
-                for u in range(self.instance.number_of_users):
+                model.Add(M[s1][s2] == 1).OnlyEnforceIf([M[s1][s3], M[s2][s3]])
+                model.Add(M[s1][s2] == 0).OnlyEnforceIf([M[s2][s3].Not(), M[s1][s3]])
+                model.Add(M[s1][s2] == 0).OnlyEnforceIf([M[s2][s3], M[s1][s3].Not()])
+
+        for (s1, s2) in combinations(range(self.instance.k), 2):
+            for u in range(self.instance.n):
+                if x[s1][u] is not None and x[s2][u] is not None:
                     model.Add(x[s1][u] == x[s2][u]).OnlyEnforceIf(M[s1][s2])
-                    model.Add(x[s1][u] + x[s2][u] <= 1).OnlyEnforceIf(M[s1][s2].Not())
+                    model.AddBoolOr([x[s1][u].Not(), x[s2][u].Not()]).OnlyEnforceIf(M[s1][s2].Not())
+                if x[s2][u] is None and x[s1][u] is not None:
+                    model.AddImplication(M[s1][s2], x[s1][u].Not())
+                if x[s1][u] is None and x[s2][u] is not None:
+                    model.AddImplication(M[s1][s2], x[s2][u].Not())
 
-        # Transitivity constraints
-        for s1 in range(self.instance.number_of_steps):
-            for s2 in range(s1 + 1, self.instance.number_of_steps):
-                for s3 in range(s2 + 1, self.instance.number_of_steps):
-                    # If s1,s2 same user and s2,s3 same user then s1,s3 must be same user
-                    model.Add(M[s1][s3] == 1).OnlyEnforceIf([M[s1][s2], M[s2][s3]])
+        for c in self.instance.constraints:
+            if isinstance(c, NotEquals):
+                model.Add(M[c.s1][c.s2] == 0)
+                # model.Add(M[c.s1][c.s2] == 0)
+            elif isinstance(c, AtMost):
+                for T1 in combinations(c.scope, c.limit + 1):
+                    model.AddBoolOr([M[s1][s2] for (s1, s2) in combinations(T1, 2)])
 
-        if self.active_constraints['authorizations']:
-            for u in range(self.instance.number_of_users):
-                if self.instance.auth[u]:
-                    for s in range(self.instance.number_of_steps):
-                        if s not in self.instance.auth[u]:
-                            model.Add(x[s][u] == 0)
-
-        if self.active_constraints['separation_of_duty']:
-            for (s1, s2) in self.instance.SOD:
-                if s1 < s2:
-                    model.Add(M[s1][s2] == 0)
-                else:
-                    model.Add(M[s2][s1] == 0)
-
-        if self.active_constraints['binding_of_duty']:
-            for (s1, s2) in self.instance.BOD:
-                if s1 < s2:
-                    model.Add(M[s1][s2] == 1)
-                else:
-                    model.Add(M[s2][s1] == 1)
-
-        if self.active_constraints['at_most_k']:
-            for (k, steps) in self.instance.at_most_k:
-                for subset in itertools.combinations(steps, k + 1):
-                    same_user_vars = []
-                    for s1, s2 in itertools.combinations(subset, 2):
-                        if s1 < s2:
-                            same_user_vars.append(M[s1][s2])
-                        else:
-                            same_user_vars.append(M[s2][s1])
-                    model.AddBoolOr(same_user_vars)
+            else:
+                print('Unknown constraint ' + type(c))
+                exit(1)
 
         solver = cp_model.CpSolver()
-        solution_collector = SolutionCollector("PBPB", x)
-        solver.parameters.enumerate_all_solutions = True
+        solver.parameters
 
-        start_time = time.time()
-        status = solver.Solve(model, solution_collector)
-        end_time = time.time()
+        start = time.time()
+        status = solver.Solve(model)
+        end = time.time()
 
-        result = {
-            'sat': 'unsat',
-            'result_exe_time': (end_time - start_time) * 1000,
-            'sol': [],
-            'solution_count': 0,
-            'is_unique': False
-        }
+        if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
+            def get_user(s):
+                result = [u for u in range(self.instance.n) if x[s][u] is not None and solver.Value(x[s][u]) > 0.5]
+                assert len(result) == 1
+                return result[0]
 
-        if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
-            result['sat'] = 'sat'
-            result['sol'] = solution_collector.get_solutions()
-            result['solution_count'] = solution_collector.solution_count()
-            result['is_unique'] = result['solution_count'] == 1
-
-        return result
+            return Solution([get_user(s) for s in range(self.instance.k)], end - start)
+        else:
+            return Solution(False, end - start)
 
 
 class ORToolsUDPBWSPSolver(BaseWSPSolver):
     def solve(self) -> Dict:
-        print(f"Starting UDPB solving...")
         model = cp_model.CpModel()
-        user_assignment = [[model.NewBoolVar(f'x_{s}_{u}') 
-                        for u in range(self.instance.number_of_users)]
-                        for s in range(self.instance.number_of_steps)]
 
-        # Each step must be assigned exactly one user
-        for step in range(self.instance.number_of_steps):
-            model.AddExactlyOne(user_assignment[step])
+        x = []
+        for s in range(self.instance.k):
+            row = []
+            for u in range(self.instance.n):
+                if self.instance.authorisations[u].authorisation_list[s]:
+                    v = model.NewBoolVar('')
+                    row.append(v)
+                else:
+                    row.append(None)
+            model.Add(sum([v for v in row if v is not None]) == 1)
+            x.append(row)
 
-        # Handle authorizations 
-        if self.active_constraints['authorizations']:
-            for user in range(self.instance.number_of_users):
-                if self.instance.auth[user]:
-                    for step in range(self.instance.number_of_steps):
-                        if step not in self.instance.auth[user]:
-                            model.Add(user_assignment[step][user] == 0)
+        for c in self.instance.constraints:
+            if isinstance(c, NotEquals):
+                for u in range(self.instance.n):
+                    if x[c.s1][u] is not None and x[c.s2][u] is not None:
+                        model.AddBoolOr([x[c.s1][u].Not(), x[c.s2][u].Not()])
 
-        # Handle separation of duty
-        if self.active_constraints['separation_of_duty']:
-            for s1, s2 in self.instance.SOD:
-                for user in range(self.instance.number_of_users):
-                    model.Add(user_assignment[s2][user] == 0).OnlyEnforceIf(user_assignment[s1][user])
-                    model.Add(user_assignment[s1][user] == 0).OnlyEnforceIf(user_assignment[s2][user])
+            elif isinstance(c, AtMost):
+                z = [model.NewBoolVar('') for u in range(self.instance.n)]
+                for u in range(self.instance.n):
+                    for s in c.scope:
+                        if x[s][u] is not None:
+                            model.AddImplication(x[s][u], z[u])
 
-        # Handle binding of duty
-        if self.active_constraints['binding_of_duty']:
-            for s1, s2 in self.instance.BOD:
-                for user in range(self.instance.number_of_users):
-                    model.Add(user_assignment[s2][user] == 1).OnlyEnforceIf(user_assignment[s1][user])
-                    model.Add(user_assignment[s1][user] == 1).OnlyEnforceIf(user_assignment[s2][user])
+                model.Add(sum(z) <= c.limit)
 
-        if self.active_constraints['at_most_k']:
-            for (k, steps) in self.instance.at_most_k:
-                user_assignment_flag = [model.NewBoolVar(f'flag_{u}') for u in range(self.instance.number_of_users)]
-                for user in range(self.instance.number_of_users):
-                    for step in steps:
-                        model.Add(user_assignment_flag[user] == 1).OnlyEnforceIf(user_assignment[step][user])
-                    model.Add(sum(user_assignment[step][user] for step in steps) >= user_assignment_flag[user])
-                model.Add(sum(user_assignment_flag) <= k)
-
-        if self.active_constraints['one_team']:
-            for (steps, teams) in self.instance.one_team:
-                team_flag = [model.NewBoolVar(f'team_{t}') for t in range(len(teams))]
-                model.AddExactlyOne(team_flag)
-                for team_index in range(len(teams)):
-                    for step in steps:
-                        for user in teams[team_index]:
-                            model.Add(user_assignment[step][user] == 0).OnlyEnforceIf(team_flag[team_index].Not())
-                users_in_teams = list(numpy.concatenate(teams).flat)
-                for step in steps:
-                    for user in range(self.instance.number_of_users):
-                        if user not in users_in_teams:
-                            model.Add(user_assignment[step][user] == 0)
+            else:
+                print('Unknown constraint ' + type(c))
+                exit(1)
 
         solver = cp_model.CpSolver()
-        solution_collector = SolutionCollector("UDPB", user_assignment)
-        solver.parameters.enumerate_all_solutions = True
-        # solver.parameters.num_search_workers = 4
+        solver.parameters
 
-        start_time = time.time()
-        status = solver.Solve(model, solution_collector)
-        end_time = time.time()
+        start = time.time()
+        status = solver.Solve(model)
+        end = time.time()
 
-        result = {
-            'sat': 'unsat', 
-            'result_exe_time': (end_time - start_time) * 1000,
-            'sol': [],
-            'solution_count': 0,
-            'is_unique': False,
-        }
+        if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
+            def get_user(s):
+                for u in range(self.instance.n):
+                    if x[s][u] is not None and solver.Value(x[s][u]) > 0.5:
+                        return u
+                raise Exception()
 
-        if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
-            result['sat'] = 'sat'
-            result['sol'] = solution_collector.get_solutions()
-            result['solution_count'] = solution_collector.solution_count()
-            result['is_unique'] = result['solution_count'] == 1
-
-        return result
+            return Solution([get_user(s) for s in range(self.instance.k)], end - start)
+        else:
+            return Solution(False, end - start)

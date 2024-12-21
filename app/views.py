@@ -322,7 +322,8 @@ class WSPView(customtkinter.CTk):
     def update_progress(self, value: float):
         self.progressbar.set(value)
     
-    def display_solution(self, solution: Optional[List[Dict[str, int]]]):
+    def display_solution(self, solution):
+        """Display solution in results tab"""
         # Clear previous results
         for widget in self.results_frame.winfo_children():
             widget.destroy()
@@ -337,10 +338,10 @@ class WSPView(customtkinter.CTk):
             self.unsat_label.pack(pady=20)
             return
 
-        # For SAT solutions, create and display table
+        # For SAT solutions, create table
         values = [["Step", "Assigned User"]]
-        values.extend([[f"s{assignment['step']}", f"u{assignment['user']}"] 
-                    for assignment in solution])
+        for assignment in solution:
+            values.append([f"s{assignment['step']}", f"u{assignment['user']}"])
         
         self.results_table = CTkTable(
             master=self.results_frame,
@@ -351,9 +352,9 @@ class WSPView(customtkinter.CTk):
             hover_color="gray30",
             border_width=2,
             corner_radius=10,
-            width=200,  # Fixed cell width
-            height=40,  # Fixed cell height
-            padx=5,    # Cell padding
+            width=200,
+            height=40,
+            padx=5,
             pady=5
         )
         self.results_table.pack(fill="both", expand=True, padx=10, pady=10)
