@@ -352,7 +352,7 @@ class WSPView(customtkinter.CTk):
         self.results_table.pack(fill="both", expand=True, padx=10, pady=10)
 
     def display_statistics(self, stats: Dict):
-        """Display solution statistics in a human-readable format"""
+        """Display enhanced solution statistics"""
         # Clear previous stats
         for widget in self.stats_frame.winfo_children():
             widget.destroy()
@@ -361,8 +361,8 @@ class WSPView(customtkinter.CTk):
         content_frame = customtkinter.CTkScrollableFrame(self.stats_frame, fg_color="gray17")
         content_frame.pack(fill="both", expand=True, padx=2, pady=2)
         
-        def add_section_header(text: str):
-            """Helper to add section headers"""
+        def add_section_header(text: str, subtext: str = None):
+            """Helper to add section headers with optional subtext"""
             header = customtkinter.CTkLabel(
                 content_frame,
                 text=text,
@@ -370,14 +370,24 @@ class WSPView(customtkinter.CTk):
                 anchor="w"
             )
             header.pack(pady=(15,5), padx=10, fill="x")
+            
+            if subtext:
+                subheader = customtkinter.CTkLabel(
+                    content_frame,
+                    text=subtext,
+                    font=customtkinter.CTkFont(size=12),
+                    text_color="gray70",
+                    anchor="w"
+                )
+                subheader.pack(pady=(0,5), padx=20, fill="x")
 
-        def add_metric(key: str, value: str, is_violation: bool = False):
-            """Helper to add individual metrics"""
+        def add_metric(key: str, value: str, is_violation: bool = False, indent: bool = False):
+            """Helper to add individual metrics with optional indentation"""
             frame = customtkinter.CTkFrame(content_frame, fg_color="gray20")
-            frame.pack(fill="x", padx=20, pady=2)
+            frame.pack(fill="x", padx=20 + (10 if indent else 0), pady=2)
             
             # Determine text color based on violation status
-            text_color = "red" if is_violation and value != "0" else "white"
+            text_color = "red" if is_violation and str(value) != "0" else "white"
             
             # Format key to be more readable
             key = key.replace("_", " ").title()
@@ -399,55 +409,92 @@ class WSPView(customtkinter.CTk):
             )
             value_label.pack(side="left", padx=5, pady=8)
 
-        # Display solution metrics
-        if "Solution Metrics" in stats:
-            add_section_header("Solution Metrics")
-            metrics = stats["Solution Metrics"]
-            add_metric("Users Involved", f"{metrics['unique_users']} unique users")
-            add_metric("Maximum Workload", f"{metrics['max_steps_per_user']} steps per user")
-            add_metric("Minimum Workload", f"{metrics['min_steps_per_user']} steps per user")
-            add_metric("Average Workload", f"{metrics['avg_steps_per_user']:.1f} steps per user")
+        # Display general solution status
+        add_section_header("Solution Status", 
+                        "Overall status and performance metrics")
+        add_metric("Status", stats["Status"])
+        add_metric("Solver Used", stats["Solver Type"])
+        add_metric("Solution Time", stats["Solve Time"])
 
-        # Display constraint violations
-        if "Constraint Violations" in stats:
-            add_section_header("Constraint Compliance")
-            violations = stats["Constraint Violations"]
-            total_violations = sum(violations.values())
+        # Display instance details if available
+        if "Instance Details" in stats:
+            add_section_header("Problem Size", 
+                            "Dimensions and complexity metrics")
+            instance = stats["Instance Details"]
+            add_metric("Total Steps", str(instance.get("Steps", "N/A")))
+            add_metric("Total Users", str(instance.get("Users", "N/A")))
+            add_metric("Total Constraints", str(instance.get("Total Constraints", "N/A")))
             
-            if total_violations == 0:
-                # Add a special "perfect solution" indicator
-                frame = customtkinter.CTkFrame(content_frame, fg_color="gray20")
-                frame.pack(fill="x", padx=20, pady=10)
-                
-                label = customtkinter.CTkLabel(
-                    frame,
-                    text="✓ Perfect Solution - All Constraints Satisfied",
-                    font=customtkinter.CTkFont(weight="bold", size=14),
-                    fg_color="gray20",
-                    text_color="lime"
-                )
-                label.pack(pady=10)
-            else:
-                for constraint, count in violations.items():
-                    add_metric(
-                        f"{constraint} Violations", 
-                        str(count),
-                        is_violation=True
-                    )
-                
-                # Add total violations
-                add_metric(
-                    "Total Violations",
-                    str(total_violations),
-                    is_violation=True
-                )
+            if "Problem Metrics" in instance:
+                metrics = instance["Problem Metrics"]
+                add_metric("Authorization Density", f"{metrics.get('Auth Density', 0):.2%}")
+                add_metric("Constraint Density", f"{metrics.get('Constraint Density', 0):.2%}")
+                add_metric("Step-User Ratio", f"{metrics.get('Step-User Ratio', 0):.2f}")
 
-        # Display general status info
-        if "Status" in stats:
-            add_section_header("Solution Status")
-            add_metric("Status", stats["Status"])
-            add_metric("Solver", stats["Solver Type"])
-            add_metric("Solution Time", stats["Solve Time"])
+        # Display workload distribution
+        if "Solution Metrics" in stats:
+            add_section_header("Workload Distribution", 
+                            "How work is distributed among users")
+            metrics = stats["Solution Metrics"]
+            add_metric("Active Users", f"{metrics['unique_users']} of {instance.get('Users', 'N/A')}")
+            add_metric("Maximum Assignment", f"{metrics['max_steps_per_user']} steps")
+            add_metric("Minimum Assignment", f"{metrics['min_steps_per_user']} steps")
+            add_metric("Average Assignment", f"{metrics['avg_steps_per_user']:.1f} steps")
+            
+            # Calculate and show utilization
+            if 'Users' in instance:
+                utilization = (metrics['unique_users'] / instance['Users']) * 100
+                add_metric("User Utilization", f"{utilization:.1f}%")
+
+        # Display constraint information and violations
+        add_section_header("Constraint Compliance", 
+                        "Verification of all constraint types")
+        
+        # Standard constraint types to always show
+        constraint_types = [
+            "Authorization",
+            "Separation of Duty",
+            "Binding of Duty",
+            "At Most K",
+            "One Team"
+        ]
+        
+        violations = stats.get("Constraint Violations", {})
+        total_violations = sum(violations.values())
+        
+        if total_violations == 0:
+            # Show perfect solution indicator
+            frame = customtkinter.CTkFrame(content_frame, fg_color="gray20")
+            frame.pack(fill="x", padx=20, pady=10)
+            
+            label = customtkinter.CTkLabel(
+                frame,
+                text="✓ Perfect Solution - All Constraints Satisfied",
+                font=customtkinter.CTkFont(weight="bold", size=14),
+                fg_color="gray20",
+                text_color="lime"
+            )
+            label.pack(pady=10)
+            
+            # Still show all constraints with 0 violations
+            for constraint in constraint_types:
+                add_metric(f"{constraint} Violations", "0", is_violation=False, indent=True)
+        else:
+            # Show all constraints, including those with 0 violations
+            for constraint in constraint_types:
+                value = violations.get(constraint, 0)
+                add_metric(f"{constraint} Violations", str(value), 
+                        is_violation=True, indent=True)
+            
+            # Add total violations at the end
+            add_metric("Total Violations", str(total_violations), 
+                    is_violation=True)
+
+        if "Instance Details" in stats and "Constraint Distribution" in stats["Instance Details"]:
+            add_section_header("Constraint Distribution", 
+                            "Number of constraints by type")
+            for constraint, count in stats["Instance Details"]["Constraint Distribution"].items():
+                add_metric(constraint, str(count))
 
     def add_visualization_button(self, command):
         """Add a button to generate visualizations"""

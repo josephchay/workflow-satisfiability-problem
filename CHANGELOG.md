@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Resolved At-Most-K violations for SAT4J PBPB implementation.
 - Updated logic for all encodings for PBPB, UDPB, CS, and solvers for Z3, OR-tools, and SAT4J.
 - Supplemented changes for each of the related files that are linked to these solvers and their new encodings.
+- Better visuals with better section headings, font sizes, different colorings, symbols usage for the statistics tab of the GUI.
 
 ### Refactoring
 - Refactored the code to have each deserving components segregated into own files, clases, methods, and functions.
