@@ -67,14 +67,6 @@ class WSPView(customtkinter.CTk):
         )
         self.select_button.grid(row=2, column=0, padx=20, pady=10)
 
-        # Add folder selection button
-        # self.select_folder_button = customtkinter.CTkButton(
-        #     self.sidebar_frame,
-        #     text="Select Folder",
-        #     command=None
-        # )
-        # self.select_folder_button.grid(row=3, column=0, padx=20, pady=10)
-
         # Create solver selection frame
         self._create_solver_frame()
 

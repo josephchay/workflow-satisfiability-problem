@@ -56,7 +56,7 @@ def main():
 
         # Initialize solver type combobox in view
         app.solver_type.configure(values=[st.value for st in WSPSolverType])
-        app.solver_type.set(WSPSolverType.ORTOOLS_CS.value)  # Set default solver
+        app.solver_type.set(controller.current_solver_type.value)  # Set default solver
 
         # Connect solver change callback
         app.solver_type.configure(command=controller.on_solver_change)
