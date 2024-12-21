@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Segregated out and specified our current implementation of ORTools as UDPB (User-Dependent Pseudo-Boolean).
 - Merged statiscs summary and metadata information to be saved together in a single file for better management.
+- Utilize mandatory argument parsing for input and output files for CLI.
 
 ### Improved
 - Better implementation for Z3 solvers of both PBPB and UDPB encodings.

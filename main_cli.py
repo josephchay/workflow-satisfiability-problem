@@ -44,9 +44,9 @@ def parse_arguments():
     )
     
     # Positional arguments for input and output files
-    parser.add_argument('--instance', 
+    parser.add_argument('input_file', 
                         help='Path to the WSP instance input file')
-    parser.add_argument('--save-to', 
+    parser.add_argument('output_file', 
                         help='Path to save the solution output')
     
     # Optional solver type argument
@@ -98,7 +98,7 @@ def main():
     
     # Load instance
     try:
-        instance = Instance(args.instance)
+        instance = Instance(args.input_file)
     except Exception as e:
         print(f"Error loading instance file: {str(e)}")
         sys.exit(1)
@@ -112,8 +112,8 @@ def main():
     
     # Save solution
     try:
-        solution.save(args.save_to)
-        print(f"Solution saved to {args.save_to}")
+        solution.save(args.output_file)
+        print(f"Solution saved to {args.output_file}")
     except Exception as e:
         print(f"Error saving solution: {str(e)}")
         sys.exit(1)
