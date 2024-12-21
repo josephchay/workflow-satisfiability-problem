@@ -2,7 +2,9 @@
 
 ## Overview
 
-This Workflow Satisfiability Problem (WSP) solver is a sophisticated tool designed to solve complex workflow allocation problems with multiple constraints. The solver supports various encoding strategies and constraint types to handle real-world workflow scenarios.
+A powerful WSP tooling system that optimizes complex multi-user task allocations using advanced constraint satisfaction techniques. The tool supports multiple solving strategies, handles intricate organizational constraints, and provides comprehensive analytics through both graphical and command-line interfaces. 
+
+Designed for researchers and practitioners in workflow management, access control, and optimization, this solver leverages state-of-the-art algorithms to tackle challenging resource allocation problems.
 
 ## Features
 
