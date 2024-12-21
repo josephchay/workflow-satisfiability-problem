@@ -48,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated logic for all encodings for PBPB, UDPB, CS, and solvers for Z3, OR-tools, and SAT4J.
 - Supplemented changes for each of the related files that are linked to these solvers and their new encodings.
 - Better visuals with better section headings, font sizes, different colorings, symbols usage for the statistics tab of the GUI.
+- Instance file selection now reflects on the results tab panel.
+- Constraint activation / deactivation filtering in `controllers.py`
 
 ### Refactoring
 - Refactored the code to have each deserving components segregated into own files, clases, methods, and functions.

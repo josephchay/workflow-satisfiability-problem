@@ -314,6 +314,20 @@ class WSPView(customtkinter.CTk):
     def update_progress(self, value: float):
         self.progressbar.set(value)
     
+    def update_instance_label(self, filename: str = None):
+        """Update the instance label in results tab"""
+        if filename:
+            display_name = os.path.basename(filename)
+            self.results_instance_label.configure(
+                text=f"Current Instance: {display_name}",
+                text_color="white"
+            )
+        else:
+            self.results_instance_label.configure(
+                text="No instance loaded",
+                text_color="gray70"
+            )
+            
     def display_solution(self, solution):
         """Display solution in results tab"""
         # Clear previous results

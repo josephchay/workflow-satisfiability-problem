@@ -1,6 +1,7 @@
 import os
 from typing import Dict, List, Optional
 import time
+import copy
 import customtkinter
 
 from typings import Instance
@@ -46,14 +47,15 @@ class WSPController:
                 
                 # Update file label with the selected file name
                 self.view.update_file_label(filename)
+                self.view.update_instance_label(filename)
                 self.view.update_status(f"Loaded: {filename}")
 
                 # Display instance statistics
                 self.display_instance_stats()
 
             except Exception as e:
-                print(f"Error in select_file: {str(e)}")  # Debug print
                 self.view.update_status(f"Error loading file: {str(e)}")
+                self.view.update_instance_label(None)
                 self.current_instance = None  # Reset if error
 
     def get_active_constraints(self) -> Dict[str, bool]:
@@ -64,48 +66,65 @@ class WSPController:
         }
 
     def solve(self):
-        """Handle solving the current instance"""
+        """Handle solving the current instance with respect to activated/deactivated constraints"""
         if not self.current_instance:
             self.view.update_status("Please select a file first")
             return
         
         try:
-            # Get active constraints
+            # Get active constraints configuration
             active_constraints = self.get_active_constraints()
-            
-            # Start solving
             self.view.update_status(f"Solving with {self.current_solver_type.value}...")
+            self.view.update_progress(0.1)
+
+            # Create copy of instance for solving
+            solving_instance = copy.deepcopy(self.current_instance)
+
+            # Filter constraints based on active status
+            original_cons = solving_instance.cons
+            solving_instance.cons = []
+            for c in original_cons:
+                if ((isinstance(c, NotEquals) and not c.is_bod and active_constraints['separation_of_duty']) or
+                    (isinstance(c, NotEquals) and c.is_bod and active_constraints['binding_of_duty']) or
+                    (isinstance(c, AtMost) and active_constraints['at_most_k']) or
+                    (isinstance(c, OneTeam) and active_constraints['one_team'])):
+                    solving_instance.cons.append(c)
+
+            # Handle authorization deactivation
+            if not active_constraints['authorizations']:
+                for u in range(solving_instance.n):
+                    solving_instance.auths[u].collection = [True] * solving_instance.k
+
             self.view.update_progress(0.2)
-            
-            # Create solver using factory
+
+            # Create solver with filtered instance
             solver = self.solver_factory.create_solver(
                 self.current_solver_type,
-                self.current_instance,
+                solving_instance,
                 active_constraints
             )
-            
-            # Record start time
+
+            # Solve instance
             start_time = time.time()
-            
-            # Solve instance and get result
             solution = solver.solve()
-            
-            # Record end time
-            end_time = time.time()
-            solve_time = end_time - start_time
-            
-            # Update progress
+            solve_time = time.time() - start_time
+
             self.view.update_progress(0.6)
-            
-            # Convert solution to display format
-            display_solution = self._create_solution_display(solution)
-            
-            # Update progress
-            self.view.update_progress(0.8)
-            
-            # Collect all metrics
+
+            # Process solution
+            display_solution = None
+            if solution and solution.assignment:
+                display_solution = [
+                    {'step': s + 1, 'user': solution.assignment[s] + 1}
+                    for s in range(len(solution.assignment))
+                ]
+
+            self.view.update_progress(0.7)
+
+            # Collect instance details
             instance_details = self._collect_instance_metrics()
-            
+
+            # Create result dictionary
             result_dict = {
                 'sat': 'sat' if display_solution else 'unsat',
                 'result_exe_time': solution.time * 1000 if solution else solve_time * 1000,
@@ -113,28 +132,68 @@ class WSPController:
                 'solution_count': 1 if display_solution else 0,
                 'is_unique': False
             }
-            
+
             # Save metadata
-            self.metadata_handler.save_result_metadata(
+            metadata_path = self.metadata_handler.save_result_metadata(
                 instance_details=instance_details,
                 solver_result=result_dict,
                 solver_type=self.current_solver_type.value,
                 active_constraints=active_constraints,
                 filename=os.path.basename(self.view.current_file)
             )
-            
-            # Collect and display statistics
-            stats = self._collect_solution_stats(solution, display_solution, 
-                                             solve_time, active_constraints)
-            # Display solution
+
+            self.view.update_progress(0.8)
+
+            # Collect statistics, including violations for ALL constraints
+            stats = {
+                "Status": "SAT" if display_solution else "UNSAT",
+                "Solver Type": self.current_solver_type.value,
+                "Solve Time": f"{solve_time:.2f} seconds",
+                "Instance Details": instance_details
+            }
+
+            if display_solution:
+                # Add solution-specific metrics
+                stats["Solution Metrics"] = self._analyze_user_metrics(display_solution)
+                
+                # Check violations against ALL constraints (including inactive)
+                # This helps users see what constraints would be violated
+                violations = self._analyze_constraint_satisfaction(
+                    display_solution,
+                    {k: True for k in active_constraints.keys()}  # Check all constraint types
+                )
+
+                # Add violations to stats
+                stats["Constraint Violations"] = {}
+                # Always show all constraint types, even if 0 violations
+                constraint_types = [
+                    "Authorization",
+                    "Separation of Duty",
+                    "Binding of Duty",
+                    "At Most K",
+                    "One Team"
+                ]
+                for c_type in constraint_types:
+                    stats["Constraint Violations"][c_type] = violations.get(c_type, 0)
+
+                # Add note if some constraints were inactive
+                inactive_constraints = [k for k, v in active_constraints.items() if not v]
+                if inactive_constraints:
+                    stats["Notes"] = {
+                        "Inactive Constraints": [k.replace('_', ' ').title() for k in inactive_constraints],
+                        "Warning": "Solution found by ignoring inactive constraints. Violations are shown for reference."
+                    }
+
+            # Display results
             self.view.display_solution(display_solution)
             self.view.display_statistics(stats)
-            
-            # Update final status and progress
+
+            # Update final status
             self.view.update_progress(1.0)
-            status = "Solution found!" if solution and solution.assignment else "No solution exists (UNSAT)"
+            status = "Solution found!" if display_solution else "No solution exists (UNSAT)"
+            ignored_info = "" if all(active_constraints.values()) else " (with inactive constraints)"
             self.view.update_status(
-                f"{status} using {self.current_solver_type.value} " \
+                f"{status}{ignored_info} using {self.current_solver_type.value} "
                 f"(solved in {solve_time:.2f} seconds)"
             )
 
