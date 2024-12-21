@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - More information with indentation of groups of information under the statistics tab window.
 - SAT4J Pattern-Based Psuedo-Boolean (PBPB) and User-Dependent Psuedo-Boolean (UDPB)
 - `LICENSE` and `editorconfig` files.
+- Console User interface with instance file parsing selection.
 
 ### Changed
 - Segregated out and specified our current implementation of ORTools as UDPB (User-Dependent Pseudo-Boolean).
