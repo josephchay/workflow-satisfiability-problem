@@ -15,7 +15,7 @@ class Z3UDPBWSPSolver(BaseWSPSolver):
         for s in range(self.instance.k):
             row = []
             for u in range(self.instance.n):
-                if self.instance.authorisations[u].authorisation_list[s]:
+                if self.instance.auths[u].collection[s]:
                     row.append(Bool(f'x{s}_{u}'))
                 else:
                     row.append(None)
@@ -26,7 +26,7 @@ class Z3UDPBWSPSolver(BaseWSPSolver):
 
         constraint_index = 0
 
-        for c in self.instance.constraints:
+        for c in self.instance.cons:
             constraint_index = constraint_index + 1
             if isinstance(c, NotEquals):
                 for u in range(self.instance.n):
@@ -70,7 +70,7 @@ class Z3PBPBWSPSolver(BaseWSPSolver):
         for s in range(self.instance.k):
             row = []
             for u in range(self.instance.n):
-                if self.instance.authorisations[u].authorisation_list[s]:
+                if self.instance.auths[u].collection[s]:
                     row.append(Bool(f'x{s}_{u}'))
                 else:
                     row.append(None)
@@ -103,7 +103,7 @@ class Z3PBPBWSPSolver(BaseWSPSolver):
                     solver.add(Implies(M[s1][s2], Not(x[s2][u])))
 
         constraint_index = 0
-        for c in self.instance.constraints:
+        for c in self.instance.cons:
             constraint_index = constraint_index + 1
             if isinstance(c, NotEquals):
                 solver.add(Not(M[c.s1][c.s2]))
@@ -141,11 +141,11 @@ class Z3CSWSPSolver(BaseWSPSolver):
             solver.add(y[s] >= 0)
             solver.add(y[s] < self.instance.n)
             for u in range(self.instance.n):
-                if not self.instance.authorisations[u].authorisation_list[s]:
+                if not self.instance.auths[u].collection[s]:
                     solver.add(y[s] != u)
 
         constraint_index = 0
-        for c in self.instance.constraints:
+        for c in self.instance.cons:
             constraint_index = constraint_index + 1
             if isinstance(c, NotEquals):
                 solver.add(y[c.s1] != y[c.s2])

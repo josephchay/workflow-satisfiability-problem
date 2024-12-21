@@ -42,7 +42,7 @@ class SAT4JUDPBWSPSolver(BaseWSPSolver):
         for s in range(self.instance.k):
             row = []
             for u in range(self.instance.n):
-                if self.instance.authorisations[u].authorisation_list[s]:
+                if self.instance.auths[u].collection[s]:
                     v = var()
                     row.append(v)
                 else:
@@ -50,7 +50,7 @@ class SAT4JUDPBWSPSolver(BaseWSPSolver):
             constraints.append(BinaryWeightedClause([v for v in row if v is not None], '=', [], 1))
             x.append(row)
 
-        for c in self.instance.constraints:
+        for c in self.instance.cons:
             if isinstance(c, NotEquals):
                 for u in range(self.instance.n):
                     if x[c.s1][u] is not None and x[c.s2][u] is not None:
@@ -121,7 +121,7 @@ class SAT4JPBPBWSPSolver(BaseWSPSolver):
         for s in range(self.instance.k):
             row = []
             for u in range(self.instance.n):
-                if self.instance.authorisations[u].authorisation_list[s]:
+                if self.instance.auths[u].collection[s]:
                     v = var()
                     row.append(v)
                 else:
@@ -152,7 +152,7 @@ class SAT4JPBPBWSPSolver(BaseWSPSolver):
                 if x[s1][u] is None and x[s2][u] is not None:
                     constraints.append(BinaryWeightedClause([x[s2][u], M[s1][s2]], '<=', [], 1))
 
-        for c in self.instance.constraints:
+        for c in self.instance.cons:
             if isinstance(c, NotEquals):
                 for u in range(self.instance.n):
                     if x[c.s1][u] is not None and x[c.s2][u] is not None:

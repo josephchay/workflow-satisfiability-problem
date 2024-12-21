@@ -13,11 +13,11 @@ class ORToolsCSWSPSolver(BaseWSPSolver):
 
         y = []
         for s in range(self.instance.k):
-            users = [u for u in range(self.instance.n) if self.instance.authorisations[u].authorisation_list[s]]
+            users = [u for u in range(self.instance.n) if self.instance.auths[u].collection[s]]
             v = model.NewIntVarFromDomain(cp_model.Domain.FromValues(users), f'y{s}')
             y.append(v)
 
-        for c in self.instance.constraints:
+        for c in self.instance.cons:
             if isinstance(c, NotEquals):
                 model.Add(y[c.s1] != y[c.s2])
 
@@ -55,7 +55,7 @@ class ORToolsPBPBWSPSolver(BaseWSPSolver):
         for s in range(self.instance.k):
             row = []
             for u in range(self.instance.n):
-                if self.instance.authorisations[u].authorisation_list[s]:
+                if self.instance.auths[u].collection[s]:
                     v = model.NewBoolVar('')
                     row.append(v)
                 else:
@@ -87,7 +87,7 @@ class ORToolsPBPBWSPSolver(BaseWSPSolver):
                 if x[s1][u] is None and x[s2][u] is not None:
                     model.AddImplication(M[s1][s2], x[s2][u].Not())
 
-        for c in self.instance.constraints:
+        for c in self.instance.cons:
             if isinstance(c, NotEquals):
                 model.Add(M[c.s1][c.s2] == 0)
                 # model.Add(M[c.s1][c.s2] == 0)
@@ -125,7 +125,7 @@ class ORToolsUDPBWSPSolver(BaseWSPSolver):
         for s in range(self.instance.k):
             row = []
             for u in range(self.instance.n):
-                if self.instance.authorisations[u].authorisation_list[s]:
+                if self.instance.auths[u].collection[s]:
                     v = model.NewBoolVar('')
                     row.append(v)
                 else:
@@ -133,7 +133,7 @@ class ORToolsUDPBWSPSolver(BaseWSPSolver):
             model.Add(sum([v for v in row if v is not None]) == 1)
             x.append(row)
 
-        for c in self.instance.constraints:
+        for c in self.instance.cons:
             if isinstance(c, NotEquals):
                 for u in range(self.instance.n):
                     if x[c.s1][u] is not None and x[c.s2][u] is not None:

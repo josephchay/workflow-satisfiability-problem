@@ -18,11 +18,11 @@ class Solution:
     def test_satisfiability(self, instance):
         # Check authorizations
         for s in range(instance.k):
-            if not instance.authorisations[self.assignment[s]].authorisation_list[s]:
+            if not instance.auths[self.assignment[s]].collection[s]:
                 return False
 
         # Check all constraints
-        for c in instance.constraints:
+        for c in instance.cons:
             if not c.test_satisfiability(self):
                 return False
 

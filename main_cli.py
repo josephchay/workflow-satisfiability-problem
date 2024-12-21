@@ -21,7 +21,6 @@ def solve(instance: str) -> Dict:
         solver = factory.create_solver(WSPSolverType.ORTOOLS_PBPB, instance, active_constraints)
         
         # Solve instance
-        print("\nSolving...")
         solution = solver.solve()
         return solution
 

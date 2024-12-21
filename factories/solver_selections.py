@@ -2,7 +2,7 @@ import jpype
 
 from typings import WSPSolverType
 from initializers import init_jvm
-from solvers import BaseWSPSolver, ORToolsCSWSPSolver, ORToolsPBPBWSPSolver, ORToolsUDPBWSPSolver, Z3PBPBWSPSolver, Z3UDPBWSPSolver 
+from solvers import BaseWSPSolver
 
 
 class WSPSolverFactory:

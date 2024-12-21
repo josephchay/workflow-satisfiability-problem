@@ -1,7 +1,7 @@
 class Authorisations:
     def __init__(self):
         self.u = -1
-        self.authorisation_list = []
+        self.collection = []
         
     def test_feasibility(self, instance):
         return 0 <= self.u < instance.n

@@ -234,7 +234,7 @@ class WSPController:
                 "number_of_steps": self.current_instance.k,
                 "number_of_users": self.current_instance.n,
                 "number_of_constraints": self.current_instance.m,
-                "authorization_constraints": len([u for u in self.current_instance.auths if any(u.authorisation_list)]),
+                "authorization_constraints": len([u for u in self.current_instance.auths if any(u.collection)]),
                 "separation_of_duty_constraints": sum(1 for c in self.current_instance.cons 
                                                     if isinstance(c, NotEquals) and not c.is_bod),
                 "binding_of_duty_constraints": sum(1 for c in self.current_instance.cons 
@@ -337,7 +337,7 @@ class WSPController:
             "number_of_users": self.current_instance.n,
             "number_of_constraints": len(self.current_instance.cons),
             "authorization_constraints": len([u for u in self.current_instance.auths 
-                                        if any(u.authorisation_list)]),
+                                        if any(u.collection)]),
             "separation_of_duty_constraints": sod_count,
             "binding_of_duty_constraints": bod_count,
             "at_most_k_constraints": atmost_count,
@@ -345,7 +345,7 @@ class WSPController:
             
             # Derived Metrics
             "auth_density": len([u for u in self.current_instance.auths 
-                            if any(u.authorisation_list)]) / 
+                            if any(u.collection)]) / 
                         (self.current_instance.k * self.current_instance.n),
             "constraint_density": len(self.current_instance.cons) /
                                 (self.current_instance.k * self.current_instance.n),
@@ -381,7 +381,7 @@ class WSPController:
             "Number of Users": self.current_instance.n,
             "Number of Constraints": len(self.current_instance.cons),
             "Authorization Constraints": len([u for u in self.current_instance.auths 
-                                        if any(u.authorisation_list)]),
+                                        if any(u.collection)]),
             "Separation of Duty Constraints": sod_count,
             "Binding of Duty Constraints": bod_count,
             "At-Most-K Constraints": atmost_count,
@@ -464,7 +464,7 @@ class WSPController:
             for assignment in solution:
                 user = assignment['user'] - 1  # Convert to 0-based
                 step = assignment['step'] - 1  # Convert to 0-based
-                if not self.current_instance.auths[user].authorisation_list[step]:
+                if not self.current_instance.auths[user].collection[step]:
                     violations += 1
             stats["Authorization Violations"] = violations
         
