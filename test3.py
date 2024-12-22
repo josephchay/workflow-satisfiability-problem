@@ -145,97 +145,129 @@ class OptimizedCpSolver:
         self.instance = instance
         self.model = cp_model.CpModel()
         self.solver = cp_model.CpSolver()
-        self.user_assignment = None
+        self.user_assignment = {}
+        self.step_variables = {}  # New: Track variables by step
+        self.user_step_variables = {}  # New: Track variables by user and step
         
         # Enhanced solver parameters
-        self.solver.parameters.num_search_workers = 8      # Increased parallel workers
+        self.solver.parameters.num_search_workers = 8
         self.solver.parameters.log_search_progress = False
-        
-        # Use randomization to escape local minima
-        self.solver.parameters.random_seed = 42
-        self.solver.parameters.search_branching = cp_model.PORTFOLIO_SEARCH
 
     def create_variables(self):
-        """Optimized variable creation with intelligent ordering"""
-        # Order steps by constraint density
-        step_order = sorted(range(self.instance.number_of_steps),
-                          key=lambda s: len(self.instance.constraint_graph[s]),
-                          reverse=True)
+        """Create variables with improved tracking"""
+        self.step_variables = {}  # Clear any existing variables
+        self.user_step_variables = defaultdict(dict)
         
-        self.user_assignment = {}
-        for step in step_order:
-            self.user_assignment[step] = []
+        for step in range(self.instance.number_of_steps):
+            self.step_variables[step] = []
             for user in range(self.instance.number_of_users):
                 if self.instance.user_step_matrix[user][step]:
                     var = self.model.NewBoolVar(f's{step + 1}_u{user + 1}')
-                    self.user_assignment[step].append((user, var))
-    
-    def add_authorization_constraints(self):
-        """Streamlined authorization constraints"""
-        for step, user_vars in self.user_assignment.items():
-            # Exactly one user per step
-            self.model.AddExactlyOne(var for _, var in user_vars)
-    
-    def add_separation_of_duty(self):
-        """Enhanced separation of duty constraints"""
-        for s1, s2 in self.instance.SOD:
-            user_vars1 = dict(self.user_assignment[s1])
-            user_vars2 = dict(self.user_assignment[s2])
-            
-            for user in set(user_vars1.keys()) & set(user_vars2.keys()):
-                self.model.Add(user_vars1[user] + user_vars2[user] <= 1)
-    
-    def add_binding_of_duty(self):
-        """Optimized binding of duty constraints"""
-        for s1, s2 in self.instance.BOD:
-            user_vars1 = dict(self.user_assignment[s1])
-            user_vars2 = dict(self.user_assignment[s2])
-            
-            common_users = set(user_vars1.keys()) & set(user_vars2.keys())
-            if not common_users:
-                # Quick infeasibility check
-                self.model.Add(1 == 0)  # Force UNSAT
-                return
-                
-            for user in common_users:
-                self.model.Add(user_vars1[user] == user_vars2[user])
-    
-    def add_at_most_k(self):
-        """Strictly enforced at-most-k constraints"""
-        # Track all variables for each user
-        user_vars_global = defaultdict(list)
-        for step, user_vars in self.user_assignment.items():
-            for user, var in user_vars:
-                user_vars_global[user].append(var)
+                    self.step_variables[step].append((user, var))
+                    self.user_step_variables[user][step] = var
 
-        # Find minimum k value from all constraints for global limit
-        min_k = min(k for k, _ in self.instance.at_most_k) if self.instance.at_most_k else 3
-        
-        # Global limit based on instance's minimum k
-        for user, vars_list in user_vars_global.items():
-            self.model.Add(sum(vars_list) <= min_k)
-    
-    def add_one_team(self):
-        """Enhanced one-team constraints with preprocessing"""
-        for steps, teams in self.instance.one_team:
-            team_vars = []
+    def add_authorization_constraints(self):
+        """Basic authorization constraints"""
+        for step, user_vars in self.step_variables.items():
+            self.model.AddExactlyOne(var for _, var in user_vars)
+
+    def add_binding_of_duty(self):
+        """Completely reworked BOD constraints"""
+        for s1, s2 in self.instance.BOD:
+            # Get all users that can do both steps
+            common_users = set()
+            for user in range(self.instance.number_of_users):
+                if (self.instance.user_step_matrix[user][s1] and 
+                    self.instance.user_step_matrix[user][s2]):
+                    common_users.add(user)
             
-            # Create team selection variables
-            for i in range(len(teams)):
-                team_vars.append(self.model.NewBoolVar(f'team_{i}'))
+            if not common_users:
+                # No user can perform both steps - model is unsatisfiable
+                self.model.Add(1 == 0)
+                return
             
-            # Exactly one team must be selected
-            self.model.AddExactlyOne(team_vars)
+            # Create sum variables for non-common users
+            s1_other_sum = 0
+            s2_other_sum = 0
             
-            # For each step and team combination
-            for step in steps:
-                step_vars = dict(self.user_assignment[step])
+            # For step 1, sum all assignments to non-common users
+            for user, var in self.step_variables[s1]:
+                if user not in common_users:
+                    s1_other_sum += var
+            
+            # For step 2, sum all assignments to non-common users
+            for user, var in self.step_variables[s2]:
+                if user not in common_users:
+                    s2_other_sum += var
+            
+            # Both other_sums must be 0 as steps must be assigned to a common user
+            self.model.Add(s1_other_sum == 0)
+            self.model.Add(s2_other_sum == 0)
+            
+            # For each common user, force the assignments to be equal
+            for user in common_users:
+                var1 = self.user_step_variables[user][s1]
+                var2 = self.user_step_variables[user][s2]
+                self.model.Add(var1 == var2)
+
+    def add_at_most_k(self):
+        """Completely reworked at-most-k constraints"""
+        # Handle each at-most-k constraint separately
+        for k, steps in self.instance.at_most_k:
+            # For each user
+            for user in range(self.instance.number_of_users):
+                # Get variables for steps this user can perform
+                user_step_vars = []
+                for step in steps:
+                    if self.instance.user_step_matrix[user][step]:
+                        var = self.user_step_variables[user][step]
+                        user_step_vars.append(var)
                 
+                if user_step_vars:  # Only add constraint if user can perform any steps
+                    # Sum of assignments must be <= k
+                    self.model.Add(sum(user_step_vars) <= k)
+        
+        # Additional global constraints
+        if self.instance.at_most_k:
+            min_k = min(k for k, _ in self.instance.at_most_k)
+            # For each user, limit total assignments across all steps
+            for user in range(self.instance.number_of_users):
+                user_vars = []
+                for step in range(self.instance.number_of_steps):
+                    if step in self.user_step_variables[user]:
+                        user_vars.append(self.user_step_variables[user][step])
+                if user_vars:
+                    self.model.Add(sum(user_vars) <= min_k)
+
+    def add_separation_of_duty(self):
+        """Optimized SOD constraints"""
+        for s1, s2 in self.instance.SOD:
+            for user in range(self.instance.number_of_users):
+                # Only add constraint if user can do both steps
+                if (s1 in self.user_step_variables[user] and 
+                    s2 in self.user_step_variables[user]):
+                    var1 = self.user_step_variables[user][s1]
+                    var2 = self.user_step_variables[user][s2]
+                    self.model.Add(var1 + var2 <= 1)
+
+    def add_one_team(self):
+        """Optimized one-team constraints"""
+        for steps, teams in self.instance.one_team:
+            # Create team selection variables
+            team_vars = [self.model.NewBoolVar(f'team_{i}') for i in range(len(teams))]
+            self.model.AddExactlyOne(team_vars)  # Exactly one team must be selected
+            
+            # For each step
+            for step in steps:
+                # For each team
                 for team_idx, team in enumerate(teams):
-                    # Users not in team cannot be assigned when team is selected
-                    for user, var in step_vars.items():
+                    # When this team is selected
+                    team_var = team_vars[team_idx]
+                    
+                    # Users not in team cannot be assigned
+                    for user, var in self.step_variables[step]:
                         if user not in team:
-                            self.model.Add(var == 0).OnlyEnforceIf(team_vars[team_idx])
+                            self.model.Add(var == 0).OnlyEnforceIf(team_var)
 
     def verify_at_most_k(self, solution_dict):
         """Strict at-most-k verification"""
@@ -330,96 +362,135 @@ class OptimizedCpSolver:
         return violations
 
     def solve(self):
-        """Enhanced solving process with early detection"""
-        start_time = time.time()
-        
-        # Create and add all constraints
-        self.create_variables()
-        self.add_authorization_constraints()
-        self.add_separation_of_duty()
-        self.add_binding_of_duty()
-        self.add_at_most_k()
-        self.add_one_team()
-        
-        # Solve without timeout
-        status = self.solver.Solve(self.model)
-        
-        end_time = time.time()
-        
-        # Process results
-        result = {
-            'sat': 'unsat',
-            'exe_time': f"{(end_time - start_time) * 1000:.2f}ms",
-            'sol': []
-        }
-        
-        if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-            result['sat'] = 'sat'
+        """Main solving method with comprehensive error checking"""
+        try:
+            start_time = time.time()
             
-            # Reconstruct solution efficiently
-            solution = []
-            solution_dict = {}
-            for step in range(self.instance.number_of_steps):
-                for user, var in self.user_assignment[step]:
-                    if self.solver.Value(var):
-                        solution.append((step + 1, user + 1))
-                        solution_dict[step + 1] = user + 1
-                        break
+            print("Creating variables...")
+            self.create_variables()
             
-            result['sol'] = solution
+            print("Adding authorization constraints...")
+            self.add_authorization_constraints()
             
-            # Verify constraints
-            violations = self.verify_solution(solution_dict)
-            if violations:
-                print("\nConstraint Violations Found:")
-                # Print constraints for any step involved in violations
-                problematic_steps = set()
-                for v in violations:
-                    steps = [int(s) for s in re.findall(r'Step (\d+)', v)]
-                    problematic_steps.update(steps)
+            print("Adding separation of duty constraints...")
+            self.add_separation_of_duty()
+            
+            print("Adding binding of duty constraints...")
+            self.add_binding_of_duty()
+            
+            print("Adding at-most-k constraints...")
+            self.add_at_most_k()
+            
+            print("Adding one-team constraints...")
+            self.add_one_team()
+            
+            print("Solving model...")
+            status = self.solver.Solve(self.model)
+            
+            end_time = time.time()
+            
+            result = {
+                'sat': 'unsat',
+                'exe_time': f"{(end_time - start_time) * 1000:.2f}ms",
+                'sol': []
+            }
+            
+            if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+                result['sat'] = 'sat'
+                solution = []
+                solution_dict = {}
                 
-                for step in sorted(problematic_steps):
-                    self.print_step_constraints(step)
+                # Build solution from step variables instead of user_assignment
+                for step in range(self.instance.number_of_steps):
+                    for user, var in self.step_variables[step]:
+                        if self.solver.Value(var):
+                            solution.append((step + 1, user + 1))
+                            solution_dict[step + 1] = user + 1
+                            break
                 
-                for violation in violations:
-                    print(violation)
-            else:
-                print("\nAll constraints satisfied")
-                print("\nSolution verified with no violations")
-        
-        return result
+                result['sol'] = solution
+                
+                # Verify solution
+                violations = self.verify_solution(solution_dict)
+                if violations:
+                    print("\nConstraint Violations Found:")
+                    problematic_steps = set()
+                    for v in violations:
+                        steps = [int(s) for s in re.findall(r'Step (\d+)', v)]
+                        problematic_steps.update(steps)
+                    
+                    for step in sorted(problematic_steps):
+                        self.print_step_constraints(step)
+                    
+                    for violation in violations:
+                        print(violation)
+                else:
+                    print("\nAll constraints satisfied")
+                    print("\nSolution verified with no violations")
+            
+            return result
+            
+        except Exception as e:
+            print(f"\nError during solve:")
+            print(f"Error type: {type(e).__name__}")
+            print(f"Error message: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise
     
 def Solver(instance, filename, results):
+    print("\n" + "=" * 120)
     print(f"\nSolving instance: {filename}")
     
-    solver = OptimizedCpSolver(instance)
-    result = solver.solve()
-    result['filename'] = filename
-    
-    # Add metadata
-    metadata = INSTANCE_METADATA.get(filename.split('/')[-1], {})
-    result['expected_sat'] = metadata.get('sat', 'Unknown')
-    result['unique_solution'] = metadata.get('unique', 'Unknown')
-    
-    results.append(result)
-    
-    # Output results
-    if result['sat'] == 'sat':
-        print(f"Status: SAT (Expected: {result['expected_sat']})")
-        print(f"Execution Time: {result['exe_time']}")
-        print("Solution:")
+    try:
+        solver = OptimizedCpSolver(instance)
+        result = solver.solve()
         
-        step_assignments = {}
-        for step, user in result['sol']:
-            step_assignments[step] = user
+        # Add metadata
+        result['filename'] = filename
+        metadata = INSTANCE_METADATA.get(filename.split('/')[-1], {})
+        result['expected_sat'] = metadata.get('sat', 'Unknown')
+        result['unique_solution'] = metadata.get('unique', 'Unknown')
+        
+        results.append(result)
+        
+        # Output results
+        if result['sat'] == 'sat':
+            print(f"\nStatus: SAT (Expected: {result['expected_sat']})")
+            print(f"Execution Time: {result['exe_time']}")
+            print("Solution:")
             
-        for step in sorted(step_assignments.keys()):
-            print(f"Step {step}: User {step_assignments[step]}")
-    else:
-        print(f"Status: UNSAT (Expected: {result['expected_sat']})")
-        print(f"Execution Time: {result['exe_time']}")
-    
-    return result
+            step_assignments = {}
+            for step, user in result['sol']:
+                step_assignments[step] = user
+                
+            for step in sorted(step_assignments.keys()):
+                print(f"Step {step}: User {step_assignments[step]}")
+        else:
+            print(f"\nStatus: UNSAT (Expected: {result['expected_sat']})")
+            print(f"Execution Time: {result['exe_time']}")
+        
+        return result
+        
+    except Exception as e:
+        print(f"\nError processing {filename}:")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error message: {str(e)}")
+        print("\nFull traceback:")
+        import traceback
+        traceback.print_exc()
+        
+        # Create an error result to maintain consistency
+        error_result = {
+            'filename': filename,
+            'sat': 'error',
+            'exe_time': '0ms',
+            'sol': [],
+            'expected_sat': INSTANCE_METADATA.get(filename.split('/')[-1], {}).get('sat', 'Unknown'),
+            'unique_solution': INSTANCE_METADATA.get(filename.split('/')[-1], {}).get('unique', 'Unknown')
+        }
+        results.append(error_result)
+        return error_result
 
 
 if __name__ == "__main__":
@@ -432,7 +503,7 @@ if __name__ == "__main__":
     import os
     instance_files = sorted([f for f in os.listdir(instance_folder) if f.startswith('example') and f.endswith('.txt')])
     
-    for filename in instance_files:
+    for filename in sorted(instance_files, key=lambda x: int(''.join(filter(str.isdigit, x)))):
         full_path = os.path.join(instance_folder, filename)
         try:
             instance = read_file(full_path)
