@@ -53,7 +53,7 @@ def parse_arguments():
     solver_choices = [st.value for st in WSPSolverType]
     parser.add_argument('-s', '--solver', 
                         choices=solver_choices, 
-                        default=WSPSolverType.ORTOOLS_PBPB.value,
+                        default=WSPSolverType.ORTOOLS_CS.value,
                         help='Solver type to use (default: %(default)s)')
     
     # Optional constraint toggle arguments

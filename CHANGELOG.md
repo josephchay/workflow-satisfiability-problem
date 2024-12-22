@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Refactoring
 - Introduced `InstanceParser` class for better readability for use for global function `parse_instance_file`.
+- Introduced SOC (Separation of Concerns) via segregated methods for `Instance` class.
 
 ## [0.1.0] - 2024-12-22
 
