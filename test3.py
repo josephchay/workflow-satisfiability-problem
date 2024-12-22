@@ -3,6 +3,7 @@ from ortools.sat.python import cp_model
 import re
 from collections import defaultdict
 
+
 class Instance:
     def __init__(self):
         self.number_of_steps = 0
@@ -138,6 +139,7 @@ def read_file(filename):
     instance.compute_step_domains()
     return instance
 
+
 class OptimizedCpSolver:
     def __init__(self, instance):
         self.instance = instance
@@ -199,19 +201,29 @@ class OptimizedCpSolver:
                 self.model.Add(user_vars1[user] == user_vars2[user])
     
     def add_at_most_k(self):
-        """Improved at-most-k constraints"""
+        """Strictly enforced at-most-k constraints"""
+        # Track all variables for each user
+        user_vars_global = defaultdict(list)
+        for step, user_vars in self.user_assignment.items():
+            for user, var in user_vars:
+                user_vars_global[user].append(var)
+
+        # Global limit: no user can have more than max k=3 assignments
+        for user, vars_list in user_vars_global.items():
+            self.model.Add(sum(vars_list) <= 3)
+
+        # Specific at-most-k constraints for each group
         for k, steps in self.instance.at_most_k:
-            # Create user participation indicators
-            user_participation = defaultdict(list)
-            
+            # Get variables for each user in this group
+            group_vars = defaultdict(list)
             for step in steps:
                 for user, var in self.user_assignment[step]:
-                    user_participation[user].append(var)
+                    group_vars[user].append(var)
             
-            # Add constraints only for users that appear in multiple steps
-            for user, vars in user_participation.items():
-                if len(vars) > k:
-                    self.model.Add(sum(vars) <= k)
+            # Add constraint for each user in this group
+            for user, vars_list in group_vars.items():
+                if len(vars_list) > k:
+                    self.model.Add(sum(vars_list) <= k)
     
     def add_one_team(self):
         """Enhanced one-team constraints with preprocessing"""
@@ -236,36 +248,24 @@ class OptimizedCpSolver:
                             self.model.Add(var == 0).OnlyEnforceIf(team_vars[team_idx])
 
     def verify_at_most_k(self, solution_dict):
-        """Enhanced at-most-k constraint verification"""
+        """Strict at-most-k verification"""
         violations = []
         
-        # First, collect all user assignments
+        # First collect all assignments per user
         user_assignments = defaultdict(list)
         for step, user in solution_dict.items():
-            user_assignments[user].append(step)
+            user_assignments[user].append(step-1)  # Convert to 0-based indexing
             
         # Check each at-most-k constraint
         for k, steps in self.instance.at_most_k:
-            # Convert to 1-based indexing
-            steps_1based = [s+1 for s in steps]
-            print(f"\nChecking at-most-{k} constraint for steps: {steps_1based}")
-            
-            # For each user, count their appearances in these specific steps
+            steps_set = set(steps)
             for user, assigned_steps in user_assignments.items():
-                # Filter steps that are part of this constraint
-                steps_in_constraint = [s for s in assigned_steps if s in steps_1based]
-                if len(steps_in_constraint) > k:
+                steps_in_group = [s for s in assigned_steps if s in steps_set]
+                if len(steps_in_group) > k:
                     violations.append(
-                        f"At-most-{k} Violation: User {user} assigned to {len(steps_in_constraint)} steps "
-                        f"({sorted(steps_in_constraint)}) in constraint group {steps_1based}"
+                        f"At-most-{k} Violation: User {user} assigned to {len(steps_in_group)} steps "
+                        f"{sorted(s+1 for s in steps_in_group)} in constraint group {sorted(s+1 for s in steps)}"
                     )
-        
-        # Also verify overall user assignments
-        for user, steps in user_assignments.items():
-            if len(steps) > 3:  # Since k=3 is the maximum in all constraints
-                violations.append(
-                    f"Potential violation: User {user} assigned to {len(steps)} steps total: {sorted(steps)}"
-                )
         
         return violations
 
