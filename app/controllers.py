@@ -34,7 +34,7 @@ class WSPController:
         self.view.update_status(f"Selected solver: {value}")
 
     def select_file(self):
-        """Handle file selection"""
+        """Handle file selection without updating display"""
         filename = customtkinter.filedialog.askopenfilename(
             title="Select WSP Instance",
             filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
@@ -42,28 +42,15 @@ class WSPController:
         
         if filename:
             try:
-                instance = Instance(filename)  # Create new instance
-                self.current_instance = instance  # Use property setter
-                
-                # Update file label with the selected file name
+                # Only update file label and load instance
+                instance = Instance(filename)
+                self.current_instance = instance
                 self.view.update_file_label(filename)
-                self.view.update_instance_label(filename)
-                self.view.update_status(f"Loaded: {filename}")
-
-                # Display instance statistics
-                self.display_instance_stats()
+                self.view.update_status(f"File loaded: {filename}")
 
             except Exception as e:
                 self.view.update_status(f"Error loading file: {str(e)}")
-                self.view.update_instance_label(None)
-                self.current_instance = None  # Reset if error
-
-    def get_active_constraints(self) -> Dict[str, bool]:
-        """Get current active constraints from view"""
-        return {
-            name: var.get()
-            for name, var in self.view.constraint_vars.items()
-        }
+                self.current_instance = None
 
     def solve(self):
         """Handle solving the current instance with respect to activated/deactivated constraints"""
@@ -76,6 +63,10 @@ class WSPController:
             active_constraints = self.get_active_constraints()
             self.view.update_status(f"Solving with {self.current_solver_type.value}...")
             self.view.update_progress(0.1)
+
+            # Collect instance details early
+            instance_details = self._collect_instance_metrics()
+            self.view.update_progress(0.2)
 
             # Create copy of instance for solving
             solving_instance = copy.deepcopy(self.current_instance)
@@ -95,14 +86,14 @@ class WSPController:
                 for u in range(solving_instance.n):
                     solving_instance.auths[u].collection = [True] * solving_instance.k
 
-            self.view.update_progress(0.2)
-
             # Create solver with filtered instance
             solver = self.solver_factory.create_solver(
                 self.current_solver_type,
                 solving_instance,
                 active_constraints
             )
+
+            self.view.update_progress(0.4)
 
             # Solve instance
             start_time = time.time()
@@ -119,11 +110,6 @@ class WSPController:
                     for s in range(len(solution.assignment))
                 ]
 
-            self.view.update_progress(0.7)
-
-            # Collect instance details
-            instance_details = self._collect_instance_metrics()
-
             # Create result dictionary
             result_dict = {
                 'sat': 'sat' if display_solution else 'unsat',
@@ -133,7 +119,7 @@ class WSPController:
                 'is_unique': False
             }
 
-            # Save metadata
+            # Save metadata before updating display
             metadata_path = self.metadata_handler.save_result_metadata(
                 instance_details=instance_details,
                 solver_result=result_dict,
@@ -144,7 +130,10 @@ class WSPController:
 
             self.view.update_progress(0.8)
 
-            # Collect statistics, including violations for ALL constraints
+            # Update instance display
+            self.view.update_instance_display(instance_details)
+
+            # Collect statistics
             stats = {
                 "Status": "SAT" if display_solution else "UNSAT",
                 "Solver Type": self.current_solver_type.value,
@@ -153,19 +142,16 @@ class WSPController:
             }
 
             if display_solution:
-                # Add solution-specific metrics
+                # Add solution metrics
                 stats["Solution Metrics"] = self._analyze_user_metrics(display_solution)
                 
-                # Check violations against ALL constraints (including inactive)
-                # This helps users see what constraints would be violated
+                # Check violations against ALL constraints
                 violations = self._analyze_constraint_satisfaction(
                     display_solution,
-                    {k: True for k in active_constraints.keys()}  # Check all constraint types
+                    {k: True for k in active_constraints.keys()}
                 )
-
-                # Add violations to stats
+                
                 stats["Constraint Violations"] = {}
-                # Always show all constraint types, even if 0 violations
                 constraint_types = [
                     "Authorization",
                     "Separation of Duty",
@@ -176,7 +162,7 @@ class WSPController:
                 for c_type in constraint_types:
                     stats["Constraint Violations"][c_type] = violations.get(c_type, 0)
 
-                # Add note if some constraints were inactive
+                # Add note about inactive constraints
                 inactive_constraints = [k for k, v in active_constraints.items() if not v]
                 if inactive_constraints:
                     stats["Notes"] = {
@@ -202,6 +188,13 @@ class WSPController:
             self.view.update_progress(0)
             import traceback
             traceback.print_exc()
+
+    def get_active_constraints(self) -> Dict[str, bool]:
+        """Get current active constraints from view"""
+        return {
+            name: var.get()
+            for name, var in self.view.constraint_vars.items()
+        }
 
     def _collect_instance_metrics(self) -> Dict:
         """Collect metrics about the current instance"""

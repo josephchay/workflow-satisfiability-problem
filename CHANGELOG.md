@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Improvement
+- Modified metric information in `metadata.py` and how its handled in the `controllers.py`.
+
 ### Refactoring
 - Introduced `InstanceParser` class for better readability for use for global function `parse_instance_file`.
 - Introduced SOC (Separation of Concerns) via segregated methods for `Instance` class.

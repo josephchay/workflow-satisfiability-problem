@@ -226,46 +226,95 @@ class WSPView(customtkinter.CTk):
         self.unsat_label = None
 
     def display_instance_details(self, stats: Dict):
-        """Display instance details in the Instance Details tab"""
+        """Display instance details in enhanced format"""
         # Clear previous content
         for widget in self.instance_frame.winfo_children():
             widget.destroy()
         
-        # Create main content frame that will stretch
-        content_frame = customtkinter.CTkFrame(self.instance_frame, fg_color="gray17")
+        # Create scrollable frame for content
+        content_frame = customtkinter.CTkScrollableFrame(
+            self.instance_frame, 
+            fg_color="gray17"
+        )
         content_frame.pack(fill="both", expand=True, padx=2, pady=2)
 
-        # Create instance details title
-        title_label = customtkinter.CTkLabel(
-            content_frame,
-            text=f"Instance Details: {os.path.basename(self.current_file) if self.current_file else 'No instance loaded'}",
-            font=customtkinter.CTkFont(size=16, weight="bold")
-        )
-        title_label.pack(pady=10)
-        
-        # Display stats in table-like format
-        for key, value in stats.items():
-            stat_frame = customtkinter.CTkFrame(content_frame, fg_color="gray20")
-            stat_frame.pack(fill="x", padx=20, pady=2)
+        def add_section_header(text: str, subtext: str = None):
+            header = customtkinter.CTkLabel(
+                content_frame,
+                text=text,
+                font=customtkinter.CTkFont(size=16, weight="bold"),
+                anchor="w"
+            )
+            header.pack(pady=(15,5), padx=10, fill="x")
             
-            key_label = customtkinter.CTkLabel(
-                stat_frame,
-                text=f"{key}:",
+            if subtext:
+                subheader = customtkinter.CTkLabel(
+                    content_frame,
+                    text=subtext,
+                    font=customtkinter.CTkFont(size=12),
+                    text_color="gray70",
+                    anchor="w"
+                )
+                subheader.pack(pady=(0,5), padx=20, fill="x")
+
+        def add_metric(key: str, value: str, indent: bool = False):
+            frame = customtkinter.CTkFrame(content_frame, fg_color="gray20")
+            frame.pack(fill="x", padx=20 + (10 if indent else 0), pady=2)
+            
+            key = key.replace("_", " ").title()
+            
+            label = customtkinter.CTkLabel(
+                frame,
+                text=key + ":",
                 font=customtkinter.CTkFont(weight="bold"),
                 fg_color="gray20"
             )
-            key_label.pack(side="left", padx=10, pady=8)
+            label.pack(side="left", padx=10, pady=8)
             
             value_label = customtkinter.CTkLabel(
-                stat_frame,
+                frame,
                 text=str(value),
                 fg_color="gray20"
             )
             value_label.pack(side="left", padx=5, pady=8)
-        
-        # Add empty frame at bottom to push content up
-        spacer = customtkinter.CTkFrame(content_frame, fg_color="gray17", height=200)
-        spacer.pack(fill="x", expand=True)
+
+        # Basic Instance Information
+        add_section_header("Basic Information", 
+                        "Core instance parameters")
+        for key in ["Steps", "Users", "Total Constraints"]:
+            if key in stats:
+                add_metric(key, stats[key])
+
+        # Density Metrics
+        if "Density Metrics" in stats:
+            add_section_header("Density Analysis", 
+                            "Distribution and ratio metrics")
+            metrics = stats["Density Metrics"]
+            for key, value in metrics.items():
+                if "Density" in key:
+                    add_metric(key, f"{value:.2%}")
+                else:
+                    add_metric(key, f"{value:.2f}")
+
+        # Constraint Distribution
+        if "Constraint Distribution" in stats:
+            add_section_header("Constraint Distribution", 
+                            "Number of constraints by type")
+            for key, value in stats["Constraint Distribution"].items():
+                add_metric(key, str(value))
+
+        # Authorization Analysis
+        if "Authorizations Per User" in stats:
+            add_section_header("Authorization Analysis", 
+                            "User authorization statistics")
+            auths = stats["Authorizations Per User"]
+            total_auths = sum(auths.values())
+            avg_auths = total_auths / len(auths) if auths else 0
+            
+            add_metric("Total Authorizations", str(total_auths))
+            add_metric("Average Authorizations Per User", f"{avg_auths:.2f}")
+            add_metric("Maximum Authorizations", str(max(auths.values())) if auths else "0")
+            add_metric("Minimum Authorizations", str(min(auths.values())) if auths else "0")
 
     def init_results_table(self):
         """Initialize or reinitialize the results table"""
@@ -314,19 +363,21 @@ class WSPView(customtkinter.CTk):
     def update_progress(self, value: float):
         self.progressbar.set(value)
     
-    def update_instance_label(self, filename: str = None):
-        """Update the instance label in results tab"""
-        if filename:
-            display_name = os.path.basename(filename)
+    def update_instance_display(self, instance_details: Dict = None):
+        """Update instance display after successful processing"""
+        if not instance_details:
             self.results_instance_label.configure(
-                text=f"Current Instance: {display_name}",
-                text_color="white"
-            )
-        else:
-            self.results_instance_label.configure(
-                text="No instance loaded",
+                text="No instance processed",
                 text_color="gray70"
             )
+            return
+
+        filename = os.path.basename(self.current_file) if self.current_file else "Unknown"
+        self.results_instance_label.configure(
+            text=f"Current Instance: {filename}",
+            text_color="white"
+        )
+        self.display_instance_details(instance_details)
             
     def display_solution(self, solution):
         """Display solution in results tab"""
