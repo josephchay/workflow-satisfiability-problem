@@ -208,22 +208,12 @@ class OptimizedCpSolver:
             for user, var in user_vars:
                 user_vars_global[user].append(var)
 
-        # Global limit: no user can have more than max k=3 assignments
+        # Find minimum k value from all constraints for global limit
+        min_k = min(k for k, _ in self.instance.at_most_k) if self.instance.at_most_k else 3
+        
+        # Global limit based on instance's minimum k
         for user, vars_list in user_vars_global.items():
-            self.model.Add(sum(vars_list) <= 3)
-
-        # Specific at-most-k constraints for each group
-        for k, steps in self.instance.at_most_k:
-            # Get variables for each user in this group
-            group_vars = defaultdict(list)
-            for step in steps:
-                for user, var in self.user_assignment[step]:
-                    group_vars[user].append(var)
-            
-            # Add constraint for each user in this group
-            for user, vars_list in group_vars.items():
-                if len(vars_list) > k:
-                    self.model.Add(sum(vars_list) <= k)
+            self.model.Add(sum(vars_list) <= min_k)
     
     def add_one_team(self):
         """Enhanced one-team constraints with preprocessing"""
@@ -302,9 +292,10 @@ class OptimizedCpSolver:
         
         # Print assignment summary
         print("\nAssignment Summary:")
-        for user, steps in user_assignments.items():
-            if len(steps) > 1:
-                print(f"User {user} assigned to steps: {sorted(steps)}")
+        users_used = sorted(user_assignments.keys())
+        for user in users_used:
+            print(f"User {user} assigned to step{'s' if len(user_assignments[user]) > 1 else ''}: {sorted(user_assignments[user])}")
+        print(f"\nTotal unique users used: {len(users_used)}")
 
         # Verify authorizations
         for step, user in solution_dict.items():
