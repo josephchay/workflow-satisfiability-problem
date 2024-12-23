@@ -214,14 +214,14 @@ class AppView(customtkinter.CTk):
         )
         self.results_instance_label.pack(pady=5)
         
-        # Create frames
+        # Create scrollable frames
         self.results_frame = customtkinter.CTkScrollableFrame(self.results_tab)
         self.results_frame.pack(fill="both", expand=True, padx=10, pady=5)
         
-        self.instance_frame = customtkinter.CTkFrame(self.instance_tab)
+        self.instance_frame = customtkinter.CTkScrollableFrame(self.instance_tab)
         self.instance_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
-        self.stats_frame = customtkinter.CTkFrame(self.stats_tab)
+        self.stats_frame = customtkinter.CTkScrollableFrame(self.stats_tab)
         self.stats_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
     def _create_progress_indicators(self):
@@ -360,7 +360,7 @@ class AppView(customtkinter.CTk):
         for widget in self.stats_frame.winfo_children():
             widget.destroy()
 
-        content_frame = customtkinter.CTkScrollableFrame(
+        content_frame = customtkinter.CTkFrame(
             self.stats_frame,
             fg_color="gray17"
         )
@@ -479,31 +479,11 @@ class AppView(customtkinter.CTk):
             self._create_detailed_analysis_section(content_frame, stats["detailed_analysis"])
 
     def _create_detailed_analysis_section(self, parent_frame, detailed_data: Dict):
-        """Create detailed analysis section with improved organization"""
+        """Create detailed analysis section with scrollable subsections"""
         detailed_frame = customtkinter.CTkFrame(parent_frame, fg_color="transparent")
         detailed_frame.pack(fill="x", padx=10, pady=(15,5))
         
-        # Title section
-        title_frame = customtkinter.CTkFrame(detailed_frame, fg_color="transparent")
-        title_frame.pack(fill="x", pady=5)
-        
-        title_label = customtkinter.CTkLabel(
-            title_frame,
-            text="Detailed Analysis",
-            font=customtkinter.CTkFont(size=20, weight="bold")
-        )
-        title_label.pack(anchor="w")
-        
-        description_label = customtkinter.CTkLabel(
-            title_frame,
-            text="Comprehensive constraint and authorization analysis",
-            font=customtkinter.CTkFont(size=12),
-            text_color="gray70"
-        )
-        description_label.pack(anchor="w", pady=(0,5))
-
-        # Create sections with dropdowns
-        def create_section(title, content):
+        def create_section(title, content_creator_func):
             section = customtkinter.CTkFrame(detailed_frame, fg_color="gray20")
             section.pack(fill="x", pady=5)
             
@@ -512,27 +492,37 @@ class AppView(customtkinter.CTk):
             header.pack(fill="x", padx=5, pady=2)
             
             is_expanded = customtkinter.BooleanVar(value=False)
-            content_frame = customtkinter.CTkFrame(section, fg_color="gray20")
+            content_frame = customtkinter.CTkScrollableFrame(
+                section, 
+                height=300,
+                fg_color="gray20"
+            )
             
             def toggle_section():
                 if is_expanded.get():
-                    content_frame.pack(fill="x", padx=10, pady=5)
+                    content_frame.pack(fill="x", padx=10, pady=5, expand=True)
                 else:
                     content_frame.pack_forget()
             
             section_btn = customtkinter.CTkButton(
                 header,
                 text=f"{title} ▼",
-                command=lambda: [is_expanded.set(not is_expanded.get()),
-                            section_btn.configure(text=f"{title} ▲" if is_expanded.get() else f"{title} ▼"),
-                            toggle_section()],
+                command=lambda: [
+                    is_expanded.set(not is_expanded.get()),
+                    section_btn.configure(text=f"{title} ▲" if is_expanded.get() else f"{title} ▼"),
+                    toggle_section()
+                ],
                 fg_color="transparent",
                 text_color="white",
                 hover_color="gray30"
             )
             section_btn.pack(fill="x", padx=5)
             
-            return content_frame
+            # Only call content_creator if it's a function
+            if callable(content_creator_func):
+                content_creator_func(content_frame)
+            
+            return section
 
         # Authorization Analysis Section
         if "Authorization Analysis" in detailed_data:
@@ -540,15 +530,17 @@ class AppView(customtkinter.CTk):
             
             # Per Step Breakdown
             if "Per Step Breakdown" in auth_data:
-                step_frame = create_section("Step Authorization", None)
-                for step, data in auth_data["Per Step Breakdown"].items():
-                    self._create_detail_row(step_frame, step, data)
+                def create_step_content(frame):
+                    for step, data in auth_data["Per Step Breakdown"].items():
+                        self._create_detail_row(frame, step, data)
+                create_section("Step Authorization", create_step_content)
             
             # Per User Breakdown
             if "Per User Breakdown" in auth_data:
-                user_frame = create_section("User Authorization", None)
-                for user, data in auth_data["Per User Breakdown"].items():
-                    self._create_detail_row(user_frame, user, data)
+                def create_user_content(frame):
+                    for user, data in auth_data["Per User Breakdown"].items():
+                        self._create_detail_row(frame, user, data)
+                create_section("User Authorization", create_user_content)
 
         # Constraint Analysis Section
         if "Constraint Analysis" in detailed_data:
@@ -556,45 +548,49 @@ class AppView(customtkinter.CTk):
             
             # SOD Constraints
             if const_data.get("Separation of Duty"):
-                sod_frame = create_section("Separation of Duty Constraints", None)
-                for constraint in const_data["Separation of Duty"]:
-                    self._create_constraint_detail(sod_frame, constraint)
+                def create_sod_content(frame):
+                    for constraint in const_data["Separation of Duty"]:
+                        self._create_constraint_detail(frame, constraint)
+                create_section("SOD Constraints", create_sod_content)
             
             # BOD Constraints
             if const_data.get("Binding of Duty"):
-                bod_frame = create_section("Binding of Duty Constraints", None)
-                for constraint in const_data["Binding of Duty"]:
-                    self._create_constraint_detail(bod_frame, constraint)
+                def create_bod_content(frame):
+                    for constraint in const_data["Binding of Duty"]:
+                        self._create_constraint_detail(frame, constraint)
+                create_section("BOD Constraints", create_bod_content)
             
             # At Most K Constraints
             if const_data.get("At Most K"):
-                amk_frame = create_section("At-Most-K Constraints", None)
-                for constraint in const_data["At Most K"]:
-                    self._create_constraint_detail(amk_frame, constraint)
+                def create_amk_content(frame):
+                    for constraint in const_data["At Most K"]:
+                        self._create_constraint_detail(frame, constraint)
+                create_section("At-Most-K Constraints", create_amk_content)
             
             # One Team Constraints
             if const_data.get("One Team"):
-                team_frame = create_section("One-Team Constraints", None)
-                for constraint in const_data["One Team"]:
-                    self._create_constraint_detail(team_frame, constraint)
+                def create_team_content(frame):
+                    for constraint in const_data["One Team"]:
+                        self._create_constraint_detail(frame, constraint)
+                create_section("One-Team Constraints", create_team_content)
 
         # Conflict Analysis Section
         if "Conflict Analysis" in detailed_data:
-            conflict_frame = create_section("Detected Conflicts", None)
-            conflicts = detailed_data["Conflict Analysis"].get("Detected Conflicts", [])
-            
-            for conflict in conflicts:
-                conflict_row = customtkinter.CTkFrame(conflict_frame, fg_color="transparent")
-                conflict_row.pack(fill="x", padx=10, pady=2)
-                
-                conflict_label = customtkinter.CTkLabel(
-                    conflict_row,
-                    text=f"• {conflict['Description']}",
-                    text_color="#ff6b6b",  # Red color for conflicts
-                    wraplength=400,
-                    justify="left"
-                )
-                conflict_label.pack(anchor="w", padx=5)
+            def create_conflict_content(frame):
+                conflicts = detailed_data["Conflict Analysis"].get("Detected Conflicts", [])
+                for conflict in conflicts:
+                    conflict_row = customtkinter.CTkFrame(frame, fg_color="transparent")
+                    conflict_row.pack(fill="x", padx=10, pady=2)
+                    
+                    conflict_label = customtkinter.CTkLabel(
+                        conflict_row,
+                        text=f"• {conflict['Description']}",
+                        text_color="#ff6b6b",
+                        wraplength=400,
+                        justify="left"
+                    )
+                    conflict_label.pack(anchor="w", padx=5)
+            create_section("Detected Conflicts", create_conflict_content)
 
     def _create_constraint_detail(self, parent_frame, constraint: Dict):
         """Create detailed constraint information with proper formatting"""
@@ -695,16 +691,20 @@ class AppView(customtkinter.CTk):
         ]
     
     def _create_detail_row(self, parent_frame, title: str, data: Dict):
-        """Create a detail row with expandable content and better formatting"""
+        """Create a detail row with proper spacing"""
         row_frame = customtkinter.CTkFrame(parent_frame, fg_color="transparent")
-        row_frame.pack(fill="x", padx=10, pady=3)  # Increased padding
+        row_frame.pack(fill="x", padx=10, pady=3)
         
         # Create header frame
         header_frame = customtkinter.CTkFrame(row_frame, fg_color="transparent")
         header_frame.pack(fill="x")
         
+        # Get the full list of items
+        details = data.get("Authorized Steps", data.get("Authorized Users", []))
+        total_count = len(details) if details else 0
+        
         # Title with count
-        title_str = f"{title} ({data.get('Total', len(data.get('Authorized Steps', data.get('Authorized Users', []))))})"
+        title_str = f"{title} ({total_count})"
         title_label = customtkinter.CTkLabel(
             header_frame,
             text=title_str,
@@ -734,23 +734,17 @@ class AppView(customtkinter.CTk):
         )
         toggle_btn.pack(side="right", padx=5)
         
-        # Create expandable content
-        if "Authorized Steps" in data or "Authorized Users" in data:
-            details = data.get("Authorized Steps", data.get("Authorized Users", []))
-            if details:
-                # Split long lists into chunks for better readability
-                chunk_size = 10
-                chunks = [details[i:i + chunk_size] for i in range(0, len(details), chunk_size)]
-                
-                for chunk in chunks:
-                    chunk_label = customtkinter.CTkLabel(
-                        details_frame,
-                        text=f"[{', '.join(map(str, chunk))}]",
-                        font=customtkinter.CTkFont(size=12),
-                        text_color="gray70",
-                        wraplength=400  # Prevent text from being cutoff
-                    )
-                    chunk_label.pack(anchor="w", padx=5, pady=1)
+        # Create content with all items
+        if details:
+            details_frame.pack_propagate(False)  # Prevent frame from shrinking
+            for item in details:
+                item_label = customtkinter.CTkLabel(
+                    details_frame,
+                    text=str(item),
+                    font=customtkinter.CTkFont(size=12),
+                    text_color="gray70"
+                )
+                item_label.pack(anchor="w", padx=5, pady=1)
 
     def display_instance_details(self, stats: Dict):
         """Display instance details with enhanced formatting"""
