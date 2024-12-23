@@ -330,17 +330,14 @@ class OptimizedCpSolver:
         print(f"\nTotal unique users used: {len(users_used)}")
 
         # Verify authorizations
+        print("\nVerifying authorization constraints...")
         for step, user in solution_dict.items():
+            print(f"Checking authorization for Step {step}, User {user}")
             if not self.instance.user_step_matrix[user-1][step-1]:
                 violations.append(f"Authorization Violation: User {user} not authorized for Step {step}")
-                print(f"Checking auth matrix: {self.instance.user_step_matrix[user-1][step-1]} for user {user}, step {step}")
-
-        # Verify at-most-k constraints
-        atmost_violations = self.verify_at_most_k(solution_dict)
-        if atmost_violations:
-            violations.extend(atmost_violations)
 
         # Verify SOD constraints
+        print("\nVerifying separation-of-duty constraints...")
         for s1, s2 in self.instance.SOD:
             s1, s2 = s1+1, s2+1  # Convert to 1-based indexing
             print(f"Checking SOD constraint between steps {s1} and {s2}")
@@ -350,14 +347,71 @@ class OptimizedCpSolver:
                 )
 
         # Verify BOD constraints
+        print("\nVerifying binding-of-duty constraints...")
         for s1, s2 in self.instance.BOD:
             s1, s2 = s1+1, s2+1  # Convert to 1-based indexing
             print(f"Checking BOD constraint between steps {s1} and {s2}")
             if solution_dict.get(s1) != solution_dict.get(s2):
                 violations.append(
-                    f"Binding of Duty Violation: Step {s1} assigned to user {solution_dict.get(s1)} but "
-                    f"step {s2} assigned to user {solution_dict.get(s2)}"
+                    f"Binding of Duty Violation: Step {s1} assigned to user {solution_dict.get(s1)} "
+                    f"but step {s2} assigned to user {solution_dict.get(s2)}"
                 )
+
+        # Verify at-most-k constraints
+        print("\nVerifying at-most-k constraints...")
+        for k, steps in self.instance.at_most_k:
+            steps_base1 = [s+1 for s in steps]  # Convert to 1-based indexing for display
+            print(f"Checking at-most-{k} constraint for steps {steps_base1}")
+            
+            # Track assignments for this constraint
+            user_counts = defaultdict(list)
+            for step in steps:
+                step_1based = step + 1  # Convert to 1-based
+                if step_1based in solution_dict:
+                    user = solution_dict[step_1based]
+                    user_counts[user].append(step_1based)
+            
+            # Check violations
+            for user, assigned_steps in user_counts.items():
+                if len(assigned_steps) > k:
+                    violations.append(
+                        f"At-most-{k} Violation: User {user} assigned to {len(assigned_steps)} steps "
+                        f"{sorted(assigned_steps)} in constraint group {steps_base1}"
+                    )
+
+        # Verify one-team constraints
+        print("\nVerifying one-team constraints...")
+        for steps, teams in self.instance.one_team:
+            steps_base1 = [s+1 for s in steps]
+            print(f"Checking one-team constraint for steps {steps_base1}")
+            
+            # Get assigned users for these steps
+            assigned_users = set()
+            for step in steps:
+                step_1based = step + 1
+                if step_1based in solution_dict:
+                    assigned_users.add(solution_dict[step_1based] - 1)  # Convert to 0-based for team checking
+            
+            # Check if assigned users form a valid team
+            valid_team_found = False
+            for team in teams:
+                if all(user in team for user in assigned_users):
+                    valid_team_found = True
+                    break
+            
+            if not valid_team_found:
+                violations.append(
+                    f"One-team Violation: Assigned users {sorted(u+1 for u in assigned_users)} "
+                    f"for steps {steps_base1} do not form a valid team"
+                )
+
+        if violations:
+            print("\nConstraint Violations Found:")
+            for violation in violations:
+                print(violation)
+        else:
+            print("\nAll constraints satisfied")
+            print("\nSolution verified with no violations")
 
         return violations
 
