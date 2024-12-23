@@ -694,35 +694,6 @@ class AppView(customtkinter.CTk):
             for i in range(0, len(items), chunk_size)
         ]
     
-    def _add_tooltip(self, widget, text):
-        """Add tooltip to widget"""
-        def show_tooltip(event):
-            tooltip = customtkinter.CTkToplevel()
-            tooltip.wm_overrideredirect(True)
-            tooltip.wm_geometry(f"+{event.x_root+10}+{event.y_root+10}")
-            
-            label = customtkinter.CTkLabel(
-                tooltip,
-                text=text,
-                wraplength=300,
-                justify="left",
-                fg_color="gray20",
-                corner_radius=6
-            )
-            label.pack(padx=5, pady=5)
-            
-            def hide_tooltip(event):
-                tooltip.destroy()
-            
-            widget.bind("<Leave>", hide_tooltip)
-            tooltip.bind("<Leave>", hide_tooltip)
-        
-        widget.bind("<Enter>", show_tooltip)
-
-    def _add_section_count(self, title: str, items: list) -> str:
-        """Add count to section title"""
-        return f"{title} ({len(items)})"
-
     def _create_detail_row(self, parent_frame, title: str, data: Dict):
         """Create a detail row with expandable content and better formatting"""
         row_frame = customtkinter.CTkFrame(parent_frame, fg_color="transparent")
@@ -781,57 +752,6 @@ class AppView(customtkinter.CTk):
                     )
                     chunk_label.pack(anchor="w", padx=5, pady=1)
 
-    def _create_constraint_row(self, parent_frame, constraint: Dict):
-        """Create a row for constraint information"""
-        row_frame = customtkinter.CTkFrame(parent_frame, fg_color="transparent")
-        row_frame.pack(fill="x", padx=10, pady=1)
-        
-        # Different formats based on constraint type
-        if "Steps" in constraint and "Description" in constraint:
-            desc_label = customtkinter.CTkLabel(
-                row_frame,
-                text=constraint["Description"],
-                font=customtkinter.CTkFont(size=12),
-                wraplength=400
-            )
-            desc_label.pack(anchor="w", padx=5)
-            
-            if "Common Users" in constraint:
-                users_str = f"Common users: [{', '.join(map(str, constraint['Common Users']))}]"
-                users_label = customtkinter.CTkLabel(
-                    row_frame,
-                    text=users_str,
-                    font=customtkinter.CTkFont(size=12),
-                    text_color="gray70"
-                )
-                users_label.pack(anchor="w", padx=20)
-        elif "K Value" in constraint:
-            k_str = f"At most {constraint['K Value']} steps from {constraint['Steps']} per user"
-            k_label = customtkinter.CTkLabel(
-                row_frame,
-                text=k_str,
-                font=customtkinter.CTkFont(size=12)
-            )
-            k_label.pack(anchor="w", padx=5)
-        elif "Teams" in constraint:
-            steps_str = f"Steps {constraint['Steps']} must be assigned to one team:"
-            steps_label = customtkinter.CTkLabel(
-                row_frame,
-                text=steps_str,
-                font=customtkinter.CTkFont(size=12)
-            )
-            steps_label.pack(anchor="w", padx=5)
-            
-            for i, team in enumerate(constraint['Teams'], 1):
-                team_str = f"Team {i}: [{', '.join(map(str, team))}]"
-                team_label = customtkinter.CTkLabel(
-                    row_frame,
-                    text=team_str,
-                    font=customtkinter.CTkFont(size=12),
-                    text_color="gray70"
-                )
-                team_label.pack(anchor="w", padx=20)
-
     def display_instance_details(self, stats: Dict):
         """Display instance details with enhanced formatting"""
         # Clear previous content
@@ -882,49 +802,6 @@ class AppView(customtkinter.CTk):
                     text=str(value)
                 )
                 value_label.pack(side="left", padx=5)
-
-    def _show_detailed_analysis(self, details):
-        """Show detailed analysis in a popup window"""
-        popup = customtkinter.CTkToplevel(self)
-        popup.title("Detailed Analysis")
-        popup.geometry("800x600")
-        
-        content = customtkinter.CTkScrollableFrame(popup)
-        content.pack(fill="both", expand=True, padx=10, pady=10)
-
-        for section, data in details.items():
-            header = customtkinter.CTkLabel(
-                content,
-                text=section,
-                font=customtkinter.CTkFont(size=16, weight="bold")
-            )
-            header.pack(pady=(15,5))
-
-            if isinstance(data, dict):
-                for key, value in data.items():
-                    item_frame = customtkinter.CTkFrame(content, fg_color="gray20")
-                    item_frame.pack(fill="x", padx=20, pady=2)
-                    
-                    if isinstance(value, dict):
-                        item_label = customtkinter.CTkLabel(
-                            item_frame,
-                            text=f"{key}:",
-                            font=customtkinter.CTkFont(weight="bold")
-                        )
-                        item_label.pack(anchor="w", padx=10, pady=2)
-                        
-                        for subkey, subvalue in value.items():
-                            subitem = customtkinter.CTkLabel(
-                                item_frame,
-                                text=f"  {subkey}: {subvalue}"
-                            )
-                            subitem.pack(anchor="w", padx=20)
-                    else:
-                        item_label = customtkinter.CTkLabel(
-                            item_frame,
-                            text=f"{key}: {value}"
-                        )
-                        item_label.pack(anchor="w", padx=10)
 
     def clear_results(self):
         """Clear all results and reset display"""
