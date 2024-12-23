@@ -21,9 +21,6 @@ class AppController:
         
         # Initialize metadata handler
         self.metadata_handler = MetadataHandler()
-        
-        # Add visualization button to view
-        self.view.add_visualization_button(self.generate_visualizations)
 
         # Initialize solver descriptions
         self._update_solver_description()
@@ -37,14 +34,14 @@ class AppController:
     def _update_solver_description(self):
         """Update the solver description based on current type"""
         descriptions = {
-            SolverType.ORTOOLS_CP: "Constraint Programming encoding using OR-Tools",
-            SolverType.ORTOOLS_CS: "Constraint Satisfaction encoding using OR-Tools",
-            SolverType.ORTOOLS_PBPB: "Pattern-Based Pseudo-Boolean encoding using OR-Tools",
-            SolverType.ORTOOLS_UDPB: "User-Dependent Pseudo-Boolean encoding using OR-Tools",
-            SolverType.Z3_PBPB: "Pattern-Based Pseudo-Boolean encoding using Z3",
-            SolverType.Z3_UDPB: "User-Dependent Pseudo-Boolean encoding using Z3",
-            SolverType.SAT4J_PBPB: "Pattern-Based Pseudo-Boolean encoding using SAT4J",
-            SolverType.SAT4J_UDPB: "User-Dependent Pseudo-Boolean encoding using SAT4J"
+            SolverType.ORTOOLS_CP: "OR-Tools (Constraint Programming)",
+            SolverType.ORTOOLS_CS: "OR-Tools (Constraint Satisfaction Encoding)",
+            SolverType.ORTOOLS_PBPB: "OR-Tools (Pattern-Based Pseudo-Boolean Encoding)",
+            SolverType.ORTOOLS_UDPB: "OR-Tools (User-Dependent Pseudo-Boolean Encoding)",
+            SolverType.Z3_PBPB: "Z3 (Pattern-Based Pseudo-Boolean Encoding)",
+            SolverType.Z3_UDPB: "Z3 (User-Dependent Pseudo-Boolean Encoding)",
+            SolverType.SAT4J_PBPB: "SAT4J (Pattern-Based Pseudo-Boolean Encoding)",
+            SolverType.SAT4J_UDPB: "SAT4J (User-Dependent Pseudo-Boolean Encoding)",
         }
         description = descriptions.get(self.current_solver_type, "")
         self.view.update_solver_description(description)
@@ -195,12 +192,3 @@ class AppController:
             }
         }
         self.view.display_instance_details(stats)
-
-    def generate_visualizations(self):
-        """Generate visualizations from saved metadata"""
-        try:
-            self.view.update_status("Generating visualizations...")
-            self.metadata_handler.generate_visualizations()
-            self.view.update_status("Visualizations generated!")
-        except Exception as e:
-            self.view.update_status(f"Error generating visualizations: {str(e)}")

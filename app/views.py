@@ -40,10 +40,17 @@ class AppView(customtkinter.CTk):
         self._create_main_frame()
 
     def _create_sidebar(self):
-        # Create sidebar frame
-        self.sidebar_frame = customtkinter.CTkFrame(self, width=200, corner_radius=0)
+        # Create sidebar frame with fixed width
+        self.sidebar_frame = customtkinter.CTkFrame(
+            self, 
+            width=240,
+            corner_radius=0
+        )
         self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
         self.sidebar_frame.grid_rowconfigure(12, weight=1)
+        
+        # Prevent sidebar from expanding
+        self.sidebar_frame.grid_propagate(False)
 
         # Create logo label
         self.logo_label = customtkinter.CTkLabel(
@@ -57,14 +64,15 @@ class AppView(customtkinter.CTk):
         self.file_label = customtkinter.CTkLabel(
             self.sidebar_frame,
             text="No file selected",
-            wraplength=180
+            wraplength=220
         )
         self.file_label.grid(row=1, column=0, padx=20, pady=5)
 
         # Create buttons
         self.select_button = customtkinter.CTkButton(
             self.sidebar_frame,
-            text="Select File"
+            text="Select File",
+            width=220
         )
         self.select_button.grid(row=2, column=0, padx=20, pady=10)
 
@@ -77,7 +85,8 @@ class AppView(customtkinter.CTk):
         # Create solve button
         self.solve_button = customtkinter.CTkButton(
             self.sidebar_frame,
-            text="Solve"
+            text="Solve",
+            width=220
         )
         self.solve_button.grid(row=8, column=0, padx=20, pady=10)
 
@@ -85,9 +94,18 @@ class AppView(customtkinter.CTk):
         self.clear_button = customtkinter.CTkButton(
             self.sidebar_frame,
             text="Clear Results",
-            command=self.clear_results
+            command=self.clear_results,
+            width=220
         )
         self.clear_button.grid(row=9, column=0, padx=20, pady=10)
+
+        # Generate Visualizations button
+        self.visualize_button = customtkinter.CTkButton(
+            self.sidebar_frame,
+            text="Generate Visualizations",
+            command=self.visualize,
+            width=220
+        )
 
     def _create_solver_frame(self):
         """Create solver selection frame"""
@@ -98,15 +116,16 @@ class AppView(customtkinter.CTk):
         solver_label = customtkinter.CTkLabel(
             self.solver_frame,
             text="Solver Selection:",
-            font=customtkinter.CTkFont(size=12, weight="bold")
+            font=customtkinter.CTkFont(size=14, weight="bold")
         )
         solver_label.pack(pady=5)
         
-        # Create solver type selector
+        # Create solver type selector with fixed width
         self.solver_type = customtkinter.CTkOptionMenu(
             self.solver_frame,
             values=[st.value for st in SolverType],
-            command=None  # Will be set by controller
+            command=None,  # Will be set by controller
+            width=220
         )
         self.solver_type.pack(pady=5)
         
@@ -114,8 +133,8 @@ class AppView(customtkinter.CTk):
         self.solver_description = customtkinter.CTkLabel(
             self.solver_frame,
             text="",
-            wraplength=160,
-            font=customtkinter.CTkFont(size=10)
+            wraplength=220,  # Increased wraplength
+            font=customtkinter.CTkFont(size=12)
         )
         self.solver_description.pack(pady=5)
 
@@ -125,6 +144,7 @@ class AppView(customtkinter.CTk):
             self.solver_description.configure(text=description)
 
     def _create_constraints_frame(self):
+        """Create constraints frame with increased width"""
         self.constraints_frame = customtkinter.CTkFrame(self.sidebar_frame)
         self.constraints_frame.grid(row=4, column=0, rowspan=2, padx=20, pady=10, sticky="ew")
         
@@ -132,43 +152,33 @@ class AppView(customtkinter.CTk):
         constraints_label = customtkinter.CTkLabel(
             self.constraints_frame,
             text="Active Constraints:",
-            font=customtkinter.CTkFont(size=12, weight="bold")
+            font=customtkinter.CTkFont(size=14, weight="bold")
         )
         constraints_label.pack(pady=5)
         
-        # Create constraint switches
-        self.constraint_vars = {
-            'authorizations': customtkinter.CTkSwitch(
-                self.constraints_frame,
-                text="Authorizations",
-                onvalue=True, offvalue=False
-            ),
-            'separation_of_duty': customtkinter.CTkSwitch(
-                self.constraints_frame,
-                text="Separation of Duty",
-                onvalue=True, offvalue=False
-            ),
-            'binding_of_duty': customtkinter.CTkSwitch(
-                self.constraints_frame,
-                text="Binding of Duty",
-                onvalue=True, offvalue=False
-            ),
-            'at_most_k': customtkinter.CTkSwitch(
-                self.constraints_frame,
-                text="At-Most-K",
-                onvalue=True, offvalue=False
-            ),
-            'one_team': customtkinter.CTkSwitch(
-                self.constraints_frame,
-                text="One-Team",
-                onvalue=True, offvalue=False
-            )
-        }
+        # Create constraint switches with increased width
+        self.constraint_vars = {}
+        constraints = [
+            ('authorizations', "Authorizations"),
+            ('separation_of_duty', "Separation of Duty"),
+            ('binding_of_duty', "Binding of Duty"),
+            ('at_most_k', "At-Most-K"),
+            ('one_team', "One-Team")
+        ]
         
-        # Pack switches
-        for switch in self.constraint_vars.values():
-            switch.pack(pady=2)
-            switch.select()  # Enable by default
+        for key, text in constraints:
+            frame = customtkinter.CTkFrame(self.constraints_frame, fg_color="transparent")
+            frame.pack(fill="x", padx=10, pady=2)
+            
+            self.constraint_vars[key] = customtkinter.CTkSwitch(
+                frame,
+                text=text,
+                onvalue=True,
+                offvalue=False,
+                width=40  # Fixed switch width
+            )
+            self.constraint_vars[key].pack(side="left", padx=10)
+            self.constraint_vars[key].select()  # Enable by default
 
     def _create_main_frame(self):
         # Create main frame
@@ -418,11 +428,6 @@ class AppView(customtkinter.CTk):
         # Update instance label
         self.results_instance_label.configure(text="No instance loaded")
 
-    def add_visualization_button(self, command):
-        """Add visualization button to sidebar"""
-        self.visualize_button = customtkinter.CTkButton(
-            self.sidebar_frame,
-            text="Generate Visualizations",
-            command=command
-        )
-        self.visualize_button.grid(row=10, column=0, padx=20, pady=10)
+    def visualize(self):
+        """Generate visualizations"""
+        pass

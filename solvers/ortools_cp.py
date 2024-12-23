@@ -1,3 +1,5 @@
+from collections import defaultdict
+from typing import Dict
 from ortools.sat.python import cp_model
 import time
 
@@ -6,15 +8,16 @@ from typings import VariableManager, ConstraintManager, Solution, Verifier
 
 class ORToolsCPSolver:
     """Main solver class for WSP instances"""
-    def __init__(self, instance):
+    def __init__(self, instance, active_constraints: Dict[str, bool]):
         self.instance = instance
+        self.active_constraints = active_constraints
         self.model = cp_model.CpModel()
         self.solver = cp_model.CpSolver()
         self._setup_solver()
         
         # Initialize managers
         self.var_manager = VariableManager(self.model, instance)
-        self.constraint_manager = None  # Will be initialized during solve
+        self.constraint_manager = None
         self.solution_verifier = Verifier(instance)
 
     def _setup_solver(self):
@@ -26,7 +29,7 @@ class ORToolsCPSolver:
         self.solver.parameters.optimize_with_core = True
 
     def solve(self):
-        """Enhanced solving method with detailed analysis"""
+        """Solving method with detailed analysis"""
         try:
             start_time = time.time()
             
@@ -56,35 +59,40 @@ class ORToolsCPSolver:
             return self._handle_error(start_time, e)
 
     def analyze_constraint_conflicts(self):
-        """Analyze potential constraint conflicts"""
+        """Analyze potential constraint conflicts based on active constraints"""
         conflicts = []
         
-        # Check BOD-SOD conflicts
-        for bod_s1, bod_s2 in self.instance.BOD:
-            for sod_s1, sod_s2 in self.instance.SOD:
-                if {bod_s1, bod_s2} & {sod_s1, sod_s2}:
-                    conflicts.append(
-                        f"Conflict: Steps {bod_s1+1},{bod_s2+1} must be same user (BOD) but "
-                        f"steps {sod_s1+1},{sod_s2+1} must be different users (SOD)"
-                    )
+        # Check BOD-SOD conflicts if both are active
+        if (self.active_constraints.get('binding_of_duty', True) and 
+            self.active_constraints.get('separation_of_duty', True)):
+            
+            for bod_s1, bod_s2 in self.instance.BOD:
+                for sod_s1, sod_s2 in self.instance.SOD:
+                    if {bod_s1, bod_s2} & {sod_s1, sod_s2}:
+                        conflicts.append(
+                            f"Conflict: Steps {bod_s1+1},{bod_s2+1} must be same user (BOD) but "
+                            f"steps {sod_s1+1},{sod_s2+1} must be different users (SOD)"
+                        )
 
-        # Check authorization sufficiency
-        for step in range(self.instance.number_of_steps):
-            authorized = sum(1 for u in range(self.instance.number_of_users)
-                            if self.instance.user_step_matrix[u][step])
-            if authorized == 0:
-                conflicts.append(f"No user authorized for step {step+1}")
+        # Check authorization conflicts if active
+        if self.active_constraints.get('authorizations', True):
+            for step in range(self.instance.number_of_steps):
+                authorized = sum(1 for u in range(self.instance.number_of_users)
+                                if self.instance.user_step_matrix[u][step])
+                if authorized == 0:
+                    conflicts.append(f"No user authorized for step {step+1}")
                 
-        # Check at-most-k feasibility
-        for k, steps in self.instance.at_most_k:
-            total_users = len(set(u for u in range(self.instance.number_of_users)
-                                for s in steps if self.instance.user_step_matrix[u][s]))
-            min_users_needed = len(steps) / k
-            if total_users < min_users_needed:
-                conflicts.append(
-                    f"At-most-{k} constraint on steps {[s+1 for s in steps]} requires at least "
-                    f"{min_users_needed:.0f} users but only {total_users} are authorized"
-                )
+        # Check at-most-k conflicts if active
+        if self.active_constraints.get('at_most_k', True):
+            for k, steps in self.instance.at_most_k:
+                total_users = len(set(u for u in range(self.instance.number_of_users)
+                                    for s in steps if self.instance.user_step_matrix[u][s]))
+                min_users_needed = len(steps) / k
+                if total_users < min_users_needed:
+                    conflicts.append(
+                        f"At-most-{k} constraint on steps {[s+1 for s in steps]} requires at least "
+                        f"{min_users_needed:.0f} users but only {total_users} are authorized"
+                    )
         
         return conflicts
 
@@ -165,25 +173,52 @@ class ORToolsCPSolver:
                     print(f"    Team {i}: Users {[u+1 for u in team]}")
 
     def _build_model(self):
-        """Build model with detailed output"""
+        """Build model with respect to active constraints"""
         try:
             print("Creating variables...")
             self.var_manager.create_variables()
             
-            print("Adding authorization constraints...")
+            print("Adding constraints...")
             self.constraint_manager = ConstraintManager(
                 self.model,
                 self.instance,
                 self.var_manager
             )
             
-            print("Adding constraints...")
-            if not self.constraint_manager.add_all_constraints():
-                print("\nModel building failed due to impossible constraints")
-                return False
-                
+            # Only add authorization constraints if active
+            if self.active_constraints.get('authorizations', True):
+                self.constraint_manager.add_authorization_constraints()
+            else:
+                print("Skipping authorization constraints (deactivated)")
+
+            # Add separation of duty constraints if active
+            if self.active_constraints.get('separation_of_duty', True):
+                self.constraint_manager.add_separation_of_duty()
+            else:
+                print("Skipping separation of duty constraints (deactivated)")
+
+            # Add binding of duty constraints if active
+            if self.active_constraints.get('binding_of_duty', True):
+                if not self.constraint_manager.add_binding_of_duty():
+                    print("Failed to add binding of duty constraints")
+                    return False
+            else:
+                print("Skipping binding of duty constraints (deactivated)")
+
+            # Add at-most-k constraints if active
+            if self.active_constraints.get('at_most_k', True):
+                self.constraint_manager.add_at_most_k()
+            else:
+                print("Skipping at-most-k constraints (deactivated)")
+
+            # Add one-team constraints if active
+            if self.active_constraints.get('one_team', True):
+                self.constraint_manager.add_one_team()
+            else:
+                print("Skipping one-team constraints (deactivated)")
+
             return True
-                
+
         except Exception as e:
             print(f"Error building model: {str(e)}")
             return False

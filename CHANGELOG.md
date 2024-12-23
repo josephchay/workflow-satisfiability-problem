@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Updated the GUI `views.py` and `controllers.py` to fit in to our new solver solution (`ortools-fast.py` but now in a dynamic and versatile way).
+- Ensured the Sidebar having a fix width and does not change upon solver selections.
 
 ### Improvement
 - Modified metric information in `metadata.py` and how its handled in the `controllers.py`.
@@ -19,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Refactoring
 - Introduced `InstanceParser` class for better readability for use for global function `parse_instance_file`.
 - Introduced SOC (Separation of Concerns) via segregated methods for `Instance` class.
+
+### Fixed
+- Ensured solvers compatibility and solution processing and functionable with the GUI.
 
 ## [0.1.0] - 2024-12-22
 
