@@ -1,2 +1,2 @@
-from .controllers import WSPController
-from .views import WSPView
+from .controllers import AppController
+from .views import AppView

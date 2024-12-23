@@ -1,8 +1,8 @@
 import os
 import sys
-from app import WSPView, WSPController
-from typings import WSPSolverType
-from factories import WSPSolverFactory
+from app import AppView, AppController
+from constants import SolverType
+from factories import SolverFactory
 
 
 def check_dependencies():
@@ -48,14 +48,14 @@ def main():
 
     try:
         # Create view
-        app = WSPView()
+        app = AppView()
         
         # Create controller with solver factory
-        factory = WSPSolverFactory()
-        controller = WSPController(app, factory)
+        factory = SolverFactory()
+        controller = AppController(app, factory)
 
         # Initialize solver type combobox in view
-        app.solver_type.configure(values=[st.value for st in WSPSolverType])
+        app.solver_type.configure(values=[st.value for st in SolverType])
         app.solver_type.set(controller.current_solver_type.value)  # Set default solver
 
         # Connect solver change callback

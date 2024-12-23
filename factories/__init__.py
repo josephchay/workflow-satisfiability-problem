@@ -1,1 +1,1 @@
-from .solver_selections import WSPSolverFactory
+from .solver_selections import SolverFactory

@@ -2,7 +2,7 @@ import argparse
 import sys
 from typing import Dict, Optional
 
-from factories import WSPSolverFactory
+from factories import SolverFactory
 from typings import WSPSolverType
 from typings import Instance
 
@@ -13,7 +13,7 @@ def solve(instance: Instance,
     """Solve single WSP instance with specified solver type"""
     try:
         # Create solver factory
-        factory = WSPSolverFactory()
+        factory = SolverFactory()
         
         # Set default active constraints if not provided
         if active_constraints is None:

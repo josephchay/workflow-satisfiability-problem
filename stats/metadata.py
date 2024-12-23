@@ -5,7 +5,7 @@ from typing import Dict, List
 import pandas as pd
 
 
-class WSPMetadataHandler:
+class MetadataHandler:
     def __init__(self, base_dir: str = "results"):
         self.base_dir = base_dir
         self.metadata_dir = os.path.join(base_dir, "metadata")

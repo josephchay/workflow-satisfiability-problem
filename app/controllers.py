@@ -1,186 +1,129 @@
 import os
-from typing import Dict, List, Optional
 import time
-import copy
-import customtkinter
+from typing import Dict, Optional
 
+from constants import SolverType
 from typings import Instance
-from typings import WSPSolverType, NotEquals, AtMost, OneTeam
-from stats import WSPMetadataHandler
+from filesystem import InstanceParser
+from stats import MetadataHandler
 
 
-class WSPController:
-    def __init__(self, view, factory):
+class AppController:
+    def __init__(self, view, solver_factory):
         self.view = view
         self.current_instance: Optional[Instance] = None
-        self.current_solver_type = WSPSolverType.ORTOOLS_CS  # Default solver
-
+        self.current_solver_type = SolverType.ORTOOLS_CP  # Default solver
+        self.solver_factory = solver_factory
+        
         # Connect button callbacks
         self.view.select_button.configure(command=self.select_file)
         self.view.solve_button.configure(command=self.solve)
         
-        # Create solver factory
-        self.solver_factory = factory
- 
         # Initialize metadata handler
-        self.metadata_handler = WSPMetadataHandler()
+        self.metadata_handler = MetadataHandler()
         
         # Add visualization button to view
         self.view.add_visualization_button(self.generate_visualizations)
 
+        # Initialize solver descriptions
+        self._update_solver_description()
+
     def on_solver_change(self, value: str):
         """Handle solver type selection change"""
-        self.current_solver_type = WSPSolverType(value)
+        self.current_solver_type = SolverType(value)
+        self._update_solver_description()
         self.view.update_status(f"Selected solver: {value}")
 
+    def _update_solver_description(self):
+        """Update the solver description based on current type"""
+        descriptions = {
+            SolverType.ORTOOLS_CP: "Constraint Programming encoding using OR-Tools",
+            SolverType.ORTOOLS_CS: "Constraint Satisfaction encoding using OR-Tools",
+            SolverType.ORTOOLS_PBPB: "Pattern-Based Pseudo-Boolean encoding using OR-Tools",
+            SolverType.ORTOOLS_UDPB: "User-Dependent Pseudo-Boolean encoding using OR-Tools",
+            SolverType.Z3_PBPB: "Pattern-Based Pseudo-Boolean encoding using Z3",
+            SolverType.Z3_UDPB: "User-Dependent Pseudo-Boolean encoding using Z3",
+            SolverType.SAT4J_PBPB: "Pattern-Based Pseudo-Boolean encoding using SAT4J",
+            SolverType.SAT4J_UDPB: "User-Dependent Pseudo-Boolean encoding using SAT4J"
+        }
+        description = descriptions.get(self.current_solver_type, "")
+        self.view.update_solver_description(description)
+
     def select_file(self):
-        """Handle file selection without updating display"""
-        filename = customtkinter.filedialog.askopenfilename(
-            title="Select WSP Instance",
-            filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
-        )
+        """Handle file selection"""
+        filename = self.view.get_file_selection()
         
         if filename:
             try:
-                # Only update file label and load instance
-                instance = Instance(filename)
+                instance = InstanceParser.parse_file(filename)
                 self.current_instance = instance
                 self.view.update_file_label(filename)
                 self.view.update_status(f"File loaded: {filename}")
+                
+                # Display instance details
+                self._display_instance_info(instance)
 
             except Exception as e:
                 self.view.update_status(f"Error loading file: {str(e)}")
                 self.current_instance = None
 
     def solve(self):
-        """Handle solving the current instance with respect to activated/deactivated constraints"""
+        """Handle solving the current instance"""
         if not self.current_instance:
             self.view.update_status("Please select a file first")
             return
         
         try:
-            # Get active constraints configuration
+            # Get active constraints
             active_constraints = self.get_active_constraints()
             self.view.update_status(f"Solving with {self.current_solver_type.value}...")
             self.view.update_progress(0.1)
 
-            # Collect instance details early
-            instance_details = self._collect_instance_metrics()
+            # Collect instance metrics
+            instance_metrics = self._collect_instance_metrics()
             self.view.update_progress(0.2)
 
-            # Create copy of instance for solving
-            solving_instance = copy.deepcopy(self.current_instance)
-
-            # Filter constraints based on active status
-            original_cons = solving_instance.cons
-            solving_instance.cons = []
-            for c in original_cons:
-                if ((isinstance(c, NotEquals) and not c.is_bod and active_constraints['separation_of_duty']) or
-                    (isinstance(c, NotEquals) and c.is_bod and active_constraints['binding_of_duty']) or
-                    (isinstance(c, AtMost) and active_constraints['at_most_k']) or
-                    (isinstance(c, OneTeam) and active_constraints['one_team'])):
-                    solving_instance.cons.append(c)
-
-            # Handle authorization deactivation
-            if not active_constraints['authorizations']:
-                for u in range(solving_instance.n):
-                    solving_instance.auths[u].collection = [True] * solving_instance.k
-
-            # Create solver with filtered instance
+            # Create solver using factory
             solver = self.solver_factory.create_solver(
                 self.current_solver_type,
-                solving_instance,
+                self.current_instance,
                 active_constraints
             )
-
-            self.view.update_progress(0.4)
-
-            # Solve instance
+            
+            # Run solver
             start_time = time.time()
-            solution = solver.solve()
+            result = solver.solve()
             solve_time = time.time() - start_time
-
+            
             self.view.update_progress(0.6)
 
             # Process solution
-            display_solution = None
-            if solution and solution.assignment:
-                display_solution = [
-                    {'step': s + 1, 'user': solution.assignment[s] + 1}
-                    for s in range(len(solution.assignment))
-                ]
-
-            # Create result dictionary
-            result_dict = {
-                'sat': 'sat' if display_solution else 'unsat',
-                'result_exe_time': solution.time * 1000 if solution else solve_time * 1000,
-                'sol': display_solution if display_solution else [],
-                'solution_count': 1 if display_solution else 0,
-                'is_unique': False
-            }
-
-            # Save metadata before updating display
-            metadata_path = self.metadata_handler.save_result_metadata(
-                instance_details=instance_details,
-                solver_result=result_dict,
-                solver_type=self.current_solver_type.value,
-                active_constraints=active_constraints,
-                filename=os.path.basename(self.view.current_file)
-            )
-
-            self.view.update_progress(0.8)
-
-            # Update instance display
-            self.view.update_instance_display(instance_details)
-
-            # Collect statistics
-            stats = {
-                "Status": "SAT" if display_solution else "UNSAT",
-                "Solver Type": self.current_solver_type.value,
-                "Solve Time": f"{solve_time:.2f} seconds",
-                "Instance Details": instance_details
-            }
-
-            if display_solution:
-                # Add solution metrics
-                stats["Solution Metrics"] = self._analyze_user_metrics(display_solution)
+            if result.is_sat:
+                solution = self._format_solution(result)
+                stats = self._collect_solution_stats(result, solve_time)
                 
-                # Check violations against ALL constraints
-                violations = self._analyze_constraint_satisfaction(
-                    display_solution,
-                    {k: True for k in active_constraints.keys()}
+                # Save metadata
+                self.metadata_handler.save_result_metadata(
+                    instance_details=instance_metrics,
+                    solver_result=stats,
+                    solver_type=self.current_solver_type.value,
+                    active_constraints=active_constraints,
+                    filename=os.path.basename(self.view.current_file)
                 )
                 
-                stats["Constraint Violations"] = {}
-                constraint_types = [
-                    "Authorization",
-                    "Separation of Duty",
-                    "Binding of Duty",
-                    "At Most K",
-                    "One Team"
-                ]
-                for c_type in constraint_types:
-                    stats["Constraint Violations"][c_type] = violations.get(c_type, 0)
-
-                # Add note about inactive constraints
-                inactive_constraints = [k for k, v in active_constraints.items() if not v]
-                if inactive_constraints:
-                    stats["Notes"] = {
-                        "Inactive Constraints": [k.replace('_', ' ').title() for k in inactive_constraints],
-                        "Warning": "Solution found by ignoring inactive constraints. Violations are shown for reference."
-                    }
-
-            # Display results
-            self.view.display_solution(display_solution)
-            self.view.display_statistics(stats)
-
-            # Update final status
+                # Display results
+                self.view.display_solution(solution)
+                self.view.display_statistics(stats)
+                status = "Solution found!"
+                
+            else:
+                self.view.display_solution(None)
+                status = f"No solution exists (UNSAT): {result.reason}"
+                
             self.view.update_progress(1.0)
-            status = "Solution found!" if display_solution else "No solution exists (UNSAT)"
-            ignored_info = "" if all(active_constraints.values()) else " (with inactive constraints)"
             self.view.update_status(
-                f"{status}{ignored_info} using {self.current_solver_type.value} "
-                f"(solved in {solve_time:.2f} seconds)"
+                f"{status} using {self.current_solver_type.value} "
+                f"(solved in {solve_time:.2f}s)"
             )
 
         except Exception as e:
@@ -197,190 +140,67 @@ class WSPController:
         }
 
     def _collect_instance_metrics(self) -> Dict:
-        """Collect metrics about the current instance"""
+        """Collect metrics about current instance"""
         if not self.current_instance:
             return {}
 
-        constraint_counts = self._count_constraint_types()
-        total_steps = self.current_instance.k
-        total_users = self.current_instance.n
-            
+        instance = self.current_instance
+        constraint_counts = {
+            "authorization": len([u for u in instance.auth if u]),
+            "separation_of_duty": len(instance.SOD),
+            "binding_of_duty": len(instance.BOD),
+            "at_most_k": len(instance.at_most_k),
+            "one_team": len(instance.one_team)
+        }
+        
         return {
-            "Steps": total_steps,
-            "Users": total_users,
-            "Total Constraints": len(self.current_instance.cons),
-            "Constraint Distribution": {
-                k.replace('_', ' ').title(): v 
-                for k, v in constraint_counts.items()
-            },
+            "Steps": instance.number_of_steps,
+            "Users": instance.number_of_users,
+            "Total Constraints": sum(constraint_counts.values()),
+            "Constraint Distribution": constraint_counts,
             "Problem Metrics": {
                 "Auth Density": (constraint_counts["authorization"] / 
-                               (total_steps * total_users)),
-                "Constraint Density": (len(self.current_instance.cons) /
-                                    (total_steps * total_users)),
-                "Step-User Ratio": total_steps / total_users
+                               (instance.number_of_steps * instance.number_of_users)),
+                "Step-User Ratio": instance.number_of_steps / instance.number_of_users
             }
         }
+
+    def _format_solution(self, result):
+        """Format solver result for display"""
+        return [
+            {'step': step, 'user': user}
+            for step, user in result.assignment.items()
+        ]
+
+    def _collect_solution_stats(self, result, solve_time):
+        """Collect comprehensive solution statistics"""
+        return {
+            "sat": "sat",
+            "result_exe_time": solve_time * 1000,
+            "sol": self._format_solution(result),
+            "violations": result.violations
+        }
+
+    def _display_instance_info(self, instance):
+        """Display loaded instance information"""
+        stats = {
+            "Steps": instance.number_of_steps,
+            "Users": instance.number_of_users,
+            "Constraints": {
+                "Authorization": len([u for u in instance.auth if u]),
+                "Separation of Duty": len(instance.SOD),
+                "Binding of Duty": len(instance.BOD),
+                "At-most-k": len(instance.at_most_k),
+                "One-team": len(instance.one_team)
+            }
+        }
+        self.view.display_instance_details(stats)
 
     def generate_visualizations(self):
         """Generate visualizations from saved metadata"""
         try:
             self.view.update_status("Generating visualizations...")
             self.metadata_handler.generate_visualizations()
-            self.view.update_status("Visualizations generated successfully!")
+            self.view.update_status("Visualizations generated!")
         except Exception as e:
             self.view.update_status(f"Error generating visualizations: {str(e)}")
-
-    def display_instance_stats(self):
-        """Display statistics about the loaded instance"""
-        if not self.current_instance:
-            return
-
-        # Count different types of constraints
-        sod_count = sum(1 for c in self.current_instance.cons 
-                    if isinstance(c, NotEquals) and not c.is_bod)
-        bod_count = sum(1 for c in self.current_instance.cons 
-                    if isinstance(c, NotEquals) and c.is_bod)
-        atmost_count = sum(1 for c in self.current_instance.cons 
-                        if isinstance(c, AtMost))
-        oneteam_count = sum(1 for c in self.current_instance.cons 
-                        if isinstance(c, OneTeam))
-
-        stats = {
-            "Number of Steps": self.current_instance.k,
-            "Number of Users": self.current_instance.n,
-            "Number of Constraints": len(self.current_instance.cons),
-            "Authorization Constraints": len([u for u in self.current_instance.auths 
-                                        if any(u.collection)]),
-            "Separation of Duty Constraints": sod_count,
-            "Binding of Duty Constraints": bod_count,
-            "At-Most-K Constraints": atmost_count,
-            "One-Team Constraints": oneteam_count
-        }
-
-        self.view.display_instance_details(stats)
-
-    def _collect_solution_stats(self, solution, display_solution: List[Dict[str, int]], 
-                            solve_time: float, active_constraints: Dict[str, bool]) -> Dict:
-        """Collect comprehensive statistics about the solution"""
-        stats = {
-            "Status": "SAT" if display_solution else "UNSAT",
-            "Solver Type": self.current_solver_type.value,
-            "Solve Time": f"{solve_time:.2f} seconds",
-            "Instance Details": self._collect_instance_metrics()
-        }
-
-        if display_solution:
-            stats["Solution Metrics"] = self._analyze_user_metrics(display_solution)
-            violations = self._analyze_constraint_satisfaction(display_solution, active_constraints)
-            if violations:
-                stats["Constraint Violations"] = violations
-
-        return stats
-
-    def _count_constraint_types(self) -> Dict[str, int]:
-        """Count different types of constraints in current instance"""
-        if not self.current_instance:
-            return {}
-            
-        return {
-            "authorization": len([u for u in self.current_instance.auths if any(u.collection)]),
-            "separation_of_duty": sum(1 for c in self.current_instance.cons 
-                                if isinstance(c, NotEquals) and not c.is_bod),
-            "binding_of_duty": sum(1 for c in self.current_instance.cons 
-                                if isinstance(c, NotEquals) and c.is_bod),
-            "at_most_k": sum(1 for c in self.current_instance.cons 
-                            if isinstance(c, AtMost)),
-            "one_team": sum(1 for c in self.current_instance.cons 
-                            if isinstance(c, OneTeam))
-        }
-
-    def _analyze_user_metrics(self, solution: List[Dict[str, int]]) -> Dict[str, float]:
-        """Calculate metrics about user assignments in solution"""
-        user_counts = {}
-        for assignment in solution:
-            user = assignment['user']
-            user_counts[user] = user_counts.get(user, 0) + 1
-
-        return {
-            "unique_users": len(user_counts),
-            "max_steps_per_user": max(user_counts.values()),
-            "min_steps_per_user": min(user_counts.values()),
-            "avg_steps_per_user": sum(user_counts.values()) / len(user_counts)
-        }
-
-    def _check_constraint_violations(self, solution: List[Dict[str, int]], c) -> bool:
-        """Check if a single constraint is violated by the solution"""
-        if isinstance(c, NotEquals):
-            if c.is_bod:
-                # Check binding of duty
-                user1 = next(a['user'] for a in solution if a['step'] - 1 == c.s1)
-                user2 = next(a['user'] for a in solution if a['step'] - 1 == c.s2)
-                return user1 != user2
-            else:
-                # Check separation of duty
-                user1 = next(a['user'] for a in solution if a['step'] - 1 == c.s1)
-                user2 = next(a['user'] for a in solution if a['step'] - 1 == c.s2)
-                return user1 == user2
-        
-        elif isinstance(c, AtMost):
-            users = set()
-            for step in c.scope:
-                user = next(a['user'] for a in solution if a['step'] - 1 == step)
-                users.add(user)
-            return len(users) > c.limit
-        
-        elif isinstance(c, OneTeam):
-            assigned_users = set()
-            for step in c.steps:
-                user = next(a['user'] for a in solution if a['step'] - 1 == step)
-                assigned_users.add(user - 1)  # Convert to 0-based
-            
-            return not any(assigned_users.issubset(set(team)) for team in c.teams)
-            
-        return False
-
-    def _analyze_constraint_satisfaction(self, solution: List[Dict[str, int]], 
-                                     active_constraints: Dict[str, bool]) -> Dict:
-        """Analyze how the solution satisfies different constraints"""
-        violations = {}
-        
-        if active_constraints['authorizations']:
-            # Check authorization violations
-            auth_violations = sum(
-                1 for assignment in solution
-                if not self.current_instance.auths[assignment['user'] - 1]
-                .collection[assignment['step'] - 1]
-            )
-            if auth_violations > 0:
-                violations["Authorization"] = auth_violations
-
-        # Group constraints by type and check violations
-        for constraint_type, is_active in active_constraints.items():
-            if not is_active or constraint_type == 'authorizations':
-                continue
-
-            type_violations = 0
-            for c in self.current_instance.cons:
-                if ((constraint_type == 'separation_of_duty' and isinstance(c, NotEquals) and not c.is_bod) or
-                    (constraint_type == 'binding_of_duty' and isinstance(c, NotEquals) and c.is_bod) or
-                    (constraint_type == 'at_most_k' and isinstance(c, AtMost)) or
-                    (constraint_type == 'one_team' and isinstance(c, OneTeam))):
-                    
-                    if self._check_constraint_violations(solution, c):
-                        type_violations += 1
-
-            if type_violations > 0:
-                violations[constraint_type.replace('_', ' ').title()] = type_violations
-
-        return violations
-
-    def _create_solution_display(self, solution) -> Optional[List[Dict[str, int]]]:
-        """Convert internal solution to display format"""
-        if not solution or not solution.assignment:
-            return None
-            
-        return [
-            {'step': s + 1, 'user': solution.assignment[s] + 1}
-            for s in range(len(solution.assignment))
-        ]
