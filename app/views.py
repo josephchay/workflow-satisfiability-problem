@@ -300,59 +300,96 @@ class AppView(customtkinter.CTk):
         self.results_table.pack(fill="both", expand=True, padx=10, pady=10)
 
     def display_instance_details(self, stats: Dict):
-        """Display instance details in enhanced format"""
+        """Display instance details with enhanced formatting"""
         # Clear previous content
         for widget in self.instance_frame.winfo_children():
             widget.destroy()
 
-        content_frame = customtkinter.CTkScrollableFrame(
+        content_frame = customtkinter.CTkFrame(
             self.instance_frame,
             fg_color="gray17"
         )
-        content_frame.pack(fill="both", expand=True, padx=2, pady=2)
+        content_frame.pack(fill="both", expand=True, padx=5, pady=5)
 
-        def add_section(title: str, data: Dict):
-            # Create section header
-            header = customtkinter.CTkLabel(
-                content_frame,
+        def create_section(title: str, description: str = ""):
+            """Create a section with title and optional description"""
+            section_frame = customtkinter.CTkFrame(content_frame, fg_color="transparent")
+            section_frame.pack(fill="x", padx=10, pady=(15,5))
+            
+            # Title
+            title_label = customtkinter.CTkLabel(
+                section_frame,
                 text=title,
-                font=customtkinter.CTkFont(size=16, weight="bold")
+                font=customtkinter.CTkFont(size=20, weight="bold")
             )
-            header.pack(pady=(15,5), padx=10)
+            title_label.pack(anchor="w")
+            
+            # Description if provided
+            if description:
+                desc_label = customtkinter.CTkLabel(
+                    section_frame,
+                    text=description,
+                    font=customtkinter.CTkFont(size=12),
+                    text_color="gray70"
+                )
+                desc_label.pack(anchor="w", pady=(0,5))
+            
+            # Content frame
+            content = customtkinter.CTkFrame(section_frame, fg_color="gray20")
+            content.pack(fill="x", pady=5)
+            return content
 
-            # Create metrics frame
-            metrics_frame = customtkinter.CTkFrame(content_frame)
-            metrics_frame.pack(fill="x", padx=20, pady=5)
+        def add_metric(frame, label: str, value: str):
+            """Add a metric row"""
+            row = customtkinter.CTkFrame(frame, fg_color="transparent")
+            row.pack(fill="x", padx=10, pady=2)
+            
+            label = customtkinter.CTkLabel(
+                row,
+                text=label,
+                font=customtkinter.CTkFont(weight="bold"),
+                width=200
+            )
+            label.pack(side="left", padx=10)
+            
+            value_label = customtkinter.CTkLabel(
+                row,
+                text=str(value)
+            )
+            value_label.pack(side="left", padx=5)
 
-            # Add metrics
-            for key, value in data.items():
-                if isinstance(value, dict):
-                    add_section(f"{key} Details", value)
-                else:
-                    metric_frame = customtkinter.CTkFrame(metrics_frame)
-                    metric_frame.pack(fill="x", pady=2)
+        for section_name, section_data in stats.items():
+            if section_name == "Basic Metrics":
+                metrics_frame = create_section(
+                    "Instance Overview", 
+                    "Basic problem dimensions and metrics"
+                )
+                for key, value in section_data.items():
+                    add_metric(metrics_frame, key, value)
                     
-                    label = customtkinter.CTkLabel(
-                        metric_frame,
-                        text=f"{key}:",
-                        font=customtkinter.CTkFont(weight="bold")
-                    )
-                    label.pack(side="left", padx=10)
+            elif section_name == "Constraint Distribution":
+                const_frame = create_section(
+                    "Constraint Distribution",
+                    "Distribution of different constraint types"
+                )
+                for key, value in section_data.items():
+                    add_metric(const_frame, key, value)
                     
-                    value_label = customtkinter.CTkLabel(
-                        metric_frame,
-                        text=str(value)
-                    )
-                    value_label.pack(side="left", padx=5)
-
-        # Add main sections
-        add_section("Instance Overview", {
-            "Steps": stats.get("Steps", "N/A"),
-            "Users": stats.get("Users", "N/A")
-        })
-
-        if "Constraints" in stats:
-            add_section("Constraints", stats["Constraints"])
+            elif section_name == "Problem Metrics":
+                problems_frame = create_section(
+                    "Problem Properties",
+                    "Key characteristics and ratios"
+                )
+                for key, value in section_data.items():
+                    add_metric(problems_frame, key, value)
+                    
+            else:
+                section_frame = create_section(
+                    f"{section_name}",
+                    "Additional problem information"
+                )
+                for key, value in section_data.items():
+                    add_metric(section_frame, key, value)
 
     def display_statistics(self, stats: Dict):
         """Display solving statistics in enhanced format"""
@@ -465,15 +502,6 @@ class AppView(customtkinter.CTk):
                         is_success=value == 0
                     )
 
-        # Constraint Distribution Section
-        if "constraint_distribution" in stats:
-            distribution_frame = create_section(
-                "Constraint Distribution",
-                "Number of constraints by type"
-            )
-            for key, value in stats["constraint_distribution"].items():
-                add_metric(distribution_frame, key, value)
-
         # Detailed Analysis Section (if available)
         if "detailed_analysis" in stats:
             self._create_detailed_analysis_section(content_frame, stats["detailed_analysis"])
@@ -536,11 +564,11 @@ class AppView(customtkinter.CTk):
                 create_section("Step Authorization", create_step_content)
             
             # Per User Breakdown
-            if "Per User Breakdown" in auth_data:
-                def create_user_content(frame):
-                    for user, data in auth_data["Per User Breakdown"].items():
-                        self._create_detail_row(frame, user, data)
-                create_section("User Authorization", create_user_content)
+            # if "Per User Breakdown" in auth_data:
+            #     def create_user_content(frame):
+            #         for user, data in auth_data["Per User Breakdown"].items():
+            #             self._create_detail_row(frame, user, data)
+            #     create_section("User Authorization", create_user_content)
 
         # Constraint Analysis Section
         if "Constraint Analysis" in detailed_data:
@@ -734,68 +762,17 @@ class AppView(customtkinter.CTk):
         )
         toggle_btn.pack(side="right", padx=5)
         
-        # Create content with all items
+        # Create content with all items but DON'T pack the frame yet
         if details:
-            details_frame.pack_propagate(False)  # Prevent frame from shrinking
-            for item in details:
-                item_label = customtkinter.CTkLabel(
-                    details_frame,
-                    text=str(item),
-                    font=customtkinter.CTkFont(size=12),
-                    text_color="gray70"
-                )
-                item_label.pack(anchor="w", padx=5, pady=1)
-
-    def display_instance_details(self, stats: Dict):
-        """Display instance details with enhanced formatting"""
-        # Clear previous content
-        for widget in self.instance_frame.winfo_children():
-            widget.destroy()
-
-        content_frame = customtkinter.CTkFrame(
-            self.instance_frame,
-            fg_color="gray17"
-        )
-        content_frame.pack(fill="both", expand=True, padx=5, pady=5)
-
-        # Basic Metrics Section
-        metrics_frame = customtkinter.CTkFrame(content_frame, fg_color="gray20")
-        metrics_frame.pack(fill="x", padx=10, pady=5)
-        
-        metrics_title = customtkinter.CTkLabel(
-            metrics_frame,
-            text="Problem Metrics",
-            font=customtkinter.CTkFont(size=18, weight="bold")
-        )
-        metrics_title.pack(pady=5)
-
-        for section_name, section_data in stats.items():
-            section_frame = customtkinter.CTkFrame(metrics_frame, fg_color="transparent")
-            section_frame.pack(fill="x", padx=10, pady=5)
-            
-            section_label = customtkinter.CTkLabel(
-                section_frame,
-                text=section_name,
-                font=customtkinter.CTkFont(size=14, weight="bold")
+            sorted_details = sorted(details)
+            content_label = customtkinter.CTkLabel(
+                details_frame,
+                text=", ".join(map(str, sorted_details)),
+                font=customtkinter.CTkFont(size=12),
+                text_color="gray70",
+                wraplength=600
             )
-            section_label.pack(anchor="w", pady=(5,2))
-            
-            for key, value in section_data.items():
-                detail_frame = customtkinter.CTkFrame(section_frame, fg_color="transparent")
-                detail_frame.pack(fill="x", pady=1)
-                
-                label = customtkinter.CTkLabel(
-                    detail_frame,
-                    text=f"{key}:",
-                    font=customtkinter.CTkFont(weight="bold")
-                )
-                label.pack(side="left", padx=10)
-                
-                value_label = customtkinter.CTkLabel(
-                    detail_frame,
-                    text=str(value)
-                )
-                value_label.pack(side="left", padx=5)
+            content_label.pack(anchor="w", pady=1)
 
     def clear_results(self):
         """Clear all results and reset display"""
