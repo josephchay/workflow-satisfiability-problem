@@ -355,7 +355,7 @@ class AppView(customtkinter.CTk):
             add_section("Constraints", stats["Constraints"])
 
     def display_statistics(self, stats: Dict):
-        """Display solving statistics"""
+        """Display solving statistics in enhanced format"""
         # Clear previous stats
         for widget in self.stats_frame.winfo_children():
             widget.destroy()
@@ -364,48 +364,419 @@ class AppView(customtkinter.CTk):
             self.stats_frame,
             fg_color="gray17"
         )
-        content_frame.pack(fill="both", expand=True, padx=2, pady=2)
+        content_frame.pack(fill="both", expand=True, padx=5, pady=5)
 
-        def add_stat_section(title: str, stats_dict: Dict):
-            section_frame = customtkinter.CTkFrame(content_frame)
-            section_frame.pack(fill="x", padx=10, pady=5)
-
-            header = customtkinter.CTkLabel(
+        def create_section(title: str, description: str = ""):
+            """Create a section with title and optional description"""
+            section_frame = customtkinter.CTkFrame(content_frame, fg_color="transparent")
+            section_frame.pack(fill="x", padx=10, pady=(15,5))
+            
+            # Title
+            title_label = customtkinter.CTkLabel(
                 section_frame,
                 text=title,
-                font=customtkinter.CTkFont(size=14, weight="bold")
+                font=customtkinter.CTkFont(size=20, weight="bold")
             )
-            header.pack(pady=5)
+            title_label.pack(anchor="w")
+            
+            # Description if provided
+            if description:
+                desc_label = customtkinter.CTkLabel(
+                    section_frame,
+                    text=description,
+                    font=customtkinter.CTkFont(size=12),
+                    text_color="gray70"
+                )
+                desc_label.pack(anchor="w", pady=(0,5))
+            
+            # Content frame
+            content = customtkinter.CTkFrame(section_frame, fg_color="gray20")
+            content.pack(fill="x", pady=5)
+            return content
 
-            for key, value in stats_dict.items():
-                if isinstance(value, dict):
-                    add_stat_section(key, value)
+        def add_metric(frame, label: str, value: str, is_success: bool = None):
+            """Add a metric row with optional success/failure coloring"""
+            row = customtkinter.CTkFrame(frame, fg_color="transparent")
+            row.pack(fill="x", padx=10, pady=2)
+            
+            label = customtkinter.CTkLabel(
+                row,
+                text=label,
+                font=customtkinter.CTkFont(weight="bold"),
+                width=200
+            )
+            label.pack(side="left", padx=10)
+            
+            text_color = "#00ff00" if is_success == True else "red" if is_success == False else None
+            value_label = customtkinter.CTkLabel(
+                row,
+                text=str(value),
+                text_color=text_color
+            )
+            value_label.pack(side="left", padx=5)
+
+        # Solution Status Section
+        if "solution_status" in stats:
+            status_frame = create_section(
+                "Solution Status",
+                "Overall status and performance metrics"
+            )
+            for key, value in stats["solution_status"].items():
+                add_metric(status_frame, key, value)
+
+        # Problem Size Section
+        if "problem_size" in stats:
+            size_frame = create_section(
+                "Problem Size",
+                "Dimensions and complexity metrics"
+            )
+            for key, value in stats["problem_size"].items():
+                add_metric(size_frame, key, value)
+
+        # Workload Distribution Section
+        if "workload_distribution" in stats:
+            workload_frame = create_section(
+                "Workload Distribution",
+                "How work is distributed among users"
+            )
+            for key, value in stats["workload_distribution"].items():
+                add_metric(workload_frame, key, value)
+
+        # Constraint Compliance Section
+        if "constraint_compliance" in stats:
+            compliance_frame = create_section(
+                "Constraint Compliance",
+                "Verification of all constraint types"
+            )
+
+            # Add success/failure message with color
+            if "Solution Quality" in stats["constraint_compliance"]:
+                quality = stats["constraint_compliance"]["Solution Quality"]
+                is_perfect = "Perfect" in quality
+                add_metric(compliance_frame, "Solution Quality", quality, is_success=is_perfect)
+
+            # Add violation counts
+            for key, value in stats["constraint_compliance"].items():
+                if key != "Solution Quality":
+                    add_metric(
+                        compliance_frame, 
+                        key, 
+                        value,
+                        is_success=value == 0
+                    )
+
+        # Constraint Distribution Section
+        if "constraint_distribution" in stats:
+            distribution_frame = create_section(
+                "Constraint Distribution",
+                "Number of constraints by type"
+            )
+            for key, value in stats["constraint_distribution"].items():
+                add_metric(distribution_frame, key, value)
+
+        # Detailed Analysis Section (if available)
+        if "detailed_analysis" in stats:
+            self._create_detailed_analysis_section(content_frame, stats["detailed_analysis"])
+
+    def _create_detailed_analysis_section(self, parent_frame, detailed_data: Dict):
+        """Create detailed analysis section with collapsible subsections"""
+        detailed_frame = customtkinter.CTkFrame(parent_frame, fg_color="transparent")
+        detailed_frame.pack(fill="x", padx=10, pady=(15,5))
+        
+        # Title
+        title_label = customtkinter.CTkLabel(
+            detailed_frame,
+            text="Detailed Analysis",
+            font=customtkinter.CTkFont(size=20, weight="bold")
+        )
+        title_label.pack(anchor="w")
+        
+        description_label = customtkinter.CTkLabel(
+            detailed_frame,
+            text="Comprehensive constraint and authorization analysis",
+            font=customtkinter.CTkFont(size=12),
+            text_color="gray70"
+        )
+        description_label.pack(anchor="w", pady=(0,5))
+
+        def create_collapsible_section(title: str, data: Dict):
+            """Create a collapsible section for detailed data"""
+            section_frame = customtkinter.CTkFrame(detailed_frame, fg_color="gray20")
+            section_frame.pack(fill="x", pady=2)
+            
+            # Header frame with toggle button
+            header_frame = customtkinter.CTkFrame(section_frame, fg_color="transparent")
+            header_frame.pack(fill="x", padx=5, pady=2)
+            
+            # Content frame (initially hidden)
+            content_frame = customtkinter.CTkFrame(section_frame, fg_color="gray20")
+            content_frame.pack_forget()  # Start collapsed
+            
+            # Toggle button
+            is_expanded = customtkinter.BooleanVar(value=False)
+            
+            def toggle_section():
+                if is_expanded.get():
+                    content_frame.pack(fill="x", padx=10, pady=5)
                 else:
-                    stat_frame = customtkinter.CTkFrame(section_frame)
-                    stat_frame.pack(fill="x", pady=2)
+                    content_frame.pack_forget()
+            
+            toggle_btn = customtkinter.CTkButton(
+                header_frame,
+                text=f"{title} ▼" if not is_expanded.get() else f"{title} ▲",
+                command=lambda: [is_expanded.set(not is_expanded.get()), 
+                               toggle_section(),
+                               toggle_btn.configure(text=f"{title} ▲" if is_expanded.get() else f"{title} ▼")],
+                fg_color="transparent",
+                text_color="white",
+                hover_color="gray30"
+            )
+            toggle_btn.pack(fill="x", padx=5)
+            
+            return content_frame
+
+        # Authorization Analysis
+        if "Authorization Analysis" in detailed_data:
+            auth_frame = create_collapsible_section("Authorization Analysis", detailed_data["Authorization Analysis"])
+            
+            # Per Step Breakdown
+            if "Per Step Breakdown" in detailed_data["Authorization Analysis"]:
+                step_frame = customtkinter.CTkFrame(auth_frame, fg_color="transparent")
+                step_frame.pack(fill="x", padx=5, pady=2)
+                
+                step_label = customtkinter.CTkLabel(
+                    step_frame,
+                    text="Per Step Authorization",
+                    font=customtkinter.CTkFont(weight="bold")
+                )
+                step_label.pack(anchor="w", padx=5, pady=2)
+                
+                for step, data in detailed_data["Authorization Analysis"]["Per Step Breakdown"].items():
+                    self._create_detail_row(step_frame, step, data)
+
+            # Per User Breakdown
+            if "Per User Breakdown" in detailed_data["Authorization Analysis"]:
+                user_frame = customtkinter.CTkFrame(auth_frame, fg_color="transparent")
+                user_frame.pack(fill="x", padx=5, pady=2)
+                
+                user_label = customtkinter.CTkLabel(
+                    user_frame,
+                    text="Per User Authorization",
+                    font=customtkinter.CTkFont(weight="bold")
+                )
+                user_label.pack(anchor="w", padx=5, pady=2)
+                
+                for user, data in detailed_data["Authorization Analysis"]["Per User Breakdown"].items():
+                    self._create_detail_row(user_frame, user, data)
+
+        # Constraint Analysis
+        if "Constraint Analysis" in detailed_data:
+            constraint_frame = create_collapsible_section("Constraint Analysis", detailed_data["Constraint Analysis"])
+            
+            for constraint_type, constraints in detailed_data["Constraint Analysis"].items():
+                if constraints:  # Only show non-empty constraint types
+                    type_frame = customtkinter.CTkFrame(constraint_frame, fg_color="transparent")
+                    type_frame.pack(fill="x", padx=5, pady=2)
                     
-                    label = customtkinter.CTkLabel(
-                        stat_frame,
-                        text=f"{key}:",
+                    type_label = customtkinter.CTkLabel(
+                        type_frame,
+                        text=constraint_type,
                         font=customtkinter.CTkFont(weight="bold")
                     )
-                    label.pack(side="left", padx=10)
+                    type_label.pack(anchor="w", padx=5, pady=2)
                     
-                    value_label = customtkinter.CTkLabel(
-                        stat_frame,
-                        text=str(value)
-                    )
-                    value_label.pack(side="left", padx=5)
+                    for constraint in constraints:
+                        self._create_constraint_row(type_frame, constraint)
 
-        # Add main statistic sections
-        if "solver_metrics" in stats:
-            add_stat_section("Solver Performance", stats["solver_metrics"])
-        
-        if "solution_metrics" in stats:
-            add_stat_section("Solution Metrics", stats["solution_metrics"])
+        # Conflict Analysis
+        if "Conflict Analysis" in detailed_data:
+            conflict_frame = create_collapsible_section("Conflict Analysis", detailed_data["Conflict Analysis"])
             
-        if "violations" in stats:
-            add_stat_section("Constraint Violations", {"violations": stats["violations"]})
+            if "Detected Conflicts" in detailed_data["Conflict Analysis"]:
+                conflicts = detailed_data["Conflict Analysis"]["Detected Conflicts"]
+                for conflict in conflicts:
+                    conflict_row = customtkinter.CTkFrame(conflict_frame, fg_color="transparent")
+                    conflict_row.pack(fill="x", padx=10, pady=2)
+                    
+                    conflict_label = customtkinter.CTkLabel(
+                        conflict_row,
+                        text=conflict["Description"],
+                        text_color="red",
+                        wraplength=400
+                    )
+                    conflict_label.pack(anchor="w", padx=5)
+
+    def _create_detail_row(self, parent_frame, title: str, data: Dict):
+        """Create a detail row with expandable content"""
+        row_frame = customtkinter.CTkFrame(parent_frame, fg_color="transparent")
+        row_frame.pack(fill="x", padx=10, pady=1)
+        
+        # Title with count
+        title_str = f"{title} ({data.get('Total', len(data.get('Authorized Steps', data.get('Authorized Users', []))))})"
+        title_label = customtkinter.CTkLabel(
+            row_frame,
+            text=title_str,
+            font=customtkinter.CTkFont(size=12)
+        )
+        title_label.pack(side="left", padx=5)
+        
+        # Expandable details
+        if "Authorized Steps" in data or "Authorized Users" in data:
+            details = data.get("Authorized Steps", data.get("Authorized Users", []))
+            if details:
+                details_str = f"[{', '.join(map(str, sorted(details)))}]"
+                details_label = customtkinter.CTkLabel(
+                    row_frame,
+                    text=details_str,
+                    font=customtkinter.CTkFont(size=12),
+                    text_color="gray70"
+                )
+                details_label.pack(side="left", padx=5)
+
+    def _create_constraint_row(self, parent_frame, constraint: Dict):
+        """Create a row for constraint information"""
+        row_frame = customtkinter.CTkFrame(parent_frame, fg_color="transparent")
+        row_frame.pack(fill="x", padx=10, pady=1)
+        
+        # Different formats based on constraint type
+        if "Steps" in constraint and "Description" in constraint:
+            desc_label = customtkinter.CTkLabel(
+                row_frame,
+                text=constraint["Description"],
+                font=customtkinter.CTkFont(size=12),
+                wraplength=400
+            )
+            desc_label.pack(anchor="w", padx=5)
+            
+            if "Common Users" in constraint:
+                users_str = f"Common users: [{', '.join(map(str, constraint['Common Users']))}]"
+                users_label = customtkinter.CTkLabel(
+                    row_frame,
+                    text=users_str,
+                    font=customtkinter.CTkFont(size=12),
+                    text_color="gray70"
+                )
+                users_label.pack(anchor="w", padx=20)
+        elif "K Value" in constraint:
+            k_str = f"At most {constraint['K Value']} steps from {constraint['Steps']} per user"
+            k_label = customtkinter.CTkLabel(
+                row_frame,
+                text=k_str,
+                font=customtkinter.CTkFont(size=12)
+            )
+            k_label.pack(anchor="w", padx=5)
+        elif "Teams" in constraint:
+            steps_str = f"Steps {constraint['Steps']} must be assigned to one team:"
+            steps_label = customtkinter.CTkLabel(
+                row_frame,
+                text=steps_str,
+                font=customtkinter.CTkFont(size=12)
+            )
+            steps_label.pack(anchor="w", padx=5)
+            
+            for i, team in enumerate(constraint['Teams'], 1):
+                team_str = f"Team {i}: [{', '.join(map(str, team))}]"
+                team_label = customtkinter.CTkLabel(
+                    row_frame,
+                    text=team_str,
+                    font=customtkinter.CTkFont(size=12),
+                    text_color="gray70"
+                )
+                team_label.pack(anchor="w", padx=20)
+
+    def display_instance_details(self, stats: Dict):
+        """Display instance details with enhanced formatting"""
+        # Clear previous content
+        for widget in self.instance_frame.winfo_children():
+            widget.destroy()
+
+        content_frame = customtkinter.CTkScrollableFrame(
+            self.instance_frame,
+            fg_color="gray17"
+        )
+        content_frame.pack(fill="both", expand=True, padx=5, pady=5)
+
+        # Basic Metrics Section
+        metrics_frame = customtkinter.CTkFrame(content_frame, fg_color="gray20")
+        metrics_frame.pack(fill="x", padx=10, pady=5)
+        
+        metrics_title = customtkinter.CTkLabel(
+            metrics_frame,
+            text="Problem Metrics",
+            font=customtkinter.CTkFont(size=18, weight="bold")
+        )
+        metrics_title.pack(pady=5)
+
+        for section_name, section_data in stats.items():
+            section_frame = customtkinter.CTkFrame(metrics_frame, fg_color="transparent")
+            section_frame.pack(fill="x", padx=10, pady=5)
+            
+            section_label = customtkinter.CTkLabel(
+                section_frame,
+                text=section_name,
+                font=customtkinter.CTkFont(size=14, weight="bold")
+            )
+            section_label.pack(anchor="w", pady=(5,2))
+            
+            for key, value in section_data.items():
+                detail_frame = customtkinter.CTkFrame(section_frame, fg_color="transparent")
+                detail_frame.pack(fill="x", pady=1)
+                
+                label = customtkinter.CTkLabel(
+                    detail_frame,
+                    text=f"{key}:",
+                    font=customtkinter.CTkFont(weight="bold")
+                )
+                label.pack(side="left", padx=10)
+                
+                value_label = customtkinter.CTkLabel(
+                    detail_frame,
+                    text=str(value)
+                )
+                value_label.pack(side="left", padx=5)
+
+    def _show_detailed_analysis(self, details):
+        """Show detailed analysis in a popup window"""
+        popup = customtkinter.CTkToplevel(self)
+        popup.title("Detailed Analysis")
+        popup.geometry("800x600")
+        
+        content = customtkinter.CTkScrollableFrame(popup)
+        content.pack(fill="both", expand=True, padx=10, pady=10)
+
+        for section, data in details.items():
+            header = customtkinter.CTkLabel(
+                content,
+                text=section,
+                font=customtkinter.CTkFont(size=16, weight="bold")
+            )
+            header.pack(pady=(15,5))
+
+            if isinstance(data, dict):
+                for key, value in data.items():
+                    item_frame = customtkinter.CTkFrame(content, fg_color="gray20")
+                    item_frame.pack(fill="x", padx=20, pady=2)
+                    
+                    if isinstance(value, dict):
+                        item_label = customtkinter.CTkLabel(
+                            item_frame,
+                            text=f"{key}:",
+                            font=customtkinter.CTkFont(weight="bold")
+                        )
+                        item_label.pack(anchor="w", padx=10, pady=2)
+                        
+                        for subkey, subvalue in value.items():
+                            subitem = customtkinter.CTkLabel(
+                                item_frame,
+                                text=f"  {subkey}: {subvalue}"
+                            )
+                            subitem.pack(anchor="w", padx=20)
+                    else:
+                        item_label = customtkinter.CTkLabel(
+                            item_frame,
+                            text=f"{key}: {value}"
+                        )
+                        item_label.pack(anchor="w", padx=10)
 
     def clear_results(self):
         """Clear all results and reset display"""

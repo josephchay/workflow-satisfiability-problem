@@ -1,5 +1,4 @@
 import os
-import time
 from typing import Dict, Optional
 
 from constants import SolverType
@@ -18,6 +17,7 @@ class AppController:
         # Connect button callbacks
         self.view.select_button.configure(command=self.select_file)
         self.view.solve_button.configure(command=self.solve)
+        self.view.visualize_button.grid(row=10, column=0, padx=20, pady=10)
         
         # Initialize metadata handler
         self.metadata_handler = MetadataHandler()
@@ -76,33 +76,34 @@ class AppController:
             self.view.update_status(f"Solving with {self.current_solver_type.value}...")
             self.view.update_progress(0.1)
 
-            # Collect instance metrics
-            instance_metrics = self._collect_instance_metrics()
-            self.view.update_progress(0.2)
-
             # Create solver using factory
             solver = self.solver_factory.create_solver(
                 self.current_solver_type,
                 self.current_instance,
-                active_constraints
+                active_constraints,
+                gui_mode=True  # Enable GUI mode
             )
-            
+
             # Run solver
-            start_time = time.time()
             result = solver.solve()
-            solve_time = time.time() - start_time
             
             self.view.update_progress(0.6)
 
             # Process solution
             if result.is_sat:
                 solution = self._format_solution(result)
-                stats = self._collect_solution_stats(result, solve_time)
+                # Format solver results correctly for metadata handler
+                solver_results = {
+                    'sat': 'sat',
+                    'sol': solution,
+                    'exe_time': solver.solve_time * 1000,
+                    'violations': result.violations if hasattr(result, 'violations') else []
+                }
                 
-                # Save metadata
+                # Save metadata with proper format
                 self.metadata_handler.save_result_metadata(
-                    instance_details=instance_metrics,
-                    solver_result=stats,
+                    instance_details=solver.statistics["problem_size"],
+                    solver_result=solver_results,  # Use formatted results
                     solver_type=self.current_solver_type.value,
                     active_constraints=active_constraints,
                     filename=os.path.basename(self.view.current_file)
@@ -110,18 +111,15 @@ class AppController:
                 
                 # Display results
                 self.view.display_solution(solution)
-                self.view.display_statistics(stats)
+                self.view.display_statistics(solver.statistics)
                 status = "Solution found!"
-                
             else:
                 self.view.display_solution(None)
+                self.view.display_statistics(solver.statistics)  # Still show statistics for UNSAT
                 status = f"No solution exists (UNSAT): {result.reason}"
                 
             self.view.update_progress(1.0)
-            self.view.update_status(
-                f"{status} using {self.current_solver_type.value} "
-                f"(solved in {solve_time:.2f}s)"
-            )
+            self.view.update_status(f"{status} using {self.current_solver_type.value}")
 
         except Exception as e:
             self.view.update_status(f"Error solving: {str(e)}")
@@ -181,14 +179,17 @@ class AppController:
     def _display_instance_info(self, instance):
         """Display loaded instance information"""
         stats = {
-            "Steps": instance.number_of_steps,
-            "Users": instance.number_of_users,
-            "Constraints": {
+            "Basic Metrics": {
+                "Total Steps": instance.number_of_steps,
+                "Total Users": instance.number_of_users,
+                "Total Constraints": instance.number_of_constraints
+            },
+            "Constraint Distribution": {
                 "Authorization": len([u for u in instance.auth if u]),
                 "Separation of Duty": len(instance.SOD),
                 "Binding of Duty": len(instance.BOD),
                 "At-most-k": len(instance.at_most_k),
-                "One-team": len(instance.one_team)
+                "One-team": len(getattr(instance, 'one_team', []))
             }
         }
         self.view.display_instance_details(stats)

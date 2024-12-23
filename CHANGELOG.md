@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Improvement
 - Modified metric information in `metadata.py` and how its handled in the `controllers.py`.
+- Updated statistics tab for thorough information metrics display.
 
 ### Refactoring
 - Introduced `InstanceParser` class for better readability for use for global function `parse_instance_file`.

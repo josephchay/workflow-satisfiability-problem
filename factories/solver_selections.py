@@ -43,16 +43,15 @@ class SolverFactory:
                 raise ValueError(f"Unknown solver type: {solver_type}")
                 
             self.solvers[solver_type] = solver
-            
-    def create_solver(self, solver_type: SolverType, instance, active_constraints) -> BaseSolver:
+
+    def create_solver(self, solver_type: SolverType, instance, active_constraints, gui_mode: bool = False) -> BaseSolver:
         """Get solver instance for specified type"""
         self._import_solver(solver_type)
         
-        # For SAT4J solvers, verify JVM is available
         if solver_type in [SolverType.SAT4J_PBPB, SolverType.SAT4J_UDPB]:
             if not jpype.isJVMStarted():
                 raise RuntimeError(
                     "JVM not initialized. Please ensure sat4j-pb.jar is in the project root."
                 )
 
-        return self.solvers[solver_type](instance, active_constraints)
+        return self.solvers[solver_type](instance, active_constraints, gui_mode)
