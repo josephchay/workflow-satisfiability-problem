@@ -45,7 +45,7 @@ class Solution:
             f.write(f"Solution Status: {'SAT' if self.is_sat else 'UNSAT'}\n")
             f.write(f"Solve Time: {self.solve_time:.4f} seconds\n")
             f.write(f"Solver: {getattr(self, 'solver_type', 'Unknown')}\n")
-            f.write("=" * 50 + "\n")
+            f.write("=" * 120 + "\n")
 
             # If solution is satisfiable
             if self.is_sat:
@@ -67,7 +67,7 @@ class Solution:
                 
                 # Total users used
                 unique_users = len(user_steps)
-                f.write(f"\nTotal Unique Users: {unique_users}\n")
+                f.write(f"\nTotal Unique Users Used: {unique_users}\n")
 
             # If solution is unsatisfiable
             else:
@@ -76,60 +76,84 @@ class Solution:
                     f.write("\nReason for Unsatisfiability:\n")
                     f.write(self.reason + "\n")
 
-            # Violations (if any)
-            if self.violations:
-                f.write("\n" + "=" * 50 + "\n")
-                f.write("Constraint Violations:\n")
-                for violation in self.violations:
-                    f.write(f"- {violation}\n")
-
-            # Additional solver-specific detailed analysis
+            # Detailed Constraint Information
             if solver_instance:
-                # Constraint Conflicts
                 f.write("\n" + "=" * 50 + "\n")
-                f.write("Constraint Conflict Analysis:\n")
-                conflicts = solver_instance.analyze_constraint_conflicts()
-                if conflicts:
-                    for conflict in conflicts:
-                        f.write(f"- {conflict['Type']}: {conflict['Description']}\n")
-                else:
-                    f.write("No conflicts detected.\n")
+                f.write("CONSTRAINT DETAILS\n")
+                f.write("=" * 50 + "\n")
 
-                # Constraint Details
-                f.write("\n" + "=" * 50 + "\n")
-                f.write("Constraint Breakdown:\n")
-                
                 # Authorization Constraints
                 f.write("\nAuthorization Constraints:\n")
+                total_auth_count = sum(sum(1 for x in row if x) for row in solver_instance.instance.user_step_matrix)
+                f.write(f"Total Authorizations: {total_auth_count}\n\n")
+                f.write("Per-Step Authorization Breakdown:\n")
                 for step in range(solver_instance.instance.number_of_steps):
                     authorized_users = [u+1 for u in range(solver_instance.instance.number_of_users)
                                     if solver_instance.instance.user_step_matrix[u][step]]
-                    f.write(f"Step {step+1}: Authorized Users {authorized_users}\n")
-                
+                    f.write(f"Step {step+1}: {len(authorized_users)} users authorized {authorized_users}\n")
+
+                f.write("\nPer-User Authorization Breakdown:\n")
+                for user in range(solver_instance.instance.number_of_users):
+                    authorized_steps = [s+1 for s in range(solver_instance.instance.number_of_steps)
+                                    if solver_instance.instance.user_step_matrix[user][s]]
+                    
+                    if authorized_steps:  # Only include users with authorizations
+                        f.write(f"User {user+1}: authorized for {len(authorized_steps)} steps {authorized_steps}\n")
+
                 # Separation of Duty Constraints
                 f.write("\nSeparation of Duty Constraints:\n")
-                for s1, s2 in solver_instance.instance.SOD:
-                    f.write(f"Steps {s1+1} and {s2+1} must be performed by different users\n")
-                
+                if solver_instance.instance.SOD:
+                    for s1, s2 in solver_instance.instance.SOD:
+                        f.write(f"Steps {s1+1} and {s2+1} must be performed by different users\n")
+                else:
+                    f.write("No Separation of Duty constraints defined.\n")
+
                 # Binding of Duty Constraints
                 f.write("\nBinding of Duty Constraints:\n")
-                for s1, s2 in solver_instance.instance.BOD:
-                    common_users = [u+1 for u in range(solver_instance.instance.number_of_users)
-                                if (solver_instance.instance.user_step_matrix[u][s1] and 
-                                    solver_instance.instance.user_step_matrix[u][s2])]
-                    f.write(f"Steps {s1+1} and {s2+1} must be performed by same users {common_users}\n")
-                
+                if solver_instance.instance.BOD:
+                    for s1, s2 in solver_instance.instance.BOD:
+                        common_users = [u+1 for u in range(solver_instance.instance.number_of_users)
+                                    if (solver_instance.instance.user_step_matrix[u][s1] and 
+                                        solver_instance.instance.user_step_matrix[u][s2])]
+                        f.write(f"Steps {s1+1} and {s2+1} must be performed by same users: {common_users}\n")
+                else:
+                    f.write("No Binding of Duty constraints defined.\n")
+
                 # At-most-k Constraints
                 f.write("\nAt-most-k Constraints:\n")
-                for k, steps in solver_instance.instance.at_most_k:
-                    f.write(f"At most {k} steps from {[s+1 for s in steps]} can be assigned to same user\n")
+                if solver_instance.instance.at_most_k:
+                    for k, steps in solver_instance.instance.at_most_k:
+                        f.write(f"At most {k} steps from {[s+1 for s in steps]} can be assigned to same user\n")
+                else:
+                    f.write("No At-most-k constraints defined.\n")
 
-                # Additional Problem Metrics
+                # One-team Constraints
+                f.write("\nOne-team Constraints:\n")
+                if hasattr(solver_instance.instance, 'one_team') and solver_instance.instance.one_team:
+                    for steps, teams in solver_instance.instance.one_team:
+                        f.write(f"Steps {[s+1 for s in steps]}: Team groups {[[u+1 for u in team] for team in teams]}\n")
+                else:
+                    f.write("No One-team constraints defined.\n")
+
+                # Constraint Conflicts
                 f.write("\n" + "=" * 50 + "\n")
-                f.write("Problem Metrics:\n")
-                f.write(f"Total Steps: {solver_instance.instance.number_of_steps}\n")
-                f.write(f"Total Users: {solver_instance.instance.number_of_users}\n")
-                f.write(f"Total Constraints: {solver_instance.instance.number_of_constraints}\n")
+                f.write("CONSTRAINT CONFLICT ANALYSIS\n")
+                f.write("=" * 50 + "\n")
+                conflicts = solver_instance.analyze_constraint_conflicts()
+                if conflicts:
+                    f.write("Potential Conflicts Detected:\n")
+                    for conflict in conflicts:
+                        f.write(f"- {conflict['Type']}: {conflict['Description']}\n")
+                else:
+                    f.write("No constraint conflicts detected.\n")
+
+            # Violations (if any)
+            if self.violations:
+                f.write("\n" + "=" * 50 + "\n")
+                f.write("CONSTRAINT VIOLATIONS\n")
+                f.write("=" * 50 + "\n")
+                for violation in self.violations:
+                    f.write(f"- {violation}\n")
 
 
 class Verifier:
