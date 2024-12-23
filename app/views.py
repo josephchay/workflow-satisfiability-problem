@@ -43,7 +43,7 @@ class AppView(customtkinter.CTk):
         # Create sidebar frame with fixed width
         self.sidebar_frame = customtkinter.CTkFrame(
             self, 
-            width=240,
+            width=210,
             corner_radius=0
         )
         self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
@@ -64,7 +64,7 @@ class AppView(customtkinter.CTk):
         self.file_label = customtkinter.CTkLabel(
             self.sidebar_frame,
             text="No file selected",
-            wraplength=220
+            wraplength=160
         )
         self.file_label.grid(row=1, column=0, padx=20, pady=5)
 
@@ -72,7 +72,7 @@ class AppView(customtkinter.CTk):
         self.select_button = customtkinter.CTkButton(
             self.sidebar_frame,
             text="Select File",
-            width=220
+            width=160
         )
         self.select_button.grid(row=2, column=0, padx=20, pady=10)
 
@@ -86,7 +86,7 @@ class AppView(customtkinter.CTk):
         self.solve_button = customtkinter.CTkButton(
             self.sidebar_frame,
             text="Solve",
-            width=220
+            width=160
         )
         self.solve_button.grid(row=8, column=0, padx=20, pady=10)
 
@@ -95,7 +95,7 @@ class AppView(customtkinter.CTk):
             self.sidebar_frame,
             text="Clear Results",
             command=self.clear_results,
-            width=220
+            width=160
         )
         self.clear_button.grid(row=9, column=0, padx=20, pady=10)
 
@@ -104,7 +104,7 @@ class AppView(customtkinter.CTk):
             self.sidebar_frame,
             text="Generate Visualizations",
             command=self.visualize,
-            width=220
+            width=160
         )
 
     def _create_solver_frame(self):
@@ -125,7 +125,7 @@ class AppView(customtkinter.CTk):
             self.solver_frame,
             values=[st.value for st in SolverType],
             command=None,  # Will be set by controller
-            width=220
+            width=160
         )
         self.solver_type.pack(pady=5)
         
@@ -133,7 +133,7 @@ class AppView(customtkinter.CTk):
         self.solver_description = customtkinter.CTkLabel(
             self.solver_frame,
             text="",
-            wraplength=220,  # Increased wraplength
+            wraplength=160,  # Increased wraplength
             font=customtkinter.CTkFont(size=12)
         )
         self.solver_description.pack(pady=5)
@@ -752,7 +752,7 @@ class AppView(customtkinter.CTk):
         for widget in self.instance_frame.winfo_children():
             widget.destroy()
 
-        content_frame = customtkinter.CTkScrollableFrame(
+        content_frame = customtkinter.CTkFrame(
             self.instance_frame,
             fg_color="gray17"
         )
