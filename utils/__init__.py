@@ -1,1 +1,1 @@
-from .tracker import SolutionCollector
+from .jvm import init_jvm

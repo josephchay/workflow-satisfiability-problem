@@ -1,7 +1,7 @@
 import jpype
 
 from constants import SolverType
-from initializers import init_jvm
+from utils import init_jvm
 from solvers import BaseSolver
 
 
