@@ -38,6 +38,99 @@ class Solution:
             'reason': self.reason
         }
 
+    def save(self, output_file, solver_instance=None):
+        """Save solution to a file with comprehensive information"""
+        with open(output_file, 'w') as f:
+            # Solution Status and Basic Information
+            f.write(f"Solution Status: {'SAT' if self.is_sat else 'UNSAT'}\n")
+            f.write(f"Solve Time: {self.solve_time:.4f} seconds\n")
+            f.write(f"Solver: {getattr(self, 'solver_type', 'Unknown')}\n")
+            f.write("=" * 50 + "\n")
+
+            # If solution is satisfiable
+            if self.is_sat:
+                # Step Assignments
+                f.write("Step Assignments:\n")
+                for step, user in sorted(self.assignment.items()):
+                    f.write(f"Step {step}: User {user}\n")
+                
+                # User Distribution
+                user_steps = {}
+                for step, user in self.assignment.items():
+                    if user not in user_steps:
+                        user_steps[user] = []
+                    user_steps[user].append(step)
+                
+                f.write("\nUser Step Distribution:\n")
+                for user, steps in sorted(user_steps.items()):
+                    f.write(f"User {user}: Steps {sorted(steps)}\n")
+                
+                # Total users used
+                unique_users = len(user_steps)
+                f.write(f"\nTotal Unique Users: {unique_users}\n")
+
+            # If solution is unsatisfiable
+            else:
+                f.write("UNSATISFIABLE SOLUTION\n")
+                if self.reason:
+                    f.write("\nReason for Unsatisfiability:\n")
+                    f.write(self.reason + "\n")
+
+            # Violations (if any)
+            if self.violations:
+                f.write("\n" + "=" * 50 + "\n")
+                f.write("Constraint Violations:\n")
+                for violation in self.violations:
+                    f.write(f"- {violation}\n")
+
+            # Additional solver-specific detailed analysis
+            if solver_instance:
+                # Constraint Conflicts
+                f.write("\n" + "=" * 50 + "\n")
+                f.write("Constraint Conflict Analysis:\n")
+                conflicts = solver_instance.analyze_constraint_conflicts()
+                if conflicts:
+                    for conflict in conflicts:
+                        f.write(f"- {conflict['Type']}: {conflict['Description']}\n")
+                else:
+                    f.write("No conflicts detected.\n")
+
+                # Constraint Details
+                f.write("\n" + "=" * 50 + "\n")
+                f.write("Constraint Breakdown:\n")
+                
+                # Authorization Constraints
+                f.write("\nAuthorization Constraints:\n")
+                for step in range(solver_instance.instance.number_of_steps):
+                    authorized_users = [u+1 for u in range(solver_instance.instance.number_of_users)
+                                    if solver_instance.instance.user_step_matrix[u][step]]
+                    f.write(f"Step {step+1}: Authorized Users {authorized_users}\n")
+                
+                # Separation of Duty Constraints
+                f.write("\nSeparation of Duty Constraints:\n")
+                for s1, s2 in solver_instance.instance.SOD:
+                    f.write(f"Steps {s1+1} and {s2+1} must be performed by different users\n")
+                
+                # Binding of Duty Constraints
+                f.write("\nBinding of Duty Constraints:\n")
+                for s1, s2 in solver_instance.instance.BOD:
+                    common_users = [u+1 for u in range(solver_instance.instance.number_of_users)
+                                if (solver_instance.instance.user_step_matrix[u][s1] and 
+                                    solver_instance.instance.user_step_matrix[u][s2])]
+                    f.write(f"Steps {s1+1} and {s2+1} must be performed by same users {common_users}\n")
+                
+                # At-most-k Constraints
+                f.write("\nAt-most-k Constraints:\n")
+                for k, steps in solver_instance.instance.at_most_k:
+                    f.write(f"At most {k} steps from {[s+1 for s in steps]} can be assigned to same user\n")
+
+                # Additional Problem Metrics
+                f.write("\n" + "=" * 50 + "\n")
+                f.write("Problem Metrics:\n")
+                f.write(f"Total Steps: {solver_instance.instance.number_of_steps}\n")
+                f.write(f"Total Users: {solver_instance.instance.number_of_users}\n")
+                f.write(f"Total Constraints: {solver_instance.instance.number_of_constraints}\n")
+
 
 class Verifier:
     """Verifies and validates solutions to WSP instances"""

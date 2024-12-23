@@ -1,15 +1,17 @@
 import argparse
 import sys
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
+from constants import SolverType
 from factories import SolverFactory
-from typings import WSPSolverType
-from typings import Instance
+from filesystem import InstanceParser
+from typings import Instance, Solution
+from solvers import BaseSolver
 
 
 def solve(instance: Instance, 
-          solver_type: WSPSolverType, 
-          active_constraints: Optional[Dict[str, bool]] = None) -> Dict:
+          solver_type: SolverType, 
+          active_constraints: Optional[Dict[str, bool]] = None) -> Tuple[Optional[BaseSolver], Optional[Solution]]:
     """Solve single WSP instance with specified solver type"""
     try:
         # Create solver factory
@@ -26,11 +28,11 @@ def solve(instance: Instance,
             }
 
         # Create and use specified solver
-        solver = factory.create_solver(solver_type, instance, active_constraints)
+        solver = factory.create_solver(solver_type, instance, active_constraints, gui_mode=False)
         
         # Solve instance
         solution = solver.solve()
-        return solution
+        return solver, solution
 
     except Exception as e:
         print(f"Error solving with {solver_type.value}: {str(e)}")
@@ -50,10 +52,10 @@ def parse_arguments():
                         help='Path to save the solution output')
     
     # Optional solver type argument
-    solver_choices = [st.value for st in WSPSolverType]
+    solver_choices = [st.value for st in SolverType]
     parser.add_argument('-s', '--solver', 
                         choices=solver_choices, 
-                        default=WSPSolverType.ORTOOLS_CS.value,
+                        default=SolverType.ORTOOLS_CP.value,
                         help='Solver type to use (default: %(default)s)')
     
     # Optional constraint toggle arguments
@@ -91,20 +93,20 @@ def main():
     
     # Determine solver type
     try:
-        solver_type = WSPSolverType(args.solver)
+        solver_type = SolverType(args.solver)
     except ValueError:
         print(f"Invalid solver type: {args.solver}")
         sys.exit(1)
     
     # Load instance
     try:
-        instance = Instance(args.input_file)
+        instance = InstanceParser.parse_file(args.input_file)
     except Exception as e:
         print(f"Error loading instance file: {str(e)}")
         sys.exit(1)
     
     # Solve instance
-    solution = solve(instance, solver_type, active_constraints)
+    solver, solution = solve(instance, solver_type, active_constraints)
     
     if solution is None:
         print("Failed to solve the instance.")
@@ -112,7 +114,7 @@ def main():
     
     # Save solution
     try:
-        solution.save(args.output_file)
+        solution.save(args.output_file, solver)
         print(f"Solution saved to {args.output_file}")
     except Exception as e:
         print(f"Error saving solution: {str(e)}")
