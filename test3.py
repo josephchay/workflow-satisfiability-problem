@@ -172,9 +172,10 @@ class OptimizedCpSolver:
             self.model.AddExactlyOne(var for _, var in user_vars)
 
     def add_binding_of_duty(self):
-        """Completely reworked BOD constraints"""
+        """Revised BOD constraints with better early infeasibility detection"""
+        # First check all BOD constraints for possible infeasibility
+        infeasible_constraints = []
         for s1, s2 in self.instance.BOD:
-            # Get all users that can do both steps
             common_users = set()
             for user in range(self.instance.number_of_users):
                 if (self.instance.user_step_matrix[user][s1] and 
@@ -182,33 +183,40 @@ class OptimizedCpSolver:
                     common_users.add(user)
             
             if not common_users:
-                # No user can perform both steps - model is unsatisfiable
-                self.model.Add(1 == 0)
-                return
+                infeasible_constraints.append((s1+1, s2+1))  # Store 1-based indices
+        
+        if infeasible_constraints:
+            print("\nBOD Constraint Analysis:")
+            print("The following BOD constraints cannot be satisfied due to no users being authorized for both steps:")
+            for s1, s2 in infeasible_constraints:
+                print(f"  Steps {s1} and {s2} must be performed by the same user, but no user is authorized for both")
+            # Make model infeasible
+            self.model.Add(1 == 0)
+            return False
+        
+        # If we reach here, all BOD constraints have at least one possible user
+        for s1, s2 in self.instance.BOD:
+            # Create sum variables for each step
+            s1_vars = []
+            s2_vars = []
             
-            # Create sum variables for non-common users
-            s1_other_sum = 0
-            s2_other_sum = 0
+            # For each user that can do both steps
+            common_users = []
+            for user in range(self.instance.number_of_users):
+                if (self.instance.user_step_matrix[user][s1] and 
+                    self.instance.user_step_matrix[user][s2]):
+                    var1 = self.user_step_variables[user][s1]
+                    var2 = self.user_step_variables[user][s2]
+                    self.model.Add(var1 == var2)
+                    common_users.append(user)
+                    s1_vars.append(var1)
+                    s2_vars.append(var2)
             
-            # For step 1, sum all assignments to non-common users
-            for user, var in self.step_variables[s1]:
-                if user not in common_users:
-                    s1_other_sum += var
-            
-            # For step 2, sum all assignments to non-common users
-            for user, var in self.step_variables[s2]:
-                if user not in common_users:
-                    s2_other_sum += var
-            
-            # Both other_sums must be 0 as steps must be assigned to a common user
-            self.model.Add(s1_other_sum == 0)
-            self.model.Add(s2_other_sum == 0)
-            
-            # For each common user, force the assignments to be equal
-            for user in common_users:
-                var1 = self.user_step_variables[user][s1]
-                var2 = self.user_step_variables[user][s2]
-                self.model.Add(var1 == var2)
+            # Ensure one of the common users must be chosen
+            self.model.Add(sum(s1_vars) == 1)
+            self.model.Add(sum(s2_vars) == 1)
+        
+        return True
 
     def add_at_most_k(self):
         """Completely reworked at-most-k constraints"""
@@ -405,42 +413,35 @@ class OptimizedCpSolver:
                     f"for steps {steps_base1} do not form a valid team"
                 )
 
-        if violations:
-            print("\nConstraint Violations Found:")
-            for violation in violations:
-                print(violation)
-        else:
-            print("\nAll constraints satisfied")
-            print("\nSolution verified with no violations")
-
         return violations
 
     def solve(self):
         """Main solving method with comprehensive error checking"""
         try:
+            print("\nAnalyzing instance constraints...")
+            infeasibility_reason = self.analyze_instance_constraints()
+            if infeasibility_reason:
+                return {
+                    'sat': 'unsat',
+                    'exe_time': '0ms',
+                    'sol': [],
+                    'reason': infeasibility_reason
+                }
+
             start_time = time.time()
             
-            print("Creating variables...")
-            self.create_variables()
-            
-            print("Adding authorization constraints...")
-            self.add_authorization_constraints()
-            
-            print("Adding separation of duty constraints...")
-            self.add_separation_of_duty()
-            
-            print("Adding binding of duty constraints...")
-            self.add_binding_of_duty()
-            
-            print("Adding at-most-k constraints...")
-            self.add_at_most_k()
-            
-            print("Adding one-team constraints...")
-            self.add_one_team()
+            print("\nBuilding and verifying constraints...")
+            if not self.build_model():  # New method to encapsulate model building
+                end_time = time.time()
+                return {
+                    'sat': 'unsat',
+                    'exe_time': f"{(end_time - start_time) * 1000:.2f}ms",
+                    'sol': [],
+                    'reason': 'Failed to build valid model'
+                }
             
             print("Solving model...")
             status = self.solver.Solve(self.model)
-            
             end_time = time.time()
             
             result = {
@@ -450,48 +451,151 @@ class OptimizedCpSolver:
             }
             
             if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-                result['sat'] = 'sat'
-                solution = []
-                solution_dict = {}
-                
-                # Build solution from step variables instead of user_assignment
-                for step in range(self.instance.number_of_steps):
-                    for user, var in self.step_variables[step]:
-                        if self.solver.Value(var):
-                            solution.append((step + 1, user + 1))
-                            solution_dict[step + 1] = user + 1
-                            break
-                
-                result['sol'] = solution
-                
-                # Verify solution
-                violations = self.verify_solution(solution_dict)
-                if violations:
-                    print("\nConstraint Violations Found:")
-                    problematic_steps = set()
-                    for v in violations:
-                        steps = [int(s) for s in re.findall(r'Step (\d+)', v)]
-                        problematic_steps.update(steps)
-                    
-                    for step in sorted(problematic_steps):
-                        self.print_step_constraints(step)
-                    
-                    for violation in violations:
-                        print(violation)
-                else:
-                    print("\nAll constraints satisfied")
-                    print("\nSolution verified with no violations")
+                print("\nSolution found. Verifying constraints...")
+                result.update(self.process_solution(status))
+            else:
+                self.report_infeasibility(status)
             
             return result
             
         except Exception as e:
-            print(f"\nError during solve:")
-            print(f"Error type: {type(e).__name__}")
-            print(f"Error message: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            self.handle_error(e)
             raise
-    
+
+    def build_model(self):
+        """Encapsulates all model building steps"""
+        try:
+            self.create_variables()
+            self.add_authorization_constraints()
+            self.add_separation_of_duty()
+            if not self.add_binding_of_duty():
+                return False
+            self.add_at_most_k()
+            self.add_one_team()
+            return True
+        except Exception as e:
+            print(f"Error building model: {str(e)}")
+            return False
+
+    def process_solution(self, status):
+        """Process and verify solution"""
+        result = {
+            'sat': 'sat',
+            'sol': []
+        }
+        
+        solution_dict = {}
+        for step in range(self.instance.number_of_steps):
+            for user, var in self.step_variables[step]:
+                if self.solver.Value(var):
+                    result['sol'].append((step + 1, user + 1))
+                    solution_dict[step + 1] = user + 1
+                    break
+        
+        violations = self.verify_solution(solution_dict)
+        if violations:
+            self.report_violations(violations)
+        else:
+            print("\nAll constraints satisfied")
+            print("\nSolution verified with no violations")
+        
+        return result
+
+    def report_violations(self, violations):
+        """Report violations in a structured way"""
+        print("\nConstraint Violations Found:")
+        violation_types = {
+            'Authorization': [],
+            'Separation of Duty': [],
+            'Binding of Duty': [],
+            'At-most-k': [],
+            'One-team': []
+        }
+        
+        problematic_steps = set()
+        for v in violations:
+            for vtype in violation_types:
+                if vtype in v:
+                    violation_types[vtype].append(v)
+                    break
+            
+            steps = [int(s) for s in re.findall(r'Step (\d+)', v)]
+            problematic_steps.update(steps)
+        
+        print("\nAffected Steps and Their Constraints:")
+        for step in sorted(problematic_steps):
+            self.print_step_constraints(step)
+        
+        for vtype, vlist in violation_types.items():
+            if vlist:
+                print(f"\n{vtype} Violations:")
+                for v in vlist:
+                    print(v)
+
+    def report_infeasibility(self, status):
+        """Report why the model is infeasible"""
+        print(f"\nNo solution found. Status: {status}")
+        if status == cp_model.INFEASIBLE:
+            print("Problem is infeasible - The constraints cannot all be satisfied simultaneously")
+        elif status == cp_model.MODEL_INVALID:
+            print("Model is invalid - There may be contradictory constraints")
+        elif status == cp_model.UNKNOWN:
+            print("Solver encountered unknown error - Try adjusting solver parameters")
+
+    def analyze_instance_constraints(self):
+        """Analyze and print all constraints in the instance"""
+        print("\nInstance Analysis:")
+        print(f"Number of steps: {self.instance.number_of_steps}")
+        print(f"Number of users: {self.instance.number_of_users}")
+        print(f"Total constraints: {self.instance.number_of_constraints}")
+        
+        print("\nConstraint Breakdown:")
+        # Authorization matrix analysis
+        authorized_counts = [sum(row) for row in self.instance.user_step_matrix]
+        print(f"Authorization constraints: {sum(authorized_counts)} total authorizations")
+        
+        # BOD analysis - Do this first to identify infeasibility early
+        if self.instance.BOD:
+            print(f"\nBinding of Duty constraints ({len(self.instance.BOD)}):")
+            infeasible_found = False
+            for s1, s2 in self.instance.BOD:
+                print(f"  Steps {s1+1} and {s2+1} must be performed by the same user")
+                # Check if there are users authorized for both steps
+                common_users = set()
+                for user in range(self.instance.number_of_users):
+                    if (self.instance.user_step_matrix[user][s1] and 
+                        self.instance.user_step_matrix[user][s2]):
+                        common_users.add(user + 1)
+                if common_users:
+                    print(f"    Users authorized for both steps: {sorted(common_users)}")
+                else:
+                    infeasible_found = True
+                    print(f"    Infeasibility detected: No users are authorized for both steps {s1+1} and {s2+1}")
+                    print(f"    This makes the instance UNSAT as it's impossible to satisfy this BOD constraint")
+
+            if infeasible_found:
+                print("\nInstance is UNSAT due to impossible Binding of Duty constraints")
+        
+        # SOD analysis
+        if self.instance.SOD:
+            print(f"\nSeparation of Duty constraints ({len(self.instance.SOD)}):")
+            for s1, s2 in self.instance.SOD:
+                print(f"  Steps {s1+1} and {s2+1} must be performed by different users")
+        
+        # At-most-k analysis
+        if self.instance.at_most_k:
+            print(f"\nAt-most-k constraints ({len(self.instance.at_most_k)}):")
+            for k, steps in self.instance.at_most_k:
+                print(f"  At most {k} steps from {[s+1 for s in steps]} can be assigned to same user")
+        
+        # One-team analysis
+        if self.instance.one_team:
+            print(f"\nOne-team constraints ({len(self.instance.one_team)}):")
+            for steps, teams in self.instance.one_team:
+                print(f"  Steps {[s+1 for s in steps]} must be assigned to one team:")
+                for i, team in enumerate(teams, 1):
+                    print(f"    Team {i}: Users {[u+1 for u in team]}")
+
 def Solver(instance, filename, results):
     print("\n" + "=" * 120)
     print(f"\nSolving instance: {filename}")
