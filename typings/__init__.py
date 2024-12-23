@@ -1,4 +1,3 @@
-from .solver_types import WSPSolverType
-from .constraints import Authorisations, NotEquals, AtMost, OneTeam
-from .solution import Solution
+from .constraints import VariableManager, ConstraintManager
+from .solution import Solution, Verifier
 from .instance import Instance

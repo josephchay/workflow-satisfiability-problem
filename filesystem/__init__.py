@@ -1,1 +1,1 @@
-from .reader import parse_instance_file
+from .reader import InstanceParser

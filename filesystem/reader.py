@@ -1,197 +1,142 @@
-from typing import List
+import re
 
 from typings import Instance
 
 
 class InstanceParser:
-    """
-    A robust parser for Workflow Satisfiability Problem (WSP) instance files.
-    
-    Handles parsing of complex instance files with multiple constraint types,
-    providing a clean and extensible approach to loading WSP instances.
-    """
-
-    def __init__(self, filename: str):
-        """
-        Initialize the parser with the given filename.
+    """Parses WSP instance files"""
+    @staticmethod
+    def parse_file(filename):
+        """Parse a WSP instance file and return an Instance object"""
+        instance = Instance()
         
-        Args:
-            filename (str): Path to the WSP instance file
-        """
-        self.filename = filename
-        self.instance = Instance()
-        self._parse_file()
-
-    def _parse_file(self):
-        """
-        Parse the entire instance file.
-        """
-        with open(self.filename, 'r') as f:
+        with open(filename) as f:
             # Parse header
-            header_lines = [f.readline(), f.readline(), f.readline()]
-            self._parse_header(header_lines)
+            instance.number_of_steps = InstanceParser._read_attribute(f, "#Steps")
+            instance.number_of_users = InstanceParser._read_attribute(f, "#Users")
+            instance.number_of_constraints = InstanceParser._read_attribute(f, "#Constraints")
+            
+            # Initialize authorization matrix
+            instance.auth = [[] for _ in range(instance.number_of_users)]
+            instance.user_step_matrix = [[False] * instance.number_of_steps 
+                                       for _ in range(instance.number_of_users)]
             
             # Parse constraints
-            for line in f:
-                line = line.strip()
+            for _ in range(instance.number_of_constraints):
+                line = f.readline().strip()
                 if not line:
                     continue
-                
-                try:
-                    if line.startswith('Authorisations'):
-                        self._parse_authorisations(line)
-                    elif line.startswith('Separation-of-duty'):
-                        self._parse_sod(line)
-                    elif line.startswith('Binding-of-duty'):
-                        self._parse_bod(line)
-                    elif line.startswith('At-most-k'):
-                        self._parse_at_most_k(line)
-                    elif line.startswith('One-team'):
-                        self._parse_one_team(line)
-                except Exception as e:
-                    raise ValueError(f"Error parsing line: {line}. {str(e)}")
+                    
+                InstanceParser._parse_constraint(line, instance)
 
-    def _parse_header(self, header_lines: List[str]):
-        """
-        Parse the header of the instance file.
+        # Compute derived data
+        instance.compute_step_domains()
+        return instance
+
+    @staticmethod
+    def _read_attribute(f, name):
+        """Read a numeric attribute from the file"""
+        line = f.readline()
+        match = re.match(f'{name}:\\s*(\\d+)$', line)
+        if match:
+            return int(match.group(1))
+        raise Exception(f"Could not parse line {line}")
+
+    @staticmethod
+    def _parse_constraint(line, instance):
+        """Parse a single constraint line"""
+        parsers = [
+            InstanceParser._parse_auth,
+            InstanceParser._parse_sod,
+            InstanceParser._parse_bod,
+            InstanceParser._parse_at_most_k,
+            InstanceParser._parse_one_team
+        ]
         
-        Args:
-            header_lines (List[str]): Lines containing header information
-        """
-        try:
-            self.instance.number_of_steps = int(header_lines[0].strip().split(':')[1])
-            self.instance.number_of_users = int(header_lines[1].strip().split(':')[1])
-            self.instance.number_of_constraints = int(header_lines[2].strip().split(':')[1])
+        for parser in parsers:
+            if parser(line, instance):
+                return
+        
+        raise Exception(f'Failed to parse line: {line}')
+
+    @staticmethod
+    def _parse_auth(line, instance):
+        """Parse authorization constraint"""
+        m = re.match(r"Authorisations u(\d+)(?: s\d+)*", line)
+        if not m:
+            return False
             
-            # Initialize auth lists
-            self.instance.auth = [[] for _ in range(self.instance.number_of_users)]
-        except (IndexError, ValueError) as e:
-            raise ValueError(f"Invalid header format: {e}")
+        user_id = int(m.group(1)) - 1
+        for m in re.finditer(r's(\d+)', line):
+            step = int(m.group(1)) - 1
+            instance.auth[user_id].append(step)
+            instance.user_step_matrix[user_id][step] = True
+        return True
 
-    def _parse_authorisations(self, line: str):
-        """
-        Parse authorization constraints.
-        
-        Args:
-            line (str): Authorization constraint line
-        """
-        parts = line.split()
-        user = int(parts[1][1:]) - 1  # Convert u1 to 0-based
-        steps = [int(s[1:]) - 1 for s in parts[2:]]  # Convert s1,s2 to 0-based
-        self.instance.auth[user] = steps
+    @staticmethod
+    def _parse_sod(line, instance):
+        """Parse separation of duty constraint"""
+        m = re.match(r'Separation-of-duty s(\d+) s(\d+)', line)
+        if not m:
+            return False
+            
+        s1, s2 = int(m.group(1)) - 1, int(m.group(2)) - 1
+        instance.SOD.append((s1, s2))
+        instance.constraint_graph[s1].add(s2)
+        instance.constraint_graph[s2].add(s1)
+        return True
 
-    def _parse_sod(self, line: str):
-        """
-        Parse separation of duty constraints.
-        
-        Args:
-            line (str): Separation of duty constraint line
-        """
-        parts = line.split()
-        s1 = int(parts[1][1:]) - 1
-        s2 = int(parts[2][1:]) - 1
-        self.instance.SOD.append((s1, s2))
+    @staticmethod
+    def _parse_bod(line, instance):
+        """Parse binding of duty constraint"""
+        m = re.match(r'Binding-of-duty s(\d+) s(\d+)', line)
+        if not m:
+            return False
+            
+        s1, s2 = int(m.group(1)) - 1, int(m.group(2)) - 1
+        instance.BOD.append((s1, s2))
+        instance.constraint_graph[s1].add(s2)
+        instance.constraint_graph[s2].add(s1)
+        return True
 
-    def _parse_bod(self, line: str):
-        """
-        Parse binding of duty constraints.
+    @staticmethod
+    def _parse_at_most_k(line, instance):
+        """Parse at-most-k constraint"""
+        m = re.match(r'At-most-k (\d+)(?: s\d+)+', line)
+        if not m:
+            return False
+            
+        k = int(m.group(1))
+        steps = tuple(int(m.group(1)) - 1 for m in re.finditer(r's(\d+)', line))
+        instance.at_most_k.append((k, steps))
         
-        Args:
-            line (str): Binding of duty constraint line
-        """
-        parts = line.split()
-        s1 = int(parts[1][1:]) - 1
-        s2 = int(parts[2][1:]) - 1
-        self.instance.BOD.append((s1, s2))
+        for s1 in steps:
+            for s2 in steps:
+                if s1 != s2:
+                    instance.constraint_graph[s1].add(s2)
+        return True
 
-    def _parse_at_most_k(self, line: str):
-        """
-        Parse at-most-k constraints.
-        
-        Args:
-            line (str): At-most-k constraint line
-        """
-        parts = line.split()
-        k = int(parts[1])
-        steps = [int(s[1:]) - 1 for s in parts[2:]]
-        self.instance.at_most_k.append((k, steps))
-
-    def _parse_one_team(self, line: str):
-        """
-        Parse one-team constraints.
-        
-        Args:
-            line (str): One-team constraint line
-        """
-        parts = line.split()
-        
-        # Parse steps
-        steps = []
-        i = 1
-        while i < len(parts) and not parts[i].startswith('('):
-            steps.append(int(parts[i][1:]) - 1)
-            i += 1
-        
-        # Parse teams
-        teams = self._extract_teams(parts[i:])
-        
-        self.instance.one_team.append((steps, teams))
-
-    def _extract_teams(self, team_parts: List[str]) -> List[List[int]]:
-        """
-        Extract teams from constraint line parts.
-        
-        Args:
-            team_parts (List[str]): Parts of the line containing team information
-        
-        Returns:
-            List[List[int]]: List of teams, each team being a list of user indices
-        """
+    @staticmethod
+    def _parse_one_team(line, instance):
+        """Parse one-team constraint"""
+        m = re.match(r'One-team\s+((?:s\d+\s*)+)\(((?:u\d+\s*)+)\)((?:\s*\((?:u\d+\s*)+\))*)', line)
+        if not m:
+            return False
+            
+        steps = tuple(int(step_match.group(1)) - 1 
+                     for step_match in re.finditer(r's(\d+)', m.group(1)))
+                     
         teams = []
-        current_team = []
+        team_pattern = r'\(((?:u\d+\s*)+)\)'
+        for team_match in re.finditer(team_pattern, line):
+            team = tuple(int(user_match.group(1)) - 1 
+                        for user_match in re.finditer(r'u(\d+)', team_match.group(1)))
+            teams.append(team)
+            
+        instance.one_team.append((steps, tuple(teams)))
         
-        for part in team_parts:
-            if part.startswith('('):
-                if current_team:
-                    teams.append(current_team)
-                current_team = []
-                
-                # Handle single and multi-user team cases
-                user = int(part[2:-1] if part.endswith(')') else part[2:]) - 1
-                current_team.append(user)
-            elif part.endswith(')'):
-                user = int(part[1:-1]) - 1
-                current_team.append(user)
-                teams.append(current_team)
-                current_team = []
-            else:
-                user = int(part[1:]) - 1
-                current_team.append(user)
-        
-        if current_team:
-            teams.append(current_team)
-        
-        return teams
-
-    def get_instance(self) -> Instance:
-        """
-        Get the parsed Instance object.
-        
-        Returns:
-            Instance: The parsed WSP instance
-        """
-        return self.instance
-
-
-def parse_instance_file(filename: str) -> Instance:
-    """
-    Convenience function to parse an instance file.
-    
-    Args:
-        filename (str): Path to the WSP instance file
-    
-    Returns:
-        Instance: The parsed WSP instance
-    """
-    parser = InstanceParser(filename)
-    return parser.get_instance()
+        for s1 in steps:
+            for s2 in steps:
+                if s1 != s2:
+                    instance.constraint_graph[s1].add(s2)
+        return True
