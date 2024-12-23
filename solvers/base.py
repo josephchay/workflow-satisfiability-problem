@@ -82,3 +82,8 @@ class BaseSolver:
             if len(total_users) * k < len(steps):
                 infeasible.append((k, steps, len(total_users)))
         return infeasible
+
+    def _log(self, message: str):
+        """Print message only if not in GUI mode"""
+        if not self.gui_mode:
+            print(message)

@@ -3,10 +3,11 @@ from typing import Dict
 from ortools.sat.python import cp_model
 import time
 
+from solvers import BaseSolver
 from typings import VariableManager, ConstraintManager, Solution, Verifier
 
 
-class ORToolsCPSolver:
+class ORToolsCPSolver(BaseSolver):
     """Main solver class for WSP instances"""
     def __init__(self, instance, active_constraints: Dict[str, bool], gui_mode: bool = False):
         self.instance = instance
@@ -40,11 +41,6 @@ class ORToolsCPSolver:
         self.solver.parameters.linearization_level = 2
         self.solver.parameters.optimize_with_core = True
 
-    def _log(self, message: str):
-        """Print message only if not in GUI mode"""
-        if not self.gui_mode:
-            print(message)
-
     def solve(self):
         """Main solving method"""
         try:
@@ -55,10 +51,10 @@ class ORToolsCPSolver:
             
             # Analyze potential conflicts
             conflicts = self.analyze_constraint_conflicts()
-            if conflicts:
-                self._log("\nPotential conflicts detected:")
-                for conflict in conflicts:
-                    self._log(f"  - {conflict}")
+            # if conflicts:
+            #     self._log("\nPotential conflicts detected:")
+            #     for conflict in conflicts:
+            #         self._log(f"  - {conflict}")
             
             # Build and solve model
             self._log("\nBuilding model...")
@@ -288,7 +284,7 @@ class ORToolsCPSolver:
                     solution_dict[step + 1] = user + 1
                     break
 
-        self._log("\nSolution found. Verifying constraints...")
+        # self._log("\nSolution found. Verifying constraints...")
         result = Solution.create_sat(
             time.time() - start_time,
             solution_dict
@@ -303,9 +299,10 @@ class ORToolsCPSolver:
         result.solver_type = "OR-Tools (CP)"
         
         if violations:
-            self._log("\nConstraint Violations Found:")
-            for violation in violations:
-                self._log(violation)
+            self._log("\nCONSTRAINT VIOLATIONS FOUND!")
+            # self._log("\nConstraint Violations Found:")
+            # for violation in violations:
+            #     self._log(violation)
         else:
             self._log("\nALL CONSTRAINTS SATISFIED!")
         

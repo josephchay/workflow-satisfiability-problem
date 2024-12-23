@@ -86,13 +86,13 @@ class Solution:
                 f.write("\nAuthorization Constraints:\n")
                 total_auth_count = sum(sum(1 for x in row if x) for row in solver_instance.instance.user_step_matrix)
                 f.write(f"\tTotal Authorizations: {total_auth_count}\n\n")
-                f.write("\tPer-Step Authorization Breakdown:\n")
+                f.write(f"\tPer-Step Authorization Breakdown ({solver_instance.instance.number_of_steps} steps):\n")
                 for step in range(solver_instance.instance.number_of_steps):
                     authorized_users = [u+1 for u in range(solver_instance.instance.number_of_users)
                                     if solver_instance.instance.user_step_matrix[u][step]]
                     f.write(f"\t\tStep {step+1}: {len(authorized_users)} users authorized {authorized_users}\n")
 
-                f.write("\n\tPer-User Authorization Breakdown:\n")
+                f.write(f"\n\tPer-User Authorization Breakdown ({solver_instance.instance.number_of_users} users):\n")
                 for user in range(solver_instance.instance.number_of_users):
                     authorized_steps = [s+1 for s in range(solver_instance.instance.number_of_steps)
                                     if solver_instance.instance.user_step_matrix[user][s]]
@@ -101,7 +101,7 @@ class Solution:
                         f.write(f"\t\tUser {user+1}: authorized for {len(authorized_steps)} steps {authorized_steps}\n")
 
                 # Separation of Duty Constraints
-                f.write("\nSeparation of Duty Constraints:\n")
+                f.write(f"\nSeparation of Duty Constraints ({len(solver_instance.instance.SOD)}):\n")
                 if solver_instance.instance.SOD:
                     for s1, s2 in solver_instance.instance.SOD:
                         f.write(f"\tSteps {s1+1} and {s2+1} must be performed by different users\n")
@@ -109,18 +109,25 @@ class Solution:
                     f.write("\tNo Separation of Duty constraints defined.\n")
 
                 # Binding of Duty Constraints
-                f.write("\nBinding of Duty Constraints:\n")
+                f.write(f"\nBinding of Duty Constraints ({len(solver_instance.instance.BOD)}):\n")
                 if solver_instance.instance.BOD:
                     for s1, s2 in solver_instance.instance.BOD:
                         common_users = [u+1 for u in range(solver_instance.instance.number_of_users)
                                     if (solver_instance.instance.user_step_matrix[u][s1] and 
                                         solver_instance.instance.user_step_matrix[u][s2])]
-                        f.write(f"\tSteps {s1+1} and {s2+1} must be performed by same users: {common_users}\n")
+                        
+                        f.write(f"\tSteps {s1+1} and {s2+1} must be performed by the same user\n")
+                        
+                        if common_users:
+                            f.write(f"\t\tUsers authorized for both steps: {common_users}\n")
+                        else:
+                            f.write(f"\t\tConstraint Feasibility Issue: No users are authorized for both steps {s1+1} and {s2+1}\n")
+                            f.write(f"\t\tThis makes the instance UNSAT as it's impossible to satisfy this Binding of Duty constraint\n")
                 else:
                     f.write("\tNo Binding of Duty constraints defined.\n")
 
                 # At-most-k Constraints
-                f.write("\nAt-most-k Constraints:\n")
+                f.write(f"\nAt-most-k Constraints ({len(solver_instance.instance.at_most_k)}):\n")
                 if solver_instance.instance.at_most_k:
                     for k, steps in solver_instance.instance.at_most_k:
                         f.write(f"\tAt most {k} steps from {[s+1 for s in steps]} can be assigned to same user\n")
@@ -128,7 +135,7 @@ class Solution:
                     f.write("\tNo At-most-k constraints defined.\n")
 
                 # One-team Constraints
-                f.write("\nOne-team Constraints:\n")
+                f.write(f"\nOne-team Constraints ({len(solver_instance.instance.one_team)}):\n")
                 if hasattr(solver_instance.instance, 'one_team') and solver_instance.instance.one_team:
                     for steps, teams in solver_instance.instance.one_team:
                         f.write(f"\tSteps {[s+1 for s in steps]}: Team groups {[[u+1 for u in team] for team in teams]}\n")

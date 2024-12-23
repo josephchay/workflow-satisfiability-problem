@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `ortools-fast.py` (initially a testing script), which can now solve instance problem files accurately under 5 seconds for each instance file, including the display of metrics, calculations, violations, reasonings if UNSAT.
+- Proper solution events and outcome logging (saving) to user-designated output text file for CLI.
 
 ### Changed
 - Updated the GUI `views.py` and `controllers.py` to fit in to our new solver solution (`ortools-fast.py` but now in a dynamic and versatile way).
@@ -16,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Improvement
 - Modified metric information in `metadata.py` and how its handled in the `controllers.py`.
 - Updated statistics tab for thorough information metrics display.
+- Updated CLI `main_cli.py` script to properly handle solver, solution, and its verification.
 
 ### Refactoring
 - Introduced `InstanceParser` class for better readability for use for global function `parse_instance_file`.
