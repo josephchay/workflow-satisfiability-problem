@@ -50,11 +50,15 @@ class InstanceParser:
             InstanceParser._parse_sod,
             InstanceParser._parse_bod,
             InstanceParser._parse_at_most_k,
-            InstanceParser._parse_one_team
+            InstanceParser._parse_one_team,
+            InstanceParser._parse_sual,
+            InstanceParser._parse_wang_li,
+            InstanceParser._parse_ada,
         ]
         
         for parser in parsers:
             if parser(line, instance):
+                print(parser.__name__)
                 return
         
         raise Exception(f'Failed to parse line: {line}')
@@ -140,3 +144,96 @@ class InstanceParser:
                 if s1 != s2:
                     instance.constraint_graph[s1].add(s2)
         return True
+
+    @staticmethod
+    def _parse_sual(line, instance):
+        """Parse super-user at-least constraint"""
+        m = re.match(r'^Super-user-at-least\s+(\d+)\s+((?:s\d+\s*)+)([u\d\s]+)$', line)
+        if not m:
+            return False
+            
+        try:
+            h = int(m.group(1))
+            # Parse steps
+            scope = tuple(int(step_match.group(1)) - 1 
+                    for step_match in re.finditer(r's(\d+)', m.group(2)))
+            # Parse super users
+            super_users = set(int(user_match.group(1)) - 1 
+                        for user_match in re.finditer(r'u(\d+)', m.group(3)))
+            
+            if not hasattr(instance, 'sual'):
+                instance.sual = []
+                
+            instance.sual.append((scope, h, super_users))
+            
+            # Update constraint graph
+            for s1 in scope:
+                for s2 in scope:
+                    if s1 != s2:
+                        instance.constraint_graph[s1].add(s2)
+                        instance.constraint_graph[s2].add(s1)
+            print("Parsed SUAL constraint successfully")
+            return True
+            
+        except Exception as e:
+            print(f"Error parsing SUAL: {str(e)}\nLine: {line}")
+            return False
+
+    @staticmethod
+    def _parse_wang_li(line, instance):
+        """Parse Wang-Li constraint"""
+        m = re.match(r'^Wang-li\s+((?:s\d+\s*)+)((?:\s*\([u\d\s]+\))+)$', line)
+        if not m:
+            return False
+            
+        try:
+            scope = tuple(int(step_match.group(1)) - 1 
+                    for step_match in re.finditer(r's(\d+)', m.group(1)))
+            
+            departments = []
+            dept_pattern = r'\(((?:u\d+\s*)+)\)'
+            for dept_match in re.finditer(dept_pattern, m.group(2)):
+                dept = set(int(user_match.group(1)) - 1 
+                        for user_match in re.finditer(r'u(\d+)', dept_match.group(1)))
+                departments.append(dept)
+                
+            if not hasattr(instance, 'wang_li'):
+                instance.wang_li = []
+                
+            instance.wang_li.append((scope, departments))
+            print("Parsed Wang-Li constraint successfully")
+            return True
+            
+        except Exception as e:
+            print(f"Error parsing Wang-Li: {str(e)}\nLine: {line}")
+            return False
+
+    @staticmethod
+    def _parse_ada(line, instance):
+        """Parse assignment-dependent authorization constraint"""
+        m = re.match(r'^Assignment-dependent\s+s(\d+)\s+s(\d+)\s+\(((?:u\d+\s*)+)\)\s+\(((?:u\d+\s*)+)\)$', line)
+        if not m:
+            return False
+            
+        try:
+            s1 = int(m.group(1)) - 1
+            s2 = int(m.group(2)) - 1
+            source_users = set(int(user_match.group(1)) - 1 
+                        for user_match in re.finditer(r'u(\d+)', m.group(3)))
+            target_users = set(int(user_match.group(1)) - 1 
+                        for user_match in re.finditer(r'u(\d+)', m.group(4)))
+            
+            if not hasattr(instance, 'ada'):
+                instance.ada = []
+                
+            instance.ada.append((s1, s2, source_users, target_users))
+            
+            instance.constraint_graph[s1].add(s2)
+            instance.constraint_graph[s2].add(s1)
+            print("Parsed ADA constraint successfully")
+            return True
+            
+        except Exception as e:
+            print(f"Error parsing ADA: {str(e)}\nLine: {line}")
+            return False
+    

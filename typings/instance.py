@@ -12,9 +12,9 @@ class Instance:
         self.BOD = []
         self.at_most_k = []
         self.one_team = []
-        self.sual = []  # List of (scope, h, super_users) tuples
-        self.wang_li = []  # List of (scope, departments) tuples 
-        self.ada = []  # List of (s1, s2, source_users, target_users) tuples
+        self.sual = []
+        self.wang_li = []
+        self.ada = []
         self.user_step_matrix = None
         self.step_domains = {}
         self.constraint_graph = defaultdict(set)

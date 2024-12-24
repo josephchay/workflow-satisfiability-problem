@@ -12,6 +12,7 @@ class VariableManager:
         self.step_variables: Dict[int, List[Tuple[int, cp_model.IntVar]]] = {}
         self.user_step_variables: Dict[int, Dict[int, cp_model.IntVar]] = defaultdict(dict)
         self._initialized = False
+        self.user_sets = {}
         
     def create_variables(self) -> bool:
         """
@@ -87,6 +88,19 @@ class VariableManager:
                     break
                     
         return assignment
+    
+    def get_user_count_for_step(self, step: int) -> int:
+        """Get number of authorized users for a step"""
+        return len(self.get_authorized_users(step))
+    
+    def get_department_authorized_users(self, step: int, department: Set[int]) -> Set[int]:
+        """Get users from a specific department authorized for a step"""
+        return self.get_authorized_users(step) & department
+        
+    def get_user_step_variables_filtered(self, step: int, user_set: Set[int]) -> List[Tuple[int, cp_model.IntVar]]:
+        """Get variables for a step filtered by a specific set of users"""
+        return [(user, var) for user, var in self.step_variables[step] 
+                if user in user_set]
 
 
 class BaseConstraint(ABC):
@@ -262,128 +276,170 @@ class OneTeamConstraint(BaseConstraint):
 
 
 class SUALConstraint(BaseConstraint):
-    """Super-User At-Least constraint"""
     def check_feasibility(self) -> Tuple[bool, List[str]]:
         errors = []
         
         for scope, h, super_users in self.instance.sual:
+            # Check each step in scope has either:
+            # 1. More than h authorized users, or
+            # 2. At least one authorized super user
             for step in scope:
                 authorized = self.var_manager.get_authorized_users(step)
-                if len(authorized) < h + 1:
-                    super_authorized = authorized.intersection(super_users)
-                    if not super_authorized:
+                if len(authorized) <= h:
+                    super_auth = authorized.intersection(super_users)
+                    if not super_auth:
                         errors.append(
-                            f"Step {step+1} has fewer than {h + 1} authorized users "
-                            f"and no authorized super users"
+                            f"Step {step+1} must have either >{h} authorized users "
+                            f"or at least one authorized super user"
                         )
+                        
+            # Verify at least one super user is authorized for all steps in scope
+            common_super_users = set(super_users)
+            for step in scope:
+                common_super_users &= self.var_manager.get_authorized_users(step)
+            if not common_super_users:
+                errors.append(
+                    f"No super user is authorized for all steps in scope {[s+1 for s in scope]}"
+                )
                     
         return len(errors) == 0, errors
 
     def add_to_model(self) -> bool:
+        is_feasible, errors = self.check_feasibility()
+        if not is_feasible:
+            return False
+            
         for scope, h, super_users in self.instance.sual:
+            # For each step in scope
             for step in scope:
-                step_users = []  # Users assigned to this step
-                super_assigned = []  # Super users assigned to this step
+                # Get all users assigned to this step
+                step_vars = [var for _, var in self.var_manager.get_step_variables(step)]
                 
-                # Get variables for user assignments
-                for user, var in self.var_manager.get_step_variables(step):
-                    step_users.append(var)
-                    if user in super_users:
-                        super_assigned.append(var)
+                # Get super users assigned to this step
+                super_vars = [var for user, var in self.var_manager.get_step_variables(step)
+                            if user in super_users]
                 
-                # If less than h+1 users assigned, must use super users
-                condition = self.model.NewBoolVar(f'sual_condition_s{step+1}')
-                self.model.Add(sum(step_users) <= h).OnlyEnforceIf(condition)
-                self.model.Add(sum(step_users) > h).OnlyEnforceIf(condition.Not())
+                # Create indicator for when total assignments <= h
+                condition = self.model.NewBoolVar(f'sual_cond_{step}')
+                self.model.Add(sum(step_vars) <= h).OnlyEnforceIf(condition)
+                self.model.Add(sum(step_vars) > h).OnlyEnforceIf(condition.Not())
                 
-                # If condition true, one of the super users must be assigned
-                if super_assigned:
-                    self.model.AddBoolOr(super_assigned).OnlyEnforceIf(condition)
-        
+                # If condition true, must use a super user
+                if super_vars:
+                    self.model.AddBoolOr(super_vars).OnlyEnforceIf(condition)
+                
         return True
 
 
 class WangLiConstraint(BaseConstraint):
-    """Department-based restrictions constraint"""
     def check_feasibility(self) -> Tuple[bool, List[str]]:
         errors = []
         
         for scope, departments in self.instance.wang_li:
-            for step in scope:
-                authorized = self.var_manager.get_authorized_users(step)
-                if not any(authorized.intersection(dept) for dept in departments):
-                    errors.append(
-                        f"Step {step+1} has no authorized users from any department"
-                    )
+            # For each department, check if it can handle all steps
+            valid_dept_found = False
+            for dept_idx, dept in enumerate(departments):
+                can_handle_all = True
+                for step in scope:
+                    auth_dept_users = self.var_manager.get_department_authorized_users(step, dept)
+                    if not auth_dept_users:
+                        can_handle_all = False
+                        break
+                if can_handle_all:
+                    valid_dept_found = True
+                    break
+                    
+            if not valid_dept_found:
+                errors.append(
+                    f"No department can handle all steps in scope {[s+1 for s in scope]}"
+                )
                 
         return len(errors) == 0, errors
 
     def add_to_model(self) -> bool:
+        is_feasible, errors = self.check_feasibility()
+        if not is_feasible:
+            return False
+            
         for scope, departments in self.instance.wang_li:
             # Create department choice variables
             dept_vars = [self.model.NewBoolVar(f'dept_{i}') 
                         for i in range(len(departments))]
             
-            # Only one department can be chosen
+            # Exactly one department must be chosen
             self.model.AddExactlyOne(dept_vars)
             
-            # All steps in scope must be assigned to users from chosen department
+            # For each step in scope
             for step in scope:
-                for dept_idx, dept in enumerate(departments):
-                    dept_var = dept_vars[dept_idx]
-                    for user, var in self.var_manager.get_step_variables(step):
-                        if user not in dept:
-                            self.model.Add(var == 0).OnlyEnforceIf(dept_var)
-        
+                # For each user-step assignment
+                for user, var in self.var_manager.get_step_variables(step):
+                    # For each department
+                    user_dept_assignments = []
+                    for dept_idx, dept in enumerate(departments):
+                        if user in dept:
+                            # User can be assigned if their department is chosen
+                            user_dept_assignments.append(dept_vars[dept_idx])
+                    
+                    # User can only be assigned if they're in the chosen department
+                    if user_dept_assignments:
+                        self.model.AddImplication(var, self.model.AddBoolOr(user_dept_assignments))
+                    else:
+                        self.model.Add(var == 0)  # User cannot be assigned
+                        
         return True
-
+    
 
 class AssignmentDependentConstraint(BaseConstraint):
-    """Assignment-Dependent Authorization Constraint"""
     def check_feasibility(self) -> Tuple[bool, List[str]]:
         errors = []
         
         for s1, s2, source_users, target_users in self.instance.ada:
-            # Check if target step has any authorized users from target_users
+            # Verify there are authorized users in source_users for s1
+            auth_source = self.var_manager.get_authorized_users(s1)
+            if not auth_source.intersection(source_users):
+                errors.append(
+                    f"No authorized users from source set for step {s1+1}"
+                )
+                continue
+                
+            # If s1 can be assigned to source_users, verify s2 has target users
             auth_target = self.var_manager.get_authorized_users(s2)
             if not auth_target.intersection(target_users):
-                # If source step has authorized users from source_users,
-                # target step must have authorized target users
-                auth_source = self.var_manager.get_authorized_users(s1)
-                if auth_source.intersection(source_users):
-                    errors.append(
-                        f"Step {s2+1} has no authorized users from required set "
-                        f"when step {s1+1} is assigned to trigger set"
-                    )
-            
+                errors.append(
+                    f"No authorized users from target set for step {s2+1}"
+                )
+                
         return len(errors) == 0, errors
 
     def add_to_model(self) -> bool:
+        is_feasible, errors = self.check_feasibility()
+        if not is_feasible:
+            return False
+            
         for s1, s2, source_users, target_users in self.instance.ada:
-            # Create variables
-            source_assigned = self.model.NewBoolVar(f'ada_source_{s1}_{s2}')
-            
-            # Set source_assigned true if s1 assigned to user from source_users
-            source_vars = []
-            for user, var in self.var_manager.get_step_variables(s1):
-                if user in source_users:
-                    source_vars.append(var)
-            
-            if source_vars:
-                self.model.AddBoolOr(source_vars).OnlyEnforceIf(source_assigned)
-                self.model.AddBoolAnd([v.Not() for v in source_vars]).OnlyEnforceIf(source_assigned.Not())
+            # Get variables for source step with source users
+            source_vars = self.var_manager.get_user_step_variables_filtered(s1, source_users)
+            if not source_vars:
+                continue
                 
-                # If source_assigned, s2 must be assigned to user from target_users
-                target_vars = []
-                for user, var in self.var_manager.get_step_variables(s2):
-                    if user in target_users:
-                        target_vars.append(var)
-                    else:
-                        self.model.Add(var == 0).OnlyEnforceIf(source_assigned)
-                        
-                if target_vars:
-                    self.model.AddBoolOr(target_vars).OnlyEnforceIf(source_assigned)
-        
+            # Get variables for target step with target users
+            target_vars = self.var_manager.get_user_step_variables_filtered(s2, target_users)
+            if not target_vars:
+                continue
+                
+            # Create an indicator for when a source user is assigned
+            source_assigned = self.model.NewBoolVar(f'ada_{s1}_{s2}')
+            self.model.Add(sum(var for _, var in source_vars) >= 1).OnlyEnforceIf(source_assigned)
+            self.model.Add(sum(var for _, var in source_vars) == 0).OnlyEnforceIf(source_assigned.Not())
+            
+            # If source assigned, must use target user
+            self.model.Add(sum(var for _, var in target_vars) >= 1).OnlyEnforceIf(source_assigned)
+            
+            # Non-target users cannot be assigned when source is assigned
+            for user, var in self.var_manager.get_step_variables(s2):
+                if user not in target_users:
+                    self.model.Add(var == 0).OnlyEnforceIf(source_assigned)
+                    
         return True
 
 

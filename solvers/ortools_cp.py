@@ -166,9 +166,9 @@ class ORToolsCPSolver(BaseSolver):
             "Binding Of Duty": len(self.instance.BOD),
             "At Most K": len(self.instance.at_most_k),
             "One Team": len(self.instance.one_team),
-            "Super User At Least": len(self.instance.sual) if hasattr(self.instance, 'sual') else 0,
-            "Wang Li": len(self.instance.wang_li) if hasattr(self.instance, 'wang_li') else 0,
-            "Assignment Dependent": len(self.instance.ada) if hasattr(self.instance, 'ada') else 0
+            "Super User At Least": len(self.instance.sual),
+            "Wang Li": len(self.instance.wang_li),
+            "Assignment Dependent": len(self.instance.ada),
         }
 
         # Add detailed analysis in all cases

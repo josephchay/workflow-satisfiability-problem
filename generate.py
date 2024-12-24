@@ -32,7 +32,7 @@ def generate_instances():
         
         # Different constraint mixes based on configuration
         if config == "small_mixed":
-            instance = generator.generate(
+            instance = generator.add_constraints(
                 auth_density=auth_density,
                 num_sod=3,
                 num_bod=2,
@@ -42,7 +42,7 @@ def generate_instances():
                 num_ada=1
             )
         elif config == "medium_mixed":
-            instance = generator.generate(
+            instance = generator.add_constraints(
                 auth_density=auth_density,
                 num_sod=4,
                 num_bod=3,
@@ -52,7 +52,7 @@ def generate_instances():
                 num_ada=2
             )
         elif config == "large_mixed":
-            instance = generator.generate(
+            instance = generator.add_constraints(
                 auth_density=auth_density,
                 num_sod=5,
                 num_bod=3,
@@ -62,7 +62,7 @@ def generate_instances():
                 num_ada=2
             )
         elif config == "extra_large_mixed":
-            instance = generator.generate(
+            instance = generator.add_constraints(
                 auth_density=auth_density,
                 num_sod=6,
                 num_bod=4,
@@ -72,7 +72,7 @@ def generate_instances():
                 num_ada=3
             )
         elif config == "sual_heavy":
-            instance = generator.generate(
+            instance = generator.add_constraints(
                 auth_density=auth_density,
                 num_sod=2,
                 num_bod=1,
@@ -82,7 +82,7 @@ def generate_instances():
                 num_ada=1
             )
         elif config == "wl_heavy":
-            instance = generator.generate(
+            instance = generator.add_constraints(
                 auth_density=auth_density,
                 num_sod=2,
                 num_bod=2,
@@ -92,7 +92,7 @@ def generate_instances():
                 num_ada=1
             )
         elif config == "ada_heavy":
-            instance = generator.generate(
+            instance = generator.add_constraints(
                 auth_density=auth_density,
                 num_sod=2,
                 num_bod=1,
@@ -102,7 +102,7 @@ def generate_instances():
                 num_ada=4  # More ADA constraints
             )
         elif config == "classic_heavy":
-            instance = generator.generate(
+            instance = generator.add_constraints(
                 auth_density=auth_density,
                 num_sod=5,  # More classic constraints
                 num_bod=4,
@@ -112,7 +112,7 @@ def generate_instances():
                 num_ada=1
             )
         elif config == "balanced_mixed":
-            instance = generator.generate(
+            instance = generator.add_constraints(
                 auth_density=auth_density,
                 num_sod=3,
                 num_bod=2,
@@ -122,7 +122,7 @@ def generate_instances():
                 num_ada=2
             )
         else:  # large_balanced
-            instance = generator.generate(
+            instance = generator.add_constraints(
                 auth_density=auth_density,
                 num_sod=4,
                 num_bod=3,
@@ -179,7 +179,7 @@ def generate_complex_instances():
             generator = InstanceGenerator(k, n, seed=random.randint(1, 10000))
             
             if "balanced" in config:
-                instance = generator.generate(
+                instance = generator.add_constraints(
                     auth_density=auth_density,
                     num_sod=int(base_count * multiplier),
                     num_bod=int(base_count * (multiplier // 2)),
@@ -190,7 +190,7 @@ def generate_complex_instances():
                     users_per_dept=dept_size
                 )
             elif "sual_focused" in config:
-                instance = generator.generate(
+                instance = generator.add_constraints(
                     auth_density=auth_density,
                     num_sod=int(base_count * (multiplier // 2)),
                     num_bod=int(base_count * (multiplier // 4)),
@@ -201,7 +201,7 @@ def generate_complex_instances():
                     users_per_dept=dept_size
                 )
             elif "wl_focused" in config:
-                instance = generator.generate(
+                instance = generator.add_constraints(
                     auth_density=auth_density,
                     num_sod=int(base_count * (multiplier // 2)),
                     num_bod=int(base_count * (multiplier // 4)),
@@ -212,7 +212,7 @@ def generate_complex_instances():
                     users_per_dept=dept_size
                 )
             elif "ada_focused" in config:
-                instance = generator.generate(
+                instance = generator.add_constraints(
                     auth_density=auth_density,
                     num_sod=int(base_count * (multiplier // 2)),
                     num_bod=int(base_count * (multiplier // 4)),
@@ -223,7 +223,7 @@ def generate_complex_instances():
                     users_per_dept=dept_size
                 )
             else:  # mixed variants
-                instance = generator.generate(
+                instance = generator.add_constraints(
                     auth_density=auth_density,
                     num_sod=int(base_count * multiplier),
                     num_bod=int(base_count * (multiplier // 2)),
