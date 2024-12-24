@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated statistics tab for thorough information metrics display.
 - Updated CLI `main_cli.py` script to properly handle solver, solution, and its verification.
 - Added statistics visibility for UNSAT results in the statistics tab of GUI.
+- Introduced Separation of Concerns (SOC) for our `VariableManager` class.
 
 ### Refactoring
 - Introduced `InstanceParser` class for better readability for use for global function `parse_instance_file`.
@@ -28,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed `tracker.py` since the Solution and its verifier are handled in `typings/solution.py`.
 - Removed `ortools-fast.py` after integrating it into the mainstream solvers.
 - Moved `jvm.py` to utils and removed `initializers` directory.
+- Segregated our Constraint classes from the `ConstraintManager` class to `BaseConstraint`, `AuthorizationConstraint`, `BindingOfDutyConstraint`, `SeperationOfDutyConstraint`, `AtMostKConstraint`, `OneTeamConstraint` class.
 
 ### Fixed
 - Ensured solvers compatibility and solution processing and functionable with the GUI.

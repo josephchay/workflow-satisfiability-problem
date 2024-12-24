@@ -651,7 +651,7 @@ class AppView(customtkinter.CTk):
             # Per User Breakdown
             if "Per User Breakdown" in auth_data:
                 def create_user_content(frame):
-                    for user, data in auth_data["Per-User Breakdown"].items():
+                    for user, data in auth_data["Per User Breakdown"].items():
                         self._create_detail_row(frame, user, data)
                 create_section(
                     "User Authorization", 

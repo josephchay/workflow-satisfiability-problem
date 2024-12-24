@@ -23,6 +23,8 @@ class ORToolsCPSolver(BaseSolver):
         
         # Initialize managers
         self.var_manager = VariableManager(self.model, instance)
+
+        # Initialize constraint manager
         self.constraint_manager = None
         self.solution_verifier = Verifier(instance)
         
@@ -329,12 +331,7 @@ class ORToolsCPSolver(BaseSolver):
         return conflicts
 
     def _process_solution(self, start_time):
-        solution_dict = {}
-        for step in range(self.instance.number_of_steps):
-            for user, var in self.var_manager.step_variables[step]:
-                if self.solver.Value(var):
-                    solution_dict[step + 1] = user + 1
-                    break
+        solution_dict =  self.var_manager.get_assignment_from_solution(self.solver)
 
         # self._log("\nSolution found. Verifying constraints...")
         result = Solution.create_sat(
@@ -374,28 +371,13 @@ class ORToolsCPSolver(BaseSolver):
             )
             
             # Add active constraints only
-            if self.active_constraints.get('authorizations', True):
-                self.constraint_manager.add_authorization_constraints()
-                self._log("Added authorization constraints")
-            
-            if self.active_constraints.get('separation_of_duty', True):
-                self.constraint_manager.add_separation_of_duty()
-                self._log("Added separation of duty constraints")
-            
-            if self.active_constraints.get('binding_of_duty', True):
-                if not self.constraint_manager.add_binding_of_duty():
-                    self._log("Failed to add binding of duty constraints")
-                    return False
-                self._log("Added binding of duty constraints")
-            
-            if self.active_constraints.get('at_most_k', True):
-                self.constraint_manager.add_at_most_k()
-                self._log("Added at-most-k constraints")
-            
-            if self.active_constraints.get('one_team', True):
-                self.constraint_manager.add_one_team()
-                self._log("Added one-team constraints")
-
+            is_feasible, errors = self.constraint_manager.add_constraints(self.active_constraints)
+            if not is_feasible:
+                self._log("Failed to add constraints:")
+                for error in errors:
+                    self._log(f"  - {error}")
+                return False
+                
             return True
 
         except Exception as e:
