@@ -153,16 +153,22 @@ class ORToolsCPSolver(BaseSolver):
             "Separation Of Duty Violations": "N/A" if not result.is_sat else len([v for v in result.violations if "Separation of Duty" in v]),
             "Binding Of Duty Violations": "N/A" if not result.is_sat else len([v for v in result.violations if "Binding of Duty" in v]),
             "At Most K Violations": "N/A" if not result.is_sat else len([v for v in result.violations if "At-most-" in v]),
-            "One Team Violations": "N/A" if not result.is_sat else len([v for v in result.violations if "One-team" in v])
+            "One Team Violations": "N/A" if not result.is_sat else len([v for v in result.violations if "One-team" in v]),
+            "Super User At Least Violations": "N/A" if not result.is_sat else len([v for v in result.violations if "Super User" in v]),
+            "Wang Li Violations": "N/A" if not result.is_sat else len([v for v in result.violations if "Wang Li" in v]),
+            "Assignment Dependent Violations": "N/A" if not result.is_sat else len([v for v in result.violations if "Assignment Dependent" in v])
         }
 
-        # Constraint Distribution (always include)
+        # Constraint Distribution
         self.statistics["constraint_distribution"] = {
             "Authorization": sum(1 for user in self.instance.auth if user),
             "Separation Of Duty": len(self.instance.SOD),
             "Binding Of Duty": len(self.instance.BOD),
             "At Most K": len(self.instance.at_most_k),
-            "One Team": len(self.instance.one_team)
+            "One Team": len(self.instance.one_team),
+            "Super User At Least": len(self.instance.sual) if hasattr(self.instance, 'sual') else 0,
+            "Wang Li": len(self.instance.wang_li) if hasattr(self.instance, 'wang_li') else 0,
+            "Assignment Dependent": len(self.instance.ada) if hasattr(self.instance, 'ada') else 0
         }
 
         # Add detailed analysis in all cases
@@ -290,31 +296,30 @@ class ORToolsCPSolver(BaseSolver):
                         "Description": f"No users authorized for both steps {s1+1} and {s2+1} in BOD constraint"
                     })
 
-        # Only check active constraints
+        # Check BOD-SOD conflicts if both active
         if self.active_constraints.get('binding_of_duty', True) and \
-           self.active_constraints.get('separation_of_duty', True):
-            # Check BOD-SOD conflicts
+        self.active_constraints.get('separation_of_duty', True):
             for bod_s1, bod_s2 in self.instance.BOD:
                 for sod_s1, sod_s2 in self.instance.SOD:
                     if {bod_s1, bod_s2} & {sod_s1, sod_s2}:
                         conflicts.append({
                             "Type": "BOD-SOD Conflict",
                             "Description": f"Steps {bod_s1+1},{bod_s2+1} must be same user (BOD) but "
-                                         f"steps {sod_s1+1},{sod_s2+1} must be different users (SOD)"
+                                        f"steps {sod_s1+1},{sod_s2+1} must be different users (SOD)"
                         })
         
-        # Check authorization if active
+        # Check authorization gaps
         if self.active_constraints.get('authorizations', True):
             for step in range(self.instance.number_of_steps):
                 authorized = sum(1 for u in range(self.instance.number_of_users)
-                              if self.instance.user_step_matrix[u][step])
+                            if self.instance.user_step_matrix[u][step])
                 if authorized == 0:
                     conflicts.append({
                         "Type": "Authorization Gap",
                         "Description": f"No user authorized for step {step+1}"
                     })
         
-        # Check at-most-k feasibility if active
+        # Check at-most-k feasibility
         if self.active_constraints.get('at_most_k', True):
             for k, steps in self.instance.at_most_k:
                 total_users = len(set(u for u in range(self.instance.number_of_users)
@@ -324,10 +329,62 @@ class ORToolsCPSolver(BaseSolver):
                     conflicts.append({
                         "Type": "At-Most-K Infeasibility",
                         "Description": f"At-most-{k} constraint on steps {[s+1 for s in steps]} "
-                                     f"requires at least {min_users_needed:.0f} users but only "
-                                     f"has {total_users} authorized users"
+                                    f"requires at least {min_users_needed:.0f} users but only "
+                                    f"has {total_users} authorized users"
                     })
-        
+
+        # Check SUAL feasibility
+        if self.active_constraints.get('super_user_at_least', True):
+            for scope, h, super_users in self.instance.sual:
+                # Check if there are enough super users authorized for the scope
+                authorized_super_users = set()
+                for u in super_users:
+                    if all(self.instance.user_step_matrix[u][s] for s in scope):
+                        authorized_super_users.add(u)
+                
+                if len(authorized_super_users) < h:
+                    conflicts.append({
+                        "Type": "SUAL Authorization Gap",
+                        "Description": f"Only {len(authorized_super_users)} super users authorized for all steps "
+                                    f"{[s+1 for s in scope]}, but {h} required"
+                    })
+
+        # Check Wang-Li feasibility
+        if self.active_constraints.get('wang_li', True):
+            for scope, departments in self.instance.wang_li:
+                # Check if at least one department can cover all steps
+                dept_coverage = [False] * len(departments)
+                for i, dept in enumerate(departments):
+                    can_cover = True
+                    for step in scope:
+                        if not any(self.instance.user_step_matrix[u][step] for u in dept):
+                            can_cover = False
+                            break
+                    dept_coverage[i] = can_cover
+                
+                if not any(dept_coverage):
+                    conflicts.append({
+                        "Type": "Wang-Li Infeasibility",
+                        "Description": f"No department can cover all steps {[s+1 for s in scope]}"
+                    })
+
+        # Check ADA feasibility
+        if self.active_constraints.get('assignment_dependent', True):
+            for s1, s2, source_users, target_users in self.instance.ada:
+                # Check if source users are authorized for s1
+                if not any(self.instance.user_step_matrix[u][s1] for u in source_users):
+                    conflicts.append({
+                        "Type": "ADA Source Authorization Gap",
+                        "Description": f"No source users authorized for step {s1+1}"
+                    })
+                
+                # Check if target users are authorized for s2
+                if not any(self.instance.user_step_matrix[u][s2] for u in target_users):
+                    conflicts.append({
+                        "Type": "ADA Target Authorization Gap", 
+                        "Description": f"No target users authorized for step {s2+1}"
+                    })
+
         return conflicts
 
     def _process_solution(self, start_time):
@@ -475,7 +532,7 @@ class ORToolsCPSolver(BaseSolver):
         return Solution.create_unsat(time.time() - start_time, reason=reason)
 
     def _handle_error(self, start_time, error):
-        self._log("Error", error)
+        self._log(f"Error during solving: {str(error)}")
 
         """Handle solver errors"""
         error_msg = f"Error during solving: {str(error)}\n"

@@ -64,7 +64,7 @@ class AppView(customtkinter.CTk):
         self.file_label = customtkinter.CTkLabel(
             self.sidebar_frame,
             text="No file selected",
-            wraplength=160
+            wraplength=180
         )
         self.file_label.grid(row=1, column=0, padx=20, pady=5)
 
@@ -72,7 +72,7 @@ class AppView(customtkinter.CTk):
         self.select_button = customtkinter.CTkButton(
             self.sidebar_frame,
             text="Select File",
-            width=160
+            width=180
         )
         self.select_button.grid(row=2, column=0, padx=20, pady=10)
 
@@ -86,7 +86,7 @@ class AppView(customtkinter.CTk):
         self.solve_button = customtkinter.CTkButton(
             self.sidebar_frame,
             text="Solve",
-            width=160
+            width=180
         )
         self.solve_button.grid(row=8, column=0, padx=20, pady=10)
 
@@ -95,7 +95,7 @@ class AppView(customtkinter.CTk):
             self.sidebar_frame,
             text="Clear Results",
             command=self.clear_results,
-            width=160
+            width=180
         )
         self.clear_button.grid(row=9, column=0, padx=20, pady=10)
 
@@ -104,7 +104,7 @@ class AppView(customtkinter.CTk):
             self.sidebar_frame,
             text="Generate Visualizations",
             command=self.visualize,
-            width=160
+            width=180
         )
 
     def _create_solver_frame(self):
@@ -125,7 +125,7 @@ class AppView(customtkinter.CTk):
             self.solver_frame,
             values=[st.value for st in SolverType],
             command=None,  # Will be set by controller
-            width=160
+            width=180
         )
         self.solver_type.pack(pady=5)
         
@@ -133,7 +133,7 @@ class AppView(customtkinter.CTk):
         self.solver_description = customtkinter.CTkLabel(
             self.solver_frame,
             text="",
-            wraplength=160,  # Increased wraplength
+            wraplength=180,  # Increased wraplength
             font=customtkinter.CTkFont(size=12)
         )
         self.solver_description.pack(pady=5)
@@ -156,14 +156,17 @@ class AppView(customtkinter.CTk):
         )
         constraints_label.pack(pady=5)
         
-        # Create constraint switches with increased width
+        # Create constraint switches
         self.constraint_vars = {}
         constraints = [
             ('authorizations', "Authorizations"),
             ('separation_of_duty', "Separation of Duty"),
             ('binding_of_duty', "Binding of Duty"),
             ('at_most_k', "At-Most-K"),
-            ('one_team', "One-Team")
+            ('one_team', "One-Team"),
+            ('super_user_at_least', "SUAL"),
+            ('wang_li', "Wang-Li"),
+            ('assignment_dependent', "Asgn-Dep")
         ]
         
         for key, text in constraints:
