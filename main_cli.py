@@ -75,16 +75,13 @@ def parse_arguments():
                         action='store_true', 
                         help='Disable one-team constraints')
     parser.add_argument('--no-sual', 
-                        action='store_false', 
-                        dest='super_user_at_least',
+                        action='store_true',
                         help='Disable Super-User-At-Least constraints')
     parser.add_argument('--no-wl', 
-                        action='store_false', 
-                        dest='wang_li',
+                        action='store_true',
                         help='Disable Wang-Li constraints')
     parser.add_argument('--no-ada', 
-                        action='store_false', 
-                        dest='assignment_dependent',
+                        action='store_true',
                         help='Disable Assignment-Dependent Authorization constraints')
     
     return parser.parse_args()
@@ -100,7 +97,10 @@ def main():
         'separation_of_duty': not args.no_sod,
         'binding_of_duty': not args.no_bod,
         'at_most_k': not args.no_atmosk,
-        'one_team': not args.no_oneteam
+        'one_team': not args.no_oneteam,
+        'super_user_at_least': not args.no_sual,
+        'wang_li': not args.no_wl,
+        'assignment_dependent': not args.no_ada
     }
     
     # Determine solver type

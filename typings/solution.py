@@ -46,7 +46,12 @@ class Solution:
             # Solution Status and Basic Information
             f.write(f"Solution Status: {'SAT' if self.is_sat else 'UNSAT'}\n")
             f.write(f"Wall Clock Time: {self.solve_time:.4f} seconds\n")
-            f.write(f"Solver: {getattr(self, 'solver_type', 'Unknown')}\n")
+
+            solver_type = 'Unknown'
+            if solver_instance:
+                solver_type = getattr(solver_instance, 'SOLVER_TYPE', 'Unknown').value
+
+            f.write(f"Solver: {solver_type}\n")
             f.write("=" * 120 + "\n\n")
 
             # If solution is satisfiable
@@ -84,7 +89,7 @@ class Solution:
                 f.write("CONSTRAINT DETAILS\n")
                 f.write("=" * 50 + "\n")
 
-                # Authorization Constraints
+                # 1. Authorization Constraints
                 f.write("\nAuthorization Constraints:\n")
                 total_auth_count = sum(sum(1 for x in row if x) for row in solver_instance.instance.user_step_matrix)
                 f.write(f"\tTotal Authorizations: {total_auth_count}\n\n")
@@ -102,7 +107,7 @@ class Solution:
                     if authorized_steps:  # Only include users with authorizations
                         f.write(f"\t\tUser {user+1}: authorized for {len(authorized_steps)} steps {authorized_steps}\n")
 
-                # Separation of Duty Constraints
+                # 2. Separation of Duty Constraints
                 f.write(f"\nSeparation of Duty Constraints ({len(solver_instance.instance.SOD)}):\n")
                 if solver_instance.instance.SOD:
                     for s1, s2 in solver_instance.instance.SOD:
@@ -110,7 +115,7 @@ class Solution:
                 else:
                     f.write("\tNo Separation of Duty constraints defined.\n")
 
-                # Binding of Duty Constraints
+                # 3. Binding of Duty Constraints
                 f.write(f"\nBinding of Duty Constraints ({len(solver_instance.instance.BOD)}):\n")
                 if solver_instance.instance.BOD:
                     for s1, s2 in solver_instance.instance.BOD:
@@ -128,7 +133,7 @@ class Solution:
                 else:
                     f.write("\tNo Binding of Duty constraints defined.\n")
 
-                # At-most-k Constraints
+                # 4. At-most-k Constraints
                 f.write(f"\nAt-most-k Constraints ({len(solver_instance.instance.at_most_k)}):\n")
                 if solver_instance.instance.at_most_k:
                     for k, steps in solver_instance.instance.at_most_k:
@@ -136,7 +141,7 @@ class Solution:
                 else:
                     f.write("\tNo At-most-k constraints defined.\n")
 
-                # One-team Constraints
+                # 5. One-team Constraints
                 f.write(f"\nOne-team Constraints ({len(solver_instance.instance.one_team)}):\n")
                 if hasattr(solver_instance.instance, 'one_team') and solver_instance.instance.one_team:
                     for steps, teams in solver_instance.instance.one_team:
@@ -144,10 +149,88 @@ class Solution:
                 else:
                     f.write("\tNo One-team constraints defined.\n")
 
+                # 6. Super User At Least (SUAL) Constraints
+                f.write(f"\nSuper User At Least (SUAL) Constraints ({len(solver_instance.instance.sual)}):\n")
+                if hasattr(solver_instance.instance, 'sual') and solver_instance.instance.sual:
+                    for scope, h, super_users in solver_instance.instance.sual:
+                        f.write(f"\tScope: Steps {[s+1 for s in scope]}\n")
+                        f.write(f"\tMax Authorized Users (h): {h}\n")
+                        f.write(f"\tSuper Users: {[u+1 for u in super_users]}\n")
+                        
+                        # Analyze SUAL constraint satisfaction
+                        step_details = []
+                        for step in scope:
+                            # Get authorized users for the step
+                            auth_users = [u+1 for u in solver_instance.var_manager.get_authorized_users(step)]
+                            # Get super users authorized for the step
+                            authorized_super_users = [u+1 for u in (solver_instance.var_manager.get_authorized_users(step) & set(super_users))]
+                            
+                            step_details.append({
+                                'step': step + 1,
+                                'authorized_users': auth_users,
+                                'authorized_super_users': authorized_super_users
+                            })
+                        
+                        # Print step details
+                        for detail in step_details:
+                            f.write(f"\t\tStep {detail['step']}: Authorized Users {detail['authorized_users']}, "
+                                    f"Authorized Super Users {detail['authorized_super_users']}\n")
+                else:
+                    f.write("\tNo SUAL constraints defined.\n")
+
+                # 7. Wang-Li Constraints
+                f.write(f"\nWang-Li Constraints ({len(solver_instance.instance.wang_li)}):\n")
+                if hasattr(solver_instance.instance, 'wang_li') and solver_instance.instance.wang_li:
+                    for scope, departments in solver_instance.instance.wang_li:
+                        f.write(f"\tScope: Steps {[s+1 for s in scope]}\n")
+                        
+                        # Analyze departments and their users
+                        dept_details = []
+                        for dept_idx, department in enumerate(departments, 1):
+                            dept_users = [u+1 for u in department]
+                            
+                            # Check authorization for each step
+                            dept_step_auth = {}
+                            for step in scope:
+                                auth_users = [u+1 for u in (solver_instance.var_manager.get_authorized_users(step) & set(department))]
+                                dept_step_auth[step + 1] = auth_users
+                            
+                            dept_details.append({
+                                'dept': dept_idx,
+                                'users': dept_users,
+                                'step_authorizations': dept_step_auth
+                            })
+                        
+                        # Print department details
+                        for detail in dept_details:
+                            f.write(f"\t\tDepartment {detail['dept']}: Users {detail['users']}\n")
+                            f.write("\t\t\tStep Authorizations:\n")
+                            for step, auth_users in detail['step_authorizations'].items():
+                                f.write(f"\t\t\t\tStep {step}: {auth_users}\n")
+                else:
+                    f.write("\tNo Wang-Li constraints defined.\n")
+
+                # 8. Assignment-Dependent (ADA) Constraints
+                f.write(f"\nAssignment-Dependent (ADA) Constraints ({len(solver_instance.instance.ada)}):\n")
+                if hasattr(solver_instance.instance, 'ada') and solver_instance.instance.ada:
+                    for s1, s2, source_users, target_users in solver_instance.instance.ada:
+                        f.write(f"\tSource Step {s1+1} -> Target Step {s2+1}\n")
+                        f.write(f"\t\tSource Users: {[u+1 for u in source_users]}\n")
+                        f.write(f"\t\tTarget Users: {[u+1 for u in target_users]}\n")
+                        
+                        # Analyze source and target step authorizations
+                        source_auth = [u+1 for u in (solver_instance.var_manager.get_authorized_users(s1) & set(source_users))]
+                        target_auth = [u+1 for u in (solver_instance.var_manager.get_authorized_users(s2) & set(target_users))]
+                        
+                        f.write(f"\t\tAuthorized Source Users: {source_auth}\n")
+                        f.write(f"\t\tAuthorized Target Users: {target_auth}\n")
+                else:
+                    f.write("\tNo Assignment-Dependent constraints defined.\n")
+
                 # Constraint Conflicts
-                f.write("\n" + "=" * 50 + "\n")
+                f.write("\n" + "=" * 40 + "\n")
                 f.write("CONSTRAINT CONFLICT ANALYSIS\n")
-                f.write("=" * 50 + "\n")
+                f.write("=" * 40 + "\n")
                 conflicts = solver_instance.analyze_constraint_conflicts()
                 if conflicts:
                     f.write("Potential Conflicts Detected:\n")
