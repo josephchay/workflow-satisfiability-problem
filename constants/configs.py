@@ -1,10 +1,10 @@
 INSTANCE_METADATA = {
     'example1.txt': {'sat': True, 'unique': False},
     'example2.txt': {'sat': False, 'unique': False},
-    'example3.txt': {'sat': True, 'unique': True},
+    'example3.txt': {'sat': False, 'unique': True},
     'example4.txt': {'sat': False, 'unique': False},
     'example5.txt': {'sat': True, 'unique': True},
-    'example6.txt': {'sat': False, 'unique': False},
+    'example6.txt': {'sat': True, 'unique': False},
     'example7.txt': {'sat': True, 'unique': True},
     'example8.txt': {'sat': False, 'unique': False},
     'example9.txt': {'sat': True, 'unique': False},
@@ -17,6 +17,6 @@ INSTANCE_METADATA = {
     # Large instances
     'example16.txt': {'sat': True, 'unique': False},
     'example17.txt': {'sat': True, 'unique': False},
-    'example18.txt': {'sat': False, 'unique': False},
-    'example19.txt': {'sat': False, 'unique': False}
+    'example18.txt': {'sat': True, 'unique': False},
+    'example19.txt': {'sat': True, 'unique': False}
 }

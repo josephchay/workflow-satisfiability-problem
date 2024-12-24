@@ -109,6 +109,9 @@ class AppController:
                     filename=os.path.basename(self.view.current_file)
                 )
                 
+                # Updated solved instance file
+                self.view.results_instance_label.configure(text=f"Instance: {os.path.basename(self.view.current_file)}")
+
                 # Display results
                 self.view.display_solution(solution)
                 self.view.display_statistics(solver.statistics)

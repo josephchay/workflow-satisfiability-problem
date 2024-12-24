@@ -17,11 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README file for the `assets/instances` directory.
 - ignore `examples{20-29}.txt` files in the `.gitignore`.
 - SUAL, WangLi, ADA constraints activation / deactivation compatibility with default instance files.
+- SAT and UNSAT notes for Workload Distribution under statistics tab panel for GUI.
 
 ### Changed
 - Updated the GUI `views.py` and `controllers.py` to fit in to our new solver solution (`ortools-fast.py` but now in a dynamic and versatile way).
 - Updated `README.md`.
 - Instance Generator includes generation for OneTeam Constraint.
+- `INSTANCE_METADATA` constant reflecting accurate results based on practicalized theoretical calculations.
+- Update dislpay on solved instance file on the results tab of the GUI.
 
 ### Improvement
 - Modified metric information in `metadata.py` and how its handled in the `controllers.py`.
