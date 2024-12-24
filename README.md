@@ -106,10 +106,11 @@ Each generated file will follow this naming convention:
 
 The `-l` script provides progress updates during generation:
 
-- Shows file being generated
-- Reports actual line count
-- Indicates if regeneration is needed to meet size requirements
-- Displays final parameters used for each instance
+- Shows instance file being generated
+- Reports actual line count (and requirement)
+- Indicates the final parameters.
+- Indicates the configurations
+- Displays the total trial attemps needed to generate.
 
 ##### Output Location
 

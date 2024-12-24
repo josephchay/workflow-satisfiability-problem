@@ -3,3 +3,6 @@ __pycache__/
 .idea/
 
 results/
+
+# Ignore example instances 20-29
+assets/instances/example[2][0-9].txt

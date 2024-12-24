@@ -109,14 +109,15 @@ class InstanceGenerator:
             
             self.constraints.append(('ADA', (s1, s2, source_users, target_users)))
             
-    def generate_instance(self, 
-                         auth_density: float = 0.2,
-                         num_sod: int = 0,
-                         num_bod: int = 0,
-                         num_atmost: int = 0,
-                         num_sual: int = 0,
-                         num_wangli: int = 0,
-                         num_ada: int = 0) -> Dict:
+    def generate(self, 
+                     auth_density: float = 0.2,
+                     num_sod: int = 0,
+                     num_bod: int = 0,
+                     num_atmost: int = 0,
+                     num_sual: int = 0,
+                     num_wangli: int = 0,
+                     num_ada: int = 0,
+                     users_per_dept: int = None) -> Dict:
         """Generate complete WSP instance with specified constraints"""
         # Generate fresh authorizations
         self.generate_authorizations(auth_density)
@@ -129,7 +130,11 @@ class InstanceGenerator:
         self.add_bod_constraints(num_bod)
         self.add_at_most_k_constraints(num_atmost)
         self.add_sual_constraints(num_sual, num_super_users=self.n//10)
-        self.add_wang_li_constraints(num_wangli, num_departments=4)
+        
+        # Use users_per_dept if provided, otherwise use default
+        num_depts = self.n // (users_per_dept if users_per_dept else self.n//4)
+        self.add_wang_li_constraints(num_wangli, num_departments=max(2, num_depts))
+        
         self.add_assignment_dependent_constraints(num_ada)
         
         return {

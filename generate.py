@@ -32,7 +32,7 @@ def generate_instances():
         
         # Different constraint mixes based on configuration
         if config == "small_mixed":
-            instance = generator.generate_instance(
+            instance = generator.generate(
                 auth_density=auth_density,
                 num_sod=3,
                 num_bod=2,
@@ -42,7 +42,7 @@ def generate_instances():
                 num_ada=1
             )
         elif config == "medium_mixed":
-            instance = generator.generate_instance(
+            instance = generator.generate(
                 auth_density=auth_density,
                 num_sod=4,
                 num_bod=3,
@@ -52,7 +52,7 @@ def generate_instances():
                 num_ada=2
             )
         elif config == "large_mixed":
-            instance = generator.generate_instance(
+            instance = generator.generate(
                 auth_density=auth_density,
                 num_sod=5,
                 num_bod=3,
@@ -62,7 +62,7 @@ def generate_instances():
                 num_ada=2
             )
         elif config == "extra_large_mixed":
-            instance = generator.generate_instance(
+            instance = generator.generate(
                 auth_density=auth_density,
                 num_sod=6,
                 num_bod=4,
@@ -72,7 +72,7 @@ def generate_instances():
                 num_ada=3
             )
         elif config == "sual_heavy":
-            instance = generator.generate_instance(
+            instance = generator.generate(
                 auth_density=auth_density,
                 num_sod=2,
                 num_bod=1,
@@ -82,7 +82,7 @@ def generate_instances():
                 num_ada=1
             )
         elif config == "wl_heavy":
-            instance = generator.generate_instance(
+            instance = generator.generate(
                 auth_density=auth_density,
                 num_sod=2,
                 num_bod=2,
@@ -92,7 +92,7 @@ def generate_instances():
                 num_ada=1
             )
         elif config == "ada_heavy":
-            instance = generator.generate_instance(
+            instance = generator.generate(
                 auth_density=auth_density,
                 num_sod=2,
                 num_bod=1,
@@ -102,7 +102,7 @@ def generate_instances():
                 num_ada=4  # More ADA constraints
             )
         elif config == "classic_heavy":
-            instance = generator.generate_instance(
+            instance = generator.generate(
                 auth_density=auth_density,
                 num_sod=5,  # More classic constraints
                 num_bod=4,
@@ -112,7 +112,7 @@ def generate_instances():
                 num_ada=1
             )
         elif config == "balanced_mixed":
-            instance = generator.generate_instance(
+            instance = generator.generate(
                 auth_density=auth_density,
                 num_sod=3,
                 num_bod=2,
@@ -122,7 +122,7 @@ def generate_instances():
                 num_ada=2
             )
         else:  # large_balanced
-            instance = generator.generate_instance(
+            instance = generator.generate(
                 auth_density=auth_density,
                 num_sod=4,
                 num_bod=3,
@@ -139,88 +139,99 @@ def generate_instances():
 
 
 def generate_complex_instances():
+    """Generate larger instances with specific line count requirements"""
     # Create instances directory if it doesn't exist
     os.makedirs("assets/instances", exist_ok=True)
     
     # Instance configs tuned for size and solvability
-    # (k, n, min_lines, auth_density, config_name)
+    # Format: (k, n, min_lines, auth_density, users_per_dept, multiplier)
     instance_configs = [
         # 300+ line instances (20-23)
-        (20, 50, 300, 0.3, "medium_balanced"),
-        (20, 60, 300, 0.25, "sual_focused"),
-        (25, 55, 300, 0.3, "wl_focused"),
-        (22, 65, 300, 0.25, "ada_focused"),
+        (25, 80, 300, 0.25, 15, 8, "medium_balanced"),
+        (25, 85, 300, 0.25, 15, 8, "sual_focused"),
+        (28, 90, 300, 0.25, 18, 8, "wl_focused"),
+        (30, 90, 300, 0.25, 18, 8, "ada_focused"),
         
         # 600+ line instances (24-26)
-        (30, 80, 600, 0.25, "large_balanced"),
-        (35, 90, 600, 0.2, "large_mixed"),
-        (32, 85, 600, 0.25, "complex_balanced"),
+        (35, 120, 600, 0.2, 20, 12, "large_balanced"),
+        (38, 130, 600, 0.2, 22, 12, "large_mixed"),
+        (40, 140, 600, 0.2, 25, 12, "complex_balanced"),
         
         # 1000+ line instances (27-29)
-        (40, 100, 1000, 0.2, "extra_large_balanced"),
-        (45, 100, 1000, 0.2, "extra_large_mixed"),
-        (42, 100, 1000, 0.2, "massive_balanced")
+        (45, 180, 1000, 0.15, 30, 20, "extra_large_balanced"),
+        (48, 200, 1000, 0.15, 35, 20, "extra_large_mixed"),
+        (50, 220, 1000, 0.15, 40, 20, "massive_balanced")
     ]
     
-    for idx, (k, n, min_lines, auth_density, config) in enumerate(instance_configs, start=20):
+    for idx, (k, n, min_lines, auth_density, dept_size, initial_multiplier, config) in enumerate(instance_configs, start=20):
         print(f"\nGenerating example{idx}.txt...")
         
+        # Calculate constraint counts based on desired size
+        base_count = k
+        multiplier = initial_multiplier
+        retry_count = 0
+        
         while True:
+            retry_count += 1
+            if retry_count % 5 == 0:  # Show progress every 5 attempts
+                print(f"Attempt {retry_count}...")
+            
             generator = InstanceGenerator(k, n, seed=random.randint(1, 10000))
             
-            # Calculate constraint counts based on desired size
-            base_count = k // 2
-            
             if "balanced" in config:
-                # Even distribution of constraints
-                instance = generator.generate_instance(
+                instance = generator.generate(
                     auth_density=auth_density,
-                    num_sod=base_count * 2,
-                    num_bod=base_count,
-                    num_atmost=base_count,
-                    num_sual=base_count,
-                    num_wangli=base_count,
-                    num_ada=base_count
+                    num_sod=int(base_count * multiplier),
+                    num_bod=int(base_count * (multiplier // 2)),
+                    num_atmost=int(base_count * (multiplier // 2)),
+                    num_sual=int(base_count * (multiplier // 2)),
+                    num_wangli=int(base_count * (multiplier // 2)),
+                    num_ada=int(base_count * (multiplier // 2)),
+                    users_per_dept=dept_size
                 )
             elif "sual_focused" in config:
-                instance = generator.generate_instance(
+                instance = generator.generate(
                     auth_density=auth_density,
-                    num_sod=base_count,
-                    num_bod=base_count // 2,
-                    num_atmost=base_count // 2,
-                    num_sual=base_count * 3,  # More SUAL constraints
-                    num_wangli=base_count // 2,
-                    num_ada=base_count // 2
+                    num_sod=int(base_count * (multiplier // 2)),
+                    num_bod=int(base_count * (multiplier // 4)),
+                    num_atmost=int(base_count * (multiplier // 4)),
+                    num_sual=int(base_count * multiplier),
+                    num_wangli=int(base_count * (multiplier // 4)),
+                    num_ada=int(base_count * (multiplier // 4)),
+                    users_per_dept=dept_size
                 )
             elif "wl_focused" in config:
-                instance = generator.generate_instance(
+                instance = generator.generate(
                     auth_density=auth_density,
-                    num_sod=base_count,
-                    num_bod=base_count // 2,
-                    num_atmost=base_count // 2,
-                    num_sual=base_count // 2,
-                    num_wangli=base_count * 3,  # More Wang-Li constraints
-                    num_ada=base_count // 2
+                    num_sod=int(base_count * (multiplier // 2)),
+                    num_bod=int(base_count * (multiplier // 4)),
+                    num_atmost=int(base_count * (multiplier // 4)),
+                    num_sual=int(base_count * (multiplier // 4)),
+                    num_wangli=int(base_count * multiplier),
+                    num_ada=int(base_count * (multiplier // 4)),
+                    users_per_dept=dept_size
                 )
             elif "ada_focused" in config:
-                instance = generator.generate_instance(
+                instance = generator.generate(
                     auth_density=auth_density,
-                    num_sod=base_count,
-                    num_bod=base_count // 2,
-                    num_atmost=base_count // 2,
-                    num_sual=base_count // 2,
-                    num_wangli=base_count // 2,
-                    num_ada=base_count * 3  # More ADA constraints
+                    num_sod=int(base_count * (multiplier // 2)),
+                    num_bod=int(base_count * (multiplier // 4)),
+                    num_atmost=int(base_count * (multiplier // 4)),
+                    num_sual=int(base_count * (multiplier // 4)),
+                    num_wangli=int(base_count * (multiplier // 4)),
+                    num_ada=int(base_count * multiplier),
+                    users_per_dept=dept_size
                 )
             else:  # mixed variants
-                instance = generator.generate_instance(
+                instance = generator.generate(
                     auth_density=auth_density,
-                    num_sod=base_count * 2,
-                    num_bod=base_count,
-                    num_atmost=base_count,
-                    num_sual=int(base_count * 1.5),
-                    num_wangli=int(base_count * 1.5),
-                    num_ada=int(base_count * 1.5)
+                    num_sod=int(base_count * multiplier),
+                    num_bod=int(base_count * (multiplier // 2)),
+                    num_atmost=int(base_count * (multiplier // 2)),
+                    num_sual=int(base_count * (multiplier // 1.5)),
+                    num_wangli=int(base_count * (multiplier // 1.5)),
+                    num_ada=int(base_count * (multiplier // 1.5)),
+                    users_per_dept=dept_size
                 )
             
             # Write instance to temporary file to check size
@@ -234,14 +245,22 @@ def generate_complex_instances():
             os.remove(temp_filename)
             
             # If instance meets size requirements, save it
-            if num_lines >= min_lines:
+            if num_lines >= min_lines and num_lines <= min_lines * 2:  # Added upper bound
                 filename = os.path.join("assets/instances", f"example{idx}.txt")
                 generator.write_instance(filename, instance)
-                print(f"Generated {filename} with {num_lines} lines ({config})")
+                print(f"\nSuccess! Generated {filename}")
+                print(f"Lines: {num_lines} (required: {min_lines})")
                 print(f"Parameters: k={k}, n={n}, auth_density={auth_density}")
+                print(f"Constraints multiplier: {multiplier}")
+                print(f"Configuration: {config}")
+                print(f"Attempts needed: {retry_count}")
                 break
-            else:
-                print(f"Retrying {idx} - got {num_lines} lines, need {min_lines}")
+            elif num_lines > min_lines * 2:  # Too many lines, decrease multiplier
+                multiplier = max(4, multiplier - 2)
+            else:  # Not enough lines, increase multiplier
+                multiplier += 2
+                if retry_count % 10 == 0:
+                    print(f"Increasing multiplier to {multiplier}")
 
 
 def parse_arguments():
