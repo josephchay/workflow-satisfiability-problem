@@ -47,61 +47,90 @@ class ORToolsCPSolver(BaseSolver):
             start_time = time.time()
             self.solve_time = 0
             
-            self._log("\nAnalyzing instance constraints...")
-            
-            # Analyze potential conflicts
+            print("DEBUG 1: Starting solve method")
             conflicts = self.analyze_constraint_conflicts()
-            # if conflicts:
-            #     self._log("\nPotential conflicts detected:")
-            #     for conflict in conflicts:
-            #         self._log(f"  - {conflict}")
             
-            # Build and solve model
-            self._log("\nBuilding model...")
+            print("DEBUG 2: Building model")
             if not self._build_model():
-                return self._handle_build_failure(start_time)
+                print("DEBUG 3: Model build failed")
+                result = self._handle_build_failure(start_time)
+                print("DEBUG 3.1: Build failure result:", result.__dict__)
+                self._update_statistics(result)
+                print("DEBUG 3.2: Statistics after build failure:", self.statistics)
+                return result
 
-            self._log("\nSolving model...")
+            print("DEBUG 4: Solving model")
             status = self.solver.Solve(self.model)
             self.solve_time = time.time() - start_time
             
+            print("DEBUG 5: Solver status:", status)
             if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+                print("DEBUG 6: Found solution")
                 result = self._process_solution(start_time)
+                print("DEBUG 7: Processed solution:", result.__dict__)
                 self._update_statistics(result)
+                print("DEBUG 8: Updated statistics:", self.statistics)
                 return result
             else:
+                print("DEBUG 9: Infeasible")
                 result = self._handle_infeasible(start_time, status)
+                print("DEBUG 10: Handled infeasible:", result.__dict__)
                 self._update_statistics(result)
+                print("DEBUG 11: Updated statistics:", self.statistics)
                 return result
                 
         except Exception as e:
-            return self._handle_error(start_time, e)
+            print("DEBUG 12: Exception occurred:", str(e))
+            result = self._handle_error(start_time, e)
+            self._update_statistics(result)  # Make sure to update stats even for errors
+            return result
 
     def _update_statistics(self, result):
         """Update comprehensive statistics"""
+        # Initialize all dictionaries first
+        self.statistics = {
+            "solution_status": {},
+            "problem_size": {},
+            "workload_distribution": {},
+            "constraint_compliance": {},
+            "constraint_distribution": {},
+            "detailed_analysis": {}
+        }
+
         # Solution Status section
-        self.statistics["solution_status"].update({
+        self.statistics["solution_status"] = {
             "Status": "SAT" if result.is_sat else "UNSAT",
             "Solver Used": "OR-Tools (CP)",
             "Solution Time": f"{self.solve_time:.2f} seconds"
-        })
+        }
 
-        # Problem Size section
+        if not result.is_sat and result.reason:
+            self.statistics["solution_status"]["UNSAT Reason"] = result.reason
+
+        # Problem Size section (always include)
         total_auth = sum(sum(1 for x in row if x) for row in self.instance.user_step_matrix)
         auth_density = (total_auth / (self.instance.number_of_steps * self.instance.number_of_users)) * 100
         constraint_density = (self.instance.number_of_constraints / 
                             (self.instance.number_of_steps * self.instance.number_of_users)) * 100
         
-        self.statistics["problem_size"].update({
+        self.statistics["problem_size"] = {
             "Total Steps": self.instance.number_of_steps,
             "Total Users": self.instance.number_of_users,
             "Total Constraints": self.instance.number_of_constraints,
             "Authorization Density": f"{auth_density:.2f}%",
             "Constraint Density": f"{constraint_density:.2f}%",
             "Step-User Ratio": f"{self.instance.number_of_steps / self.instance.number_of_users:.2f}"
-        })
+        }
 
         # Workload Distribution
+        self.statistics["workload_distribution"] = {
+            "Active Users": "N/A",
+            "Maximum Assignment": "N/A",
+            "Minimum Assignment": "N/A",
+            "Average Assignment": "N/A",
+            "User Utilization": "N/A"
+        }
+        
         if result.is_sat and hasattr(result, 'assignment'):
             user_assignments = defaultdict(list)
             for step, user in result.assignment.items():
@@ -122,30 +151,46 @@ class ORToolsCPSolver(BaseSolver):
                 })
 
         # Constraint Compliance
-        is_perfect = result.is_sat and not result.violations
-        self.statistics["constraint_compliance"].update({
-            "Solution Quality": "Perfect Solution - All Constraints Satisfied" if is_perfect else 
-                              "Solution has violations" if result.is_sat else "No solution exists (UNSAT)",
-            "Authorization Violations": len([v for v in result.violations if "Authorization" in v]) if hasattr(result, 'violations') and result.violations else 0,
-            "Separation Of Duty Violations": len([v for v in result.violations if "Separation of Duty" in v]) if hasattr(result, 'violations') and result.violations else 0,
-            "Binding Of Duty Violations": len([v for v in result.violations if "Binding of Duty" in v]) if hasattr(result, 'violations') and result.violations else 0,
-            "At Most K Violations": len([v for v in result.violations if "At-most-" in v]) if hasattr(result, 'violations') and result.violations else 0,
-            "One Team Violations": len([v for v in result.violations if "One-team" in v]) if hasattr(result, 'violations') and result.violations else 0
-        })
+        self.statistics["constraint_compliance"] = {
+            "Solution Quality": "No solution exists (UNSAT)" if not result.is_sat else (
+                "Perfect Solution - All Constraints Satisfied" if not result.violations else 
+                "Solution has violations"
+            ),
+            "Authorization Violations": "N/A" if not result.is_sat else len([v for v in result.violations if "Authorization" in v]),
+            "Separation Of Duty Violations": "N/A" if not result.is_sat else len([v for v in result.violations if "Separation of Duty" in v]),
+            "Binding Of Duty Violations": "N/A" if not result.is_sat else len([v for v in result.violations if "Binding of Duty" in v]),
+            "At Most K Violations": "N/A" if not result.is_sat else len([v for v in result.violations if "At-most-" in v]),
+            "One Team Violations": "N/A" if not result.is_sat else len([v for v in result.violations if "One-team" in v])
+        }
 
-        # Constraint Distribution
-        self.statistics["constraint_distribution"].update({
+        # Constraint Distribution (always include)
+        self.statistics["constraint_distribution"] = {
             "Authorization": sum(1 for user in self.instance.auth if user),
             "Separation Of Duty": len(self.instance.SOD),
             "Binding Of Duty": len(self.instance.BOD),
             "At Most K": len(self.instance.at_most_k),
             "One Team": len(self.instance.one_team)
-        })
+        }
 
-        # Add detailed analysis if in GUI mode
+        # Add detailed analysis in all cases
         if self.gui_mode:
             self._add_detailed_analysis()
-    
+
+            # Add UNSAT specific analysis
+            if not result.is_sat:
+                if "Conflict Analysis" not in self.statistics["detailed_analysis"]:
+                    self.statistics["detailed_analysis"]["Conflict Analysis"] = {
+                        "Detected Conflicts": [],
+                        "Description": "Analysis of why the problem is unsatisfiable"
+                    }
+                
+                if result.reason:
+                    self.statistics["detailed_analysis"]["Conflict Analysis"]["Detected Conflicts"].append({
+                        "Type": "UNSAT Reason",
+                        "Description": result.reason
+                    })
+                    self.statistics["solution_status"]["UNSAT Analysis"] = result.reason
+
     def _add_detailed_analysis(self):
         """Add detailed analysis to statistics"""
         detailed = {}
@@ -224,7 +269,9 @@ class ORToolsCPSolver(BaseSolver):
 
         # Add conflict analysis if there are any conflicts
         conflicts = self.analyze_constraint_conflicts()
-        if conflicts:
+
+        # Only add Conflict Analysis if it's not already shown in UNSAT analysis
+        if conflicts and "reason" not in self.statistics["solution_status"]: 
             detailed["Conflict Analysis"] = {
                 "Detected Conflicts": conflicts,
                 "Description": "Potential conflicts detected in constraint specifications"
@@ -236,6 +283,20 @@ class ORToolsCPSolver(BaseSolver):
         """Analyze potential constraint conflicts"""
         conflicts = []
         
+        # First add BOD authorization gaps as conflicts
+        if self.active_constraints.get('binding_of_duty', True):
+            for s1, s2 in self.instance.BOD:
+                common_users = set()
+                for user in range(self.instance.number_of_users):
+                    if (self.instance.user_step_matrix[user][s1] and 
+                        self.instance.user_step_matrix[user][s2]):
+                        common_users.add(user)
+                if not common_users:
+                    conflicts.append({
+                        "Type": "BOD Authorization Gap",
+                        "Description": f"No users authorized for both steps {s1+1} and {s2+1} in BOD constraint"
+                    })
+
         # Only check active constraints
         if self.active_constraints.get('binding_of_duty', True) and \
            self.active_constraints.get('separation_of_duty', True):
@@ -296,7 +357,7 @@ class ORToolsCPSolver(BaseSolver):
         
         # Add required fields for metadata
         result.solve_time = self.solve_time
-        result.solver_type = "OR-Tools (CP)"
+        result.solver_type = self.__class__.__name__
         
         if violations:
             self._log("\nCONSTRAINT VIOLATIONS FOUND!")
@@ -305,7 +366,7 @@ class ORToolsCPSolver(BaseSolver):
             #     self._log(violation)
         else:
             self._log("\nALL CONSTRAINTS SATISFIED!")
-        
+        print("From Process Solution method", result)
         return result
     
     def _build_model(self):
@@ -352,29 +413,16 @@ class ORToolsCPSolver(BaseSolver):
 
     def _handle_build_failure(self, start_time):
         """Handle model building failures"""
-        reasons = []
+        conflicts = self.analyze_constraint_conflicts()
         
-        if self.active_constraints.get('binding_of_duty', True):
-            for s1, s2, common_users in self._get_bod_users():
-                if not common_users:
-                    reasons.append(
-                        f"No users authorized for both steps {s1+1} and {s2+1} in BOD constraint"
-                    )
-        
-        if self.active_constraints.get('authorizations', True):
-            auth_gaps = self._get_authorization_gaps()
-            if auth_gaps:
-                reasons.append(
-                    f"Steps with no authorized users: {[s+1 for s in auth_gaps]}"
-                )
-        
-        if self.active_constraints.get('one_team', True):
-            conflicts = self._get_team_conflicts()
-            if conflicts:
-                reasons.extend(conflicts)
+        if not conflicts:
+            reason = "Problem is infeasible but no specific cause could be determined"
+        else:
+            reason = "\n".join(f"Conflict {i+1}: {conflict['Description']}" 
+                            for i, conflict in enumerate(conflicts))
 
-        reason = "Model building failed due to:\n" + "\n".join(f"  - {r}" for r in reasons)
-        return Solution.create_unsat(time.time() - start_time, reason=reason)
+        # return Solution.create_unsat(time.time() - start_time, reason=reason)
+        return Solution.create_unsat(time.time() - start_time)
 
     def _get_bod_users(self):
         """Get common users for each BOD constraint"""
@@ -454,6 +502,7 @@ class ORToolsCPSolver(BaseSolver):
         return Solution.create_unsat(time.time() - start_time, reason=reason)
 
     def _handle_error(self, start_time, error):
+        print("Error", error)
         """Handle solver errors"""
         error_msg = f"Error during solving: {str(error)}\n"
         error_msg += "Details:\n"

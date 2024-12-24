@@ -16,6 +16,8 @@ class Solution:
         return Solution(
             is_sat=False,
             solve_time=solve_time,
+            assignment={},  # Empty dict
+            violations=[],  # Empty list
             reason=reason
         )
     

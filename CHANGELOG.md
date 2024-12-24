@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Modified metric information in `metadata.py` and how its handled in the `controllers.py`.
 - Updated statistics tab for thorough information metrics display.
 - Updated CLI `main_cli.py` script to properly handle solver, solution, and its verification.
+- Added statistics visibility for UNSAT results in the statistics tab of GUI.
 
 ### Refactoring
 - Introduced `InstanceParser` class for better readability for use for global function `parse_instance_file`.

@@ -81,12 +81,13 @@ class AppController:
                 self.current_solver_type,
                 self.current_instance,
                 active_constraints,
-                gui_mode=True  # Enable GUI mode
+                gui_mode=True  # Enable GUI mode since this is the controller for the GUI Application
             )
 
             # Run solver
             result = solver.solve()
-            
+            print("DEBUG: Result from solver:", result.__dict__)
+            print("DEBUG: Solver statistics:", solver.statistics)
             self.view.update_progress(0.6)
 
             # Process solution
@@ -116,7 +117,7 @@ class AppController:
             else:
                 self.view.display_solution(None)
                 self.view.display_statistics(solver.statistics)  # Still show statistics for UNSAT
-                status = f"No solution exists (UNSAT): {result.reason}"
+                status = f"No solution exists (UNSAT)"
                 
             self.view.update_progress(1.0)
             self.view.update_status(f"{status} using {self.current_solver_type.value}")

@@ -403,8 +403,8 @@ class AppView(customtkinter.CTk):
         )
         content_frame.pack(fill="both", expand=True, padx=5, pady=5)
 
-        def create_section(title: str, description: str = ""):
-            """Create a section with title and optional description"""
+        def create_section(title: str, description: str = "", show_note: bool = False, note_text: str = ""):
+            """Create a section with title, optional description, and note for UNSAT case"""
             section_frame = customtkinter.CTkFrame(content_frame, fg_color="transparent")
             section_frame.pack(fill="x", padx=10, pady=(15,5))
             
@@ -426,6 +426,18 @@ class AppView(customtkinter.CTk):
                 )
                 desc_label.pack(anchor="w", pady=(0,5))
             
+            # Add note before content frame if needed
+            if show_note:
+                note_label = customtkinter.CTkLabel(
+                    section_frame,  # Add to section_frame, not content frame
+                    text=note_text,
+                    text_color="gray70",
+                    wraplength=600,
+                    justify="left",
+                    font=customtkinter.CTkFont(size=12, slant="italic")
+                )
+                note_label.pack(anchor="w", padx=5, pady=(0, 10))
+            
             # Content frame
             content = customtkinter.CTkFrame(section_frame, fg_color="gray20")
             content.pack(fill="x", pady=5)
@@ -436,39 +448,71 @@ class AppView(customtkinter.CTk):
             row = customtkinter.CTkFrame(frame, fg_color="transparent")
             row.pack(fill="x", padx=10, pady=2)
             
-            label = customtkinter.CTkLabel(
+            label_widget = customtkinter.CTkLabel(
                 row,
                 text=label,
                 font=customtkinter.CTkFont(weight="bold"),
                 width=200
             )
-            label.pack(side="left", padx=10)
+            label_widget.pack(side="left", padx=10)
             
             text_color = "#00ff00" if is_success == True else "red" if is_success == False else None
-            value_label = customtkinter.CTkLabel(
+            value_widget = customtkinter.CTkLabel(
                 row,
                 text=str(value),
-                text_color=text_color
+                text_color=text_color,
+                wraplength=600,
+                justify="left"
             )
-            value_label.pack(side="left", padx=5)
+            value_widget.pack(side="left", padx=5, fill="x", expand=True)
 
-        # Solution Status Section
+        # Solution Status Section - Always show this
         if "solution_status" in stats:
             status_frame = create_section(
                 "Solution Status",
                 "Overall status and performance metrics"
             )
             for key, value in stats["solution_status"].items():
-                add_metric(status_frame, key, value)
+                is_success = True if key == "Status" and value == "SAT" else None
+                add_metric(status_frame, key, value, is_success=is_success)
 
-        # Problem Size Section
+        # Problem Size Section - Always show this
         if "problem_size" in stats:
             size_frame = create_section(
                 "Problem Size",
                 "Dimensions and complexity metrics"
             )
             for key, value in stats["problem_size"].items():
+                # Format percentages nicely
+                if isinstance(value, float) and "Density" in key:
+                    value = f"{value:.2f}%"
                 add_metric(size_frame, key, value)
+
+        # Constraint Distribution Section - Always show this
+        if "constraint_distribution" in stats:
+            distribution_frame = create_section(
+                "Constraint Distribution",
+                "Number of constraints by type"
+            )
+            for key, value in stats["constraint_distribution"].items():
+                # Format constraint names nicely
+                formatted_key = key.replace("_", " ").title()
+                add_metric(distribution_frame, formatted_key, value)
+
+        # UNSAT Reason Section
+        if "solution_status" in stats and stats["solution_status"].get("Status") == "UNSAT":
+            unsat_frame = create_section(
+                "UNSAT Analysis",
+                "Reasons why no solution exists"
+            )
+            if "reason" in stats["solution_status"]:
+                add_metric(unsat_frame, "Reason", stats["solution_status"]["reason"], is_success=False)
+
+            # Add detailed conflict analysis if available
+            if "detailed_analysis" in stats and "Conflict Analysis" in stats["detailed_analysis"]:
+                conflicts = stats["detailed_analysis"]["Conflict Analysis"].get("Detected Conflicts", [])
+                for i, conflict in enumerate(conflicts, 1):
+                    add_metric(unsat_frame, f"Conflict {i}", conflict["Description"], is_success=False)
 
         # Workload Distribution Section
         if "workload_distribution" in stats:
@@ -483,7 +527,9 @@ class AppView(customtkinter.CTk):
         if "constraint_compliance" in stats:
             compliance_frame = create_section(
                 "Constraint Compliance",
-                "Verification of all constraint types"
+                "Verification of all constraint types",
+                show_note=("solution_status" in stats and stats["solution_status"].get("Status") == "UNSAT"),
+                note_text="Note: When no solution exists (UNSAT), constraint violations cannot be checked as there is no assignment to verify against. Hence, all violation counts are marked as N/A."
             )
 
             # Add success/failure message with color
@@ -495,29 +541,64 @@ class AppView(customtkinter.CTk):
             # Add violation counts
             for key, value in stats["constraint_compliance"].items():
                 if key != "Solution Quality":
-                    add_metric(
-                        compliance_frame, 
-                        key, 
-                        value,
-                        is_success=value == 0
-                    )
+                    add_metric(compliance_frame, key, value, is_success=value == 0)
 
-        # Detailed Analysis Section (if available)
+        # Detailed Analysis Section
         if "detailed_analysis" in stats:
             self._create_detailed_analysis_section(content_frame, stats["detailed_analysis"])
 
     def _create_detailed_analysis_section(self, parent_frame, detailed_data: Dict):
         """Create detailed analysis section with scrollable subsections"""
-        detailed_frame = customtkinter.CTkFrame(parent_frame, fg_color="transparent")
-        detailed_frame.pack(fill="x", padx=10, pady=(15,5))
+        # Main container frame
+        container_frame = customtkinter.CTkFrame(parent_frame, fg_color="gray17")
+        container_frame.pack(fill="x", padx=10, pady=(15,5))
         
-        def create_section(title, content_creator_func):
+        # Title and Description for Detailed Analysis
+        title_label = customtkinter.CTkLabel(
+            container_frame,
+            text="Detailed Analysis",
+            font=customtkinter.CTkFont(size=20, weight="bold")
+        )
+        title_label.pack(anchor="w", padx=10, pady=(10,0))
+        
+        desc_label = customtkinter.CTkLabel(
+            container_frame,
+            text="Comprehensive breakdown of authorizations and constraints",
+            font=customtkinter.CTkFont(size=12),
+            text_color="gray70"
+        )
+        desc_label.pack(anchor="w", padx=10, pady=(0,10))
+        
+        # Create frame for sections
+        detailed_frame = customtkinter.CTkFrame(container_frame, fg_color="transparent")
+        detailed_frame.pack(fill="x", padx=10, pady=5)
+        
+        def create_section(title, content_creator_func, description=""):
             section = customtkinter.CTkFrame(detailed_frame, fg_color="gray20")
             section.pack(fill="x", pady=5)
             
             # Header with expand/collapse
             header = customtkinter.CTkFrame(section, fg_color="transparent")
             header.pack(fill="x", padx=5, pady=2)
+            
+            title_frame = customtkinter.CTkFrame(header, fg_color="transparent")
+            title_frame.pack(fill="x", side="left", expand=True)
+            
+            section_title = customtkinter.CTkLabel(
+                title_frame,
+                text=title,
+                font=customtkinter.CTkFont(size=16, weight="bold")
+            )
+            section_title.pack(anchor="w", padx=5)
+            
+            if description:
+                section_desc = customtkinter.CTkLabel(
+                    title_frame,
+                    text=description,
+                    font=customtkinter.CTkFont(size=12),
+                    text_color="gray70"
+                )
+                section_desc.pack(anchor="w", padx=5, pady=(0,2))
             
             is_expanded = customtkinter.BooleanVar(value=False)
             content_frame = customtkinter.CTkScrollableFrame(
@@ -532,21 +613,21 @@ class AppView(customtkinter.CTk):
                 else:
                     content_frame.pack_forget()
             
-            section_btn = customtkinter.CTkButton(
+            toggle_btn = customtkinter.CTkButton(
                 header,
-                text=f"{title} ▼",
+                text="▼",
+                width=30,
                 command=lambda: [
                     is_expanded.set(not is_expanded.get()),
-                    section_btn.configure(text=f"{title} ▲" if is_expanded.get() else f"{title} ▼"),
+                    toggle_btn.configure(text="▲" if is_expanded.get() else "▼"),
                     toggle_section()
                 ],
                 fg_color="transparent",
                 text_color="white",
                 hover_color="gray30"
             )
-            section_btn.pack(fill="x", padx=5)
+            toggle_btn.pack(side="right", padx=5)
             
-            # Only call content_creator if it's a function
             if callable(content_creator_func):
                 content_creator_func(content_frame)
             
@@ -561,14 +642,22 @@ class AppView(customtkinter.CTk):
                 def create_step_content(frame):
                     for step, data in auth_data["Per Step Breakdown"].items():
                         self._create_detail_row(frame, step, data)
-                create_section("Step Authorization", create_step_content)
-            
+                create_section(
+                    "Step Authorization", 
+                    create_step_content,
+                    "Breakdown of authorized users for each step"
+                )
+                
             # Per User Breakdown
-            # if "Per User Breakdown" in auth_data:
-            #     def create_user_content(frame):
-            #         for user, data in auth_data["Per User Breakdown"].items():
-            #             self._create_detail_row(frame, user, data)
-            #     create_section("User Authorization", create_user_content)
+            if "Per User Breakdown" in auth_data:
+                def create_user_content(frame):
+                    for user, data in auth_data["Per-User Breakdown"].items():
+                        self._create_detail_row(frame, user, data)
+                create_section(
+                    "User Authorization", 
+                    create_user_content,
+                    "Breakdown of authorized steps for each user"
+                )
 
         # Constraint Analysis Section
         if "Constraint Analysis" in detailed_data:
@@ -579,46 +668,44 @@ class AppView(customtkinter.CTk):
                 def create_sod_content(frame):
                     for constraint in const_data["Separation of Duty"]:
                         self._create_constraint_detail(frame, constraint)
-                create_section("SOD Constraints", create_sod_content)
+                create_section(
+                    "SOD Constraints", 
+                    create_sod_content,
+                    "Steps that must be performed by different users"
+                )
             
             # BOD Constraints
             if const_data.get("Binding of Duty"):
                 def create_bod_content(frame):
                     for constraint in const_data["Binding of Duty"]:
                         self._create_constraint_detail(frame, constraint)
-                create_section("BOD Constraints", create_bod_content)
+                create_section(
+                    "BOD Constraints", 
+                    create_bod_content,
+                    "Steps that must be performed by the same user"
+                )
             
             # At Most K Constraints
             if const_data.get("At Most K"):
                 def create_amk_content(frame):
                     for constraint in const_data["At Most K"]:
                         self._create_constraint_detail(frame, constraint)
-                create_section("At-Most-K Constraints", create_amk_content)
+                create_section(
+                    "At-Most-K Constraints", 
+                    create_amk_content,
+                    "Limits on number of steps assigned to a user"
+                )
             
             # One Team Constraints
             if const_data.get("One Team"):
                 def create_team_content(frame):
                     for constraint in const_data["One Team"]:
                         self._create_constraint_detail(frame, constraint)
-                create_section("One-Team Constraints", create_team_content)
-
-        # Conflict Analysis Section
-        if "Conflict Analysis" in detailed_data:
-            def create_conflict_content(frame):
-                conflicts = detailed_data["Conflict Analysis"].get("Detected Conflicts", [])
-                for conflict in conflicts:
-                    conflict_row = customtkinter.CTkFrame(frame, fg_color="transparent")
-                    conflict_row.pack(fill="x", padx=10, pady=2)
-                    
-                    conflict_label = customtkinter.CTkLabel(
-                        conflict_row,
-                        text=f"• {conflict['Description']}",
-                        text_color="#ff6b6b",
-                        wraplength=400,
-                        justify="left"
-                    )
-                    conflict_label.pack(anchor="w", padx=5)
-            create_section("Detected Conflicts", create_conflict_content)
+                create_section(
+                    "One-Team Constraints", 
+                    create_team_content,
+                    "Steps that must be performed by users from the same team"
+                )
 
     def _create_constraint_detail(self, parent_frame, constraint: Dict):
         """Create detailed constraint information with proper formatting"""
