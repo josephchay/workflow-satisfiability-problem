@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Updated the GUI `views.py` and `controllers.py` to fit in to our new solver solution (`ortools-fast.py` but now in a dynamic and versatile way).
 - Updated `README.md`.
+- Instance Generator includes generation for OneTeam Constraint.
 
 ### Improvement
 - Modified metric information in `metadata.py` and how its handled in the `controllers.py`.
@@ -41,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Ensured solvers compatibility and solution processing and functionable with the GUI.
+- Included Authorisation into Constraint Count (as should - presented by default instance files) for generated instance files.
 
 ## [0.1.0] - 2024-12-22
 

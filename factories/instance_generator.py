@@ -133,7 +133,64 @@ class InstanceGenerator:
                 
             self.constraints.append(('AT-MOST-K', (k, tuple(scope))))
             used_steps.update(scope)
+
+    def _add_one_team_constraints(self, num_constraints: int, used_steps: set):
+        """Add one-team constraints"""
+        if num_constraints <= 0:
+            return
             
+        # Find steps with sufficient authorized users
+        valid_steps = []
+        for step in range(self.k):
+            if len(self.authorizations[step]) >= 3:  # Need enough users to form teams
+                valid_steps.append(step)
+                
+        if len(valid_steps) < 2:  # Need at least 2 steps for meaningful teams
+            return
+            
+        for _ in range(num_constraints):
+            # Select scope of 2-3 steps
+            scope_size = random.randint(2, min(3, len(valid_steps)))
+            scope = sorted(random.sample(valid_steps, scope_size))
+            
+            # Get all authorized users for these steps
+            auth_users = set()
+            for step in scope:
+                auth_users.update(self.authorizations[step])
+                
+            if len(auth_users) < 4:  # Need enough users to form at least 2 teams
+                continue
+                
+            # Create 2-3 teams
+            num_teams = random.randint(2, 3)
+            auth_users = list(auth_users)
+            random.shuffle(auth_users)
+            
+            teams = []
+            pos = 0
+            users_left = len(auth_users)
+            
+            for i in range(num_teams):
+                # Last team gets all remaining users
+                if i == num_teams - 1:
+                    team_size = users_left
+                else:
+                    # Otherwise random size between 2 and remaining/2
+                    max_size = users_left // (num_teams - i)
+                    team_size = random.randint(2, max_size)
+                    
+                if team_size < 2:  # Skip if can't form valid team
+                    break
+                    
+                team = tuple(sorted(auth_users[pos:pos + team_size]))
+                teams.append(team)
+                pos += team_size
+                users_left -= team_size
+                
+            if len(teams) >= 2:  # Only add if could form at least 2 teams
+                self.constraints.append(('ONE-TEAM', (tuple(scope), tuple(teams))))
+                used_steps.update(scope)
+
     def _add_sual_constraints(self, num_constraints: int):
         """Add Super-User-At-Least constraints"""
         if num_constraints <= 0:
@@ -250,6 +307,7 @@ class InstanceGenerator:
                     num_sod: int = 0,
                     num_bod: int = 0,
                     num_atmost: int = 0,
+                    num_oneteam: int = 0,
                     num_sual: int = 0,
                     num_wangli: int = 0,
                     num_ada: int = 0,
@@ -264,15 +322,16 @@ class InstanceGenerator:
         # Track assigned steps to avoid conflicts
         used_steps = set()
         
-        # Add core constraints first
+        # Add core constraints
         self._add_binding_of_duty(num_bod, used_steps)
         self._add_separation_of_duty(num_sod, used_steps)
         self._add_at_most_k_constraints(num_atmost, used_steps)
+        self._add_one_team_constraints(num_oneteam, used_steps)
         
-        # Add new constraint types
-        # self._add_sual_constraints(num_sual)
-        # self._add_wang_li_constraints(num_wangli, users_per_dept)
-        # self._add_ada_constraints(num_ada)
+        # Add novel new additional constraints
+        self._add_sual_constraints(num_sual)
+        self._add_wang_li_constraints(num_wangli, users_per_dept)
+        self._add_ada_constraints(num_ada)
         
         return {
             'k': self.k,
@@ -285,42 +344,76 @@ class InstanceGenerator:
         if instance is None:
             instance = self.add_constraints()
         
-        # Collect all authorization lines
-        auth_lines = []
+        # Collect all constraint lines
+        constraint_lines = []
+
+        # 1. Authorisations Constraints
         for user in range(instance['n']):
             auth_steps = [s for s in range(instance['k']) 
                         if user in instance['authorizations'][s]]
             if auth_steps:  # Only write if user has any authorizations
                 steps_str = ' '.join(f's{s+1}' for s in sorted(auth_steps))
-                auth_lines.append(f"Authorisations u{user+1} {steps_str}")
-        
-        # Collect all constraint lines
-        constraint_lines = []
-        # 1. Binding-of-duty constraints
+                constraint_lines.append(f"Authorisations u{user+1} {steps_str}")
+
+        # 2. Binding-of-duty constraints
         for ctype, data in instance['constraints']:
             if ctype == 'BOD':
                 s1, s2 = data
                 constraint_lines.append(f"Binding-of-duty s{s1+1} s{s2+1}")
         
-        # 2. Separation-of-duty constraints
+        # 3. Separation-of-duty constraints
         for ctype, data in instance['constraints']:
             if ctype == 'SOD':
                 s1, s2 = data
                 constraint_lines.append(f"Separation-of-duty s{s1+1} s{s2+1}")
         
-        # Calculate total number of lines (auth lines + constraint lines)
-        total_lines = len(auth_lines) + len(constraint_lines)
+        # 4. At-most-k constraints
+        for ctype, data in instance['constraints']:
+            if ctype == 'AT-MOST-K':
+                k_val, steps = data
+                steps_str = ' '.join(f's{s+1}' for s in sorted(steps))
+                constraint_lines.append(f"At-most-k {k_val} {steps_str}")
+        
+        # 5. One-team constraints
+        for ctype, data in instance['constraints']:
+            if ctype == 'ONE-TEAM':
+                scope, teams = data
+                steps_str = ' '.join(f's{s+1}' for s in sorted(scope))
+                teams_str = ' '.join(f"({' '.join(f'u{u+1}' for u in sorted(team))})" 
+                                for team in teams)
+                constraint_lines.append(f"One-team {steps_str} {teams_str}")
+
+        # 6. Super-user-at-least constraints
+        for ctype, data in instance['constraints']:
+            if ctype == 'SUAL':
+                h, scope, super_users = data
+                steps_str = ' '.join(f's{s+1}' for s in sorted(scope))
+                users_str = ' '.join(f'u{u+1}' for u in sorted(super_users))
+                constraint_lines.append(f"Super-user-at-least {h} {steps_str} {users_str}")
+        
+        # 7. Wang-li constraints
+        for ctype, data in instance['constraints']:
+            if ctype == 'WANG-LI':
+                scope, departments = data
+                steps_str = ' '.join(f's{s+1}' for s in sorted(scope))
+                depts_str = ' '.join(f"({' '.join(f'u{u+1}' for u in sorted(dept))})" 
+                                for dept in departments)
+                constraint_lines.append(f"Wang-li {steps_str} {depts_str}")
+        
+        # 8. Assignment-dependent constraints
+        for ctype, data in instance['constraints']:
+            if ctype == 'ADA':
+                s1, s2, source_users, target_users = data
+                source_str = ' '.join(f'u{u+1}' for u in sorted(source_users))
+                target_str = ' '.join(f'u{u+1}' for u in sorted(target_users))
+                constraint_lines.append(f"Assignment-dependent s{s1+1} s{s2+1} ({source_str}) ({target_str})")
         
         # Write to file
         with open(filename, 'w') as f:
             # Write header with correct number of total lines
             f.write(f"#Steps: {instance['k']}\n")
             f.write(f"#Users: {instance['n']}\n")
-            f.write(f"#Constraints: {total_lines}\n")
-            
-            # Write authorization lines
-            for line in auth_lines:
-                f.write(line + "\n")
+            f.write(f"#Constraints: {len(constraint_lines)}\n")
             
             # Write constraint lines
             for line in constraint_lines:

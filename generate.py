@@ -37,6 +37,7 @@ def generate_instances():
                 num_sod=3,
                 num_bod=2,
                 num_atmost=1,
+                num_oneteam=1,
                 num_sual=1,
                 num_wangli=1,
                 num_ada=1
@@ -47,6 +48,7 @@ def generate_instances():
                 num_sod=4,
                 num_bod=3,
                 num_atmost=2,
+                num_oneteam=1,
                 num_sual=2,
                 num_wangli=1,
                 num_ada=2
@@ -57,6 +59,7 @@ def generate_instances():
                 num_sod=5,
                 num_bod=3,
                 num_atmost=2,
+                num_oneteam=2,
                 num_sual=3,
                 num_wangli=2,
                 num_ada=2
@@ -67,6 +70,7 @@ def generate_instances():
                 num_sod=6,
                 num_bod=4,
                 num_atmost=3,
+                num_oneteam=2,
                 num_sual=3,
                 num_wangli=2,
                 num_ada=3
@@ -77,6 +81,7 @@ def generate_instances():
                 num_sod=2,
                 num_bod=1,
                 num_atmost=1,
+                num_oneteam=1,
                 num_sual=4,  # More SUAL constraints
                 num_wangli=1,
                 num_ada=1
@@ -87,6 +92,7 @@ def generate_instances():
                 num_sod=2,
                 num_bod=2,
                 num_atmost=1,
+                num_oneteam=2,
                 num_sual=1,
                 num_wangli=4,  # More Wang-Li constraints
                 num_ada=1
@@ -97,6 +103,7 @@ def generate_instances():
                 num_sod=2,
                 num_bod=1,
                 num_atmost=1,
+                num_oneteam=2,
                 num_sual=1,
                 num_wangli=1,
                 num_ada=4  # More ADA constraints
@@ -107,6 +114,7 @@ def generate_instances():
                 num_sod=5,  # More classic constraints
                 num_bod=4,
                 num_atmost=3,
+                num_oneteam=2,
                 num_sual=1,
                 num_wangli=1,
                 num_ada=1
@@ -117,6 +125,7 @@ def generate_instances():
                 num_sod=3,
                 num_bod=2,
                 num_atmost=2,
+                num_oneteam=2,
                 num_sual=2,
                 num_wangli=2,
                 num_ada=2
@@ -127,6 +136,7 @@ def generate_instances():
                 num_sod=4,
                 num_bod=3,
                 num_atmost=3,
+                num_oneteam=3,
                 num_sual=3,
                 num_wangli=3,
                 num_ada=3
@@ -184,6 +194,7 @@ def generate_complex_instances():
                     num_sod=int(base_count * multiplier),
                     num_bod=int(base_count * (multiplier // 2)),
                     num_atmost=int(base_count * (multiplier // 2)),
+                    num_oneteam=int(base_count * (multiplier // 2)),
                     num_sual=int(base_count * (multiplier // 2)),
                     num_wangli=int(base_count * (multiplier // 2)),
                     num_ada=int(base_count * (multiplier // 2)),
@@ -194,6 +205,7 @@ def generate_complex_instances():
                     auth_density=auth_density,
                     num_sod=int(base_count * (multiplier // 2)),
                     num_bod=int(base_count * (multiplier // 4)),
+                    num_oneteam=int(base_count * (multiplier // 4)),
                     num_atmost=int(base_count * (multiplier // 4)),
                     num_sual=int(base_count * multiplier),
                     num_wangli=int(base_count * (multiplier // 4)),
@@ -206,6 +218,7 @@ def generate_complex_instances():
                     num_sod=int(base_count * (multiplier // 2)),
                     num_bod=int(base_count * (multiplier // 4)),
                     num_atmost=int(base_count * (multiplier // 4)),
+                    num_oneteam=int(base_count * (multiplier // 4)),
                     num_sual=int(base_count * (multiplier // 4)),
                     num_wangli=int(base_count * multiplier),
                     num_ada=int(base_count * (multiplier // 4)),
@@ -217,6 +230,7 @@ def generate_complex_instances():
                     num_sod=int(base_count * (multiplier // 2)),
                     num_bod=int(base_count * (multiplier // 4)),
                     num_atmost=int(base_count * (multiplier // 4)),
+                    num_oneteam=int(base_count * (multiplier // 4)),
                     num_sual=int(base_count * (multiplier // 4)),
                     num_wangli=int(base_count * (multiplier // 4)),
                     num_ada=int(base_count * multiplier),
@@ -228,6 +242,7 @@ def generate_complex_instances():
                     num_sod=int(base_count * multiplier),
                     num_bod=int(base_count * (multiplier // 2)),
                     num_atmost=int(base_count * (multiplier // 2)),
+                    num_oneteam=int(base_count * (multiplier // 2)),
                     num_sual=int(base_count * (multiplier // 1.5)),
                     num_wangli=int(base_count * (multiplier // 1.5)),
                     num_ada=int(base_count * (multiplier // 1.5)),

@@ -58,7 +58,6 @@ class InstanceParser:
         
         for parser in parsers:
             if parser(line, instance):
-                print(parser.__name__)
                 return
         
         raise Exception(f'Failed to parse line: {line}')
@@ -172,7 +171,6 @@ class InstanceParser:
                     if s1 != s2:
                         instance.constraint_graph[s1].add(s2)
                         instance.constraint_graph[s2].add(s1)
-            print("Parsed SUAL constraint successfully")
             return True
             
         except Exception as e:
@@ -201,7 +199,6 @@ class InstanceParser:
                 instance.wang_li = []
                 
             instance.wang_li.append((scope, departments))
-            print("Parsed Wang-Li constraint successfully")
             return True
             
         except Exception as e:
@@ -230,7 +227,6 @@ class InstanceParser:
             
             instance.constraint_graph[s1].add(s2)
             instance.constraint_graph[s2].add(s1)
-            print("Parsed ADA constraint successfully")
             return True
             
         except Exception as e:
