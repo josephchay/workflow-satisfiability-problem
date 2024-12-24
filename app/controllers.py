@@ -86,8 +86,7 @@ class AppController:
 
             # Run solver
             result = solver.solve()
-            print("DEBUG: Result from solver:", result.__dict__)
-            print("DEBUG: Solver statistics:", solver.statistics)
+
             self.view.update_progress(0.6)
 
             # Process solution

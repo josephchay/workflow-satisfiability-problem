@@ -115,7 +115,7 @@ def main():
     # Save solution
     try:
         solution.save(args.output_file, solver)
-        print(f"Solution saved to {args.output_file}")
+        print(f"\nSolution saved to {args.output_file}")
     except Exception as e:
         print(f"Error saving solution: {str(e)}")
         sys.exit(1)

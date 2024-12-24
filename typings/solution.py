@@ -45,7 +45,7 @@ class Solution:
         with open(output_file, 'w') as f:
             # Solution Status and Basic Information
             f.write(f"Solution Status: {'SAT' if self.is_sat else 'UNSAT'}\n")
-            f.write(f"Solve Time: {self.solve_time:.4f} seconds\n")
+            f.write(f"Wall Clock Time: {self.solve_time:.4f} seconds\n")
             f.write(f"Solver: {getattr(self, 'solver_type', 'Unknown')}\n")
             f.write("=" * 120 + "\n\n")
 

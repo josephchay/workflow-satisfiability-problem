@@ -3,11 +3,14 @@ from typing import Dict
 from ortools.sat.python import cp_model
 import time
 
+from constants import SolverType
 from solvers import BaseSolver
 from typings import VariableManager, ConstraintManager, Solution, Verifier
 
 
 class ORToolsCPSolver(BaseSolver):
+    SOLVER_TYPE = SolverType.ORTOOLS_CP
+
     """Main solver class for WSP instances"""
     def __init__(self, instance, active_constraints: Dict[str, bool], gui_mode: bool = False):
         self.instance = instance
@@ -47,40 +50,28 @@ class ORToolsCPSolver(BaseSolver):
             start_time = time.time()
             self.solve_time = 0
             
-            print("DEBUG 1: Starting solve method")
             conflicts = self.analyze_constraint_conflicts()
             
-            print("DEBUG 2: Building model")
+            self._log("Building model...")
             if not self._build_model():
-                print("DEBUG 3: Model build failed")
                 result = self._handle_build_failure(start_time)
-                print("DEBUG 3.1: Build failure result:", result.__dict__)
                 self._update_statistics(result)
-                print("DEBUG 3.2: Statistics after build failure:", self.statistics)
                 return result
 
-            print("DEBUG 4: Solving model")
+            self._log("Solving model...")
             status = self.solver.Solve(self.model)
             self.solve_time = time.time() - start_time
             
-            print("DEBUG 5: Solver status:", status)
             if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-                print("DEBUG 6: Found solution")
                 result = self._process_solution(start_time)
-                print("DEBUG 7: Processed solution:", result.__dict__)
                 self._update_statistics(result)
-                print("DEBUG 8: Updated statistics:", self.statistics)
                 return result
             else:
-                print("DEBUG 9: Infeasible")
                 result = self._handle_infeasible(start_time, status)
-                print("DEBUG 10: Handled infeasible:", result.__dict__)
                 self._update_statistics(result)
-                print("DEBUG 11: Updated statistics:", self.statistics)
                 return result
                 
         except Exception as e:
-            print("DEBUG 12: Exception occurred:", str(e))
             result = self._handle_error(start_time, e)
             self._update_statistics(result)  # Make sure to update stats even for errors
             return result
@@ -357,7 +348,7 @@ class ORToolsCPSolver(BaseSolver):
         
         # Add required fields for metadata
         result.solve_time = self.solve_time
-        result.solver_type = self.__class__.__name__
+        result.solver_type = self.SOLVER_TYPE.value
         
         if violations:
             self._log("\nCONSTRAINT VIOLATIONS FOUND!")
@@ -366,7 +357,7 @@ class ORToolsCPSolver(BaseSolver):
             #     self._log(violation)
         else:
             self._log("\nALL CONSTRAINTS SATISFIED!")
-        print("From Process Solution method", result)
+
         return result
     
     def _build_model(self):
@@ -502,7 +493,8 @@ class ORToolsCPSolver(BaseSolver):
         return Solution.create_unsat(time.time() - start_time, reason=reason)
 
     def _handle_error(self, start_time, error):
-        print("Error", error)
+        self._log("Error", error)
+
         """Handle solver errors"""
         error_msg = f"Error during solving: {str(error)}\n"
         error_msg += "Details:\n"
