@@ -74,6 +74,18 @@ def parse_arguments():
     parser.add_argument('--no-oneteam', 
                         action='store_true', 
                         help='Disable one-team constraints')
+    parser.add_argument('--no-sual', 
+                        action='store_false', 
+                        dest='super_user_at_least',
+                        help='Disable Super-User-At-Least constraints')
+    parser.add_argument('--no-wl', 
+                        action='store_false', 
+                        dest='wang_li',
+                        help='Disable Wang-Li constraints')
+    parser.add_argument('--no-ada', 
+                        action='store_false', 
+                        dest='assignment_dependent',
+                        help='Disable Assignment-Dependent Authorization constraints')
     
     return parser.parse_args()
 

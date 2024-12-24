@@ -62,12 +62,77 @@ python main.py
 
 ### Command-Line Interface (CLI)
 
+#### Instance Generation
+
+The script `generate.py` generates Workflow Satisfiability Problem (WSP) instances with varying sizes and constraint types, using our novel `factories/instance_generator.py` generator.
+
+##### Generating Standard Instances
+
+Basic Usage:
+```bash
+python generate.py
+```
+
+This will create 10 instances (example20.txt through example29.txt) with varying combinations of constraints and moderate sizes.
+
+##### Generating Complex Instances
+
+To generate large instances with specific line count requirements:
+
+```bash
+python generate.py --large
+```
+or 
+```bash
+python generate.py --l
+```
+
+For the entire list of options, check out the `parse_arguments` method in `generate.py`.
+
+Standard instances will generate:
+**Examples 20-29**: At least 20 lines each
+
+Complex instances will generate:
+
+**Examples 20-23**: At least 300 lines each
+**Examples 24-26**: At least 600 lines each
+**Examples 27-29**: At least 1000 lines each
+
+Each generated file will follow this naming convention:
+
+`example{N}.txt where N starts from 20`
+
+##### Monitoring Progress (Complex Instances)
+
+The `-l` script provides progress updates during generation:
+
+- Shows file being generated
+- Reports actual line count
+- Indicates if regeneration is needed to meet size requirements
+- Displays final parameters used for each instance
+
+##### Output Location
+
+All generated instances will be saved in the assets/instances directory. The directory will be created automatically if it doesn't exist.
+
+##### Instance Types
+
+The generator creates different types of instances:
+
+**Balanced**: Even distribution of all constraint types
+**SUAL-focused**: More Super-User-At-Least constraints
+**WL-focused**: More Wang-Li constraints
+**ADA-focused**: More Assignment-Dependent-Authorization constraints
+**Mixed**: Varied distribution of constraints
+
+#### Solving Instances
+
 Basic usage:
 ```bash
 python main_cli.py assets/instances/example17.txt results/solution17.txt
 ```
 
-#### Command-Line Options
+##### Command-Line Options
 
 - `-s, --solver`: Select solver type
 ```bash
@@ -79,6 +144,13 @@ python main_cli.py assets/instances/example17.txt results/solution17.txt -s "OR-
 # Disable specific constraints
 python main_cli.py assets/instances/example17.txt results/solution17.txt --no-sod --no-bod
 ```
+
+```bash
+# Disable more specific constraints
+python main_cli.py assets/instances/example17.txt results/solution17.txt --no-sod --no-bod
+```
+
+For the entire list of options, check out the `parse_arguments` method in `main_cli.py`.
 
 ### Solver Type Selection
 
@@ -105,15 +177,21 @@ Separation-of-duty s1 s2
 Binding-of-duty s3 s4
 At-most-k 2 s1 s2 s3
 One-team s4 s5 (u1 u2) (u3 u4 u5)
+Super-user-at-least 3 s1 s2 s3 (u1 u2 u3)
+Wang-li s1 s2 (u1 u2) (u3 u4 u5)
+Assignment-dependent s1 s2 (u1 u2) (u3 u4)
 ```
 
-### Constraint Types Explained
+### Constraint Types
 
-- **Authorisations**: Specify which steps a user can perform
-- **Separation-of-duty**: Ensure steps are not performed by the same user
-- **Binding-of-duty**: Ensure steps are performed by the same user
-- **At-most-k**: Limit users for a set of steps
-- **One-team**: Ensure steps are performed by users from specific teams
+1. **Authorizations**: Restrict which users can perform specific steps
+2. **Separation of Duty (SoD)**: Ensure certain steps are performed by different users
+3. **Binding of Duty (BoD)**: Ensure certain steps are performed by the same user
+4. **At-Most-K**: Limit the number of users assigned to a set of steps
+5. **One-Team**: Ensure steps are assigned to users from the same team
+6. **Super-User-At-Least (SUAL)**: Require super users if step assignments fall below a threshold
+7. **Wang-Li (WL)**: Ensure steps are performed within the same department
+8. **Assignment-Dependent Authorization (ADA)**: Make step authorizations dependent on other assignments
 
 ## Output
 
@@ -146,4 +224,4 @@ Check out `LICENSE` under this project.
 
 ## Acknowledgments
 
-Wholeheartedly, I greatly and gratefully attribute this work to Professor Dr. Doreen Sim for her continuous inspiration and supervision.
+Wholeheartedly, I greatly and gratefully attribute this work to Professor Dr. Doreen Sim for her expertise with continuous inspiration and supervision.

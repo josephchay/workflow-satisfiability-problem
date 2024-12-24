@@ -258,6 +258,168 @@ class OneTeamConstraint(BaseConstraint):
         return True
 
 
+"""NEW ADDITIONAL CONSTRAINTS"""
+
+
+class SUALConstraint(BaseConstraint):
+    """
+    Super-User At-Least constraint
+
+    Threshold-based super user requirements
+    More flexible than pure authorizations
+    """
+    def __init__(self, model, instance, var_manager, super_users: Set[int], h: int, scope: Set[int]):
+        super().__init__(model, instance, var_manager)
+        self.super_users = super_users  # Set of super user indices
+        self.h = h  # Threshold value
+        self.scope = scope  # Set of step indices the constraint applies to
+        
+    def check_feasibility(self) -> Tuple[bool, List[str]]:
+        errors = []
+        
+        # Check if at least h+1 users are authorized for the scope steps
+        # or if super users are authorized for all scope steps
+        for step in self.scope:
+            authorized = self.var_manager.get_authorized_users(step)
+            if len(authorized) < self.h + 1:
+                super_authorized = authorized.intersection(self.super_users)
+                if not super_authorized:
+                    errors.append(
+                        f"Step {step+1} has fewer than {self.h + 1} authorized users "
+                        f"and no authorized super users"
+                    )
+                    
+        return len(errors) == 0, errors
+
+    def add_to_model(self) -> bool:
+        # For each step in scope
+        for step in self.scope:
+            step_users = []  # Users assigned to this step
+            super_assigned = []  # Super users assigned to this step
+            
+            # Get variables for user assignments
+            for user, var in self.var_manager.get_step_variables(step):
+                step_users.append(var)
+                if user in self.super_users:
+                    super_assigned.append(var)
+            
+            # If less than h+1 users assigned, must use super users
+            condition = self.model.NewBoolVar(f'sual_condition_s{step+1}')
+            self.model.Add(sum(step_users) <= self.h).OnlyEnforceIf(condition)
+            self.model.Add(sum(step_users) > self.h).OnlyEnforceIf(condition.Not())
+            
+            # If condition true, one of the super users must be assigned
+            self.model.AddBoolOr(super_assigned).OnlyEnforceIf(condition)
+            
+        return True
+
+
+class WangLiConstraint(BaseConstraint):
+    """
+    Wang-Li Constraint
+
+    Department-based restrictions
+    Ensures steps are assigned to users from same department
+    """
+    def __init__(self, model, instance, var_manager, departments: List[Set[int]], scope: Set[int]):
+        super().__init__(model, instance, var_manager)
+        self.departments = departments  # List of sets of user indices per department
+        self.scope = scope  # Set of step indices
+        
+    def check_feasibility(self) -> Tuple[bool, List[str]]:
+        errors = []
+        
+        # For each step, check if at least one department has authorized users
+        for step in self.scope:
+            authorized = self.var_manager.get_authorized_users(step)
+            if not any(authorized.intersection(dept) for dept in self.departments):
+                errors.append(
+                    f"Step {step+1} has no authorized users from any department"
+                )
+                
+        return len(errors) == 0, errors
+
+    def add_to_model(self) -> bool:
+        # Create department choice variables
+        dept_vars = [self.model.NewBoolVar(f'dept_{i}') 
+                    for i in range(len(self.departments))]
+        
+        # Only one department can be chosen
+        self.model.AddExactlyOne(dept_vars)
+        
+        # All steps in scope must be assigned to users from chosen department
+        for step in self.scope:
+            for dept_idx, dept in enumerate(self.departments):
+                dept_var = dept_vars[dept_idx]
+                for user, var in self.var_manager.get_step_variables(step):
+                    if user not in dept:
+                        self.model.Add(var == 0).OnlyEnforceIf(dept_var)
+        
+        return True
+
+
+class AssignmentDependentConstraint(BaseConstraint):
+    """
+    Assignment-Dependent Authorization Constraint
+
+    Dynmamic authorization conditions
+    Ensures step assignment depends on another step's assignment
+    """
+    def __init__(self, model, instance, var_manager, s1: int, s2: int, 
+                 source_users: Set[int], target_users: Set[int]):
+        super().__init__(model, instance, var_manager)
+        self.s1 = s1  # Source step
+        self.s2 = s2  # Target step
+        self.source_users = source_users  # Users triggering the constraint
+        self.target_users = target_users  # Users required for s2
+        
+    def check_feasibility(self) -> Tuple[bool, List[str]]:
+        errors = []
+        
+        # Check if target step has any authorized users from target_users
+        auth_target = self.var_manager.get_authorized_users(self.s2)
+        if auth_target.intersection(self.target_users):
+            return True, []
+            
+        # If source step has authorized users from source_users,
+        # target step must have authorized target users
+        auth_source = self.var_manager.get_authorized_users(self.s1)
+        if auth_source.intersection(self.source_users):
+            errors.append(
+                f"Step {self.s2+1} has no authorized users from required set "
+                f"when step {self.s1+1} is assigned to trigger set"
+            )
+            
+        return len(errors) == 0, errors
+
+    def add_to_model(self) -> bool:
+        # Create variables
+        source_assigned = self.model.NewBoolVar('source_from_trigger_set')
+        
+        # Set source_assigned true if s1 assigned to user from source_users
+        source_vars = []
+        for user, var in self.var_manager.get_step_variables(self.s1):
+            if user in self.source_users:
+                source_vars.append(var)
+        
+        if source_vars:
+            self.model.AddBoolOr(source_vars).OnlyEnforceIf(source_assigned)
+            self.model.AddBoolAnd([v.Not() for v in source_vars]).OnlyEnforceIf(source_assigned.Not())
+            
+            # If source_assigned, s2 must be assigned to user from target_users
+            target_vars = []
+            for user, var in self.var_manager.get_step_variables(self.s2):
+                if user in self.target_users:
+                    target_vars.append(var)
+                else:
+                    self.model.Add(var == 0).OnlyEnforceIf(source_assigned)
+                    
+            if target_vars:
+                self.model.AddBoolOr(target_vars).OnlyEnforceIf(source_assigned)
+        
+        return True
+
+
 class ConstraintManager:
     """Manages WSP constraints using individual constraint classes"""
     def __init__(self, model, instance, var_manager):

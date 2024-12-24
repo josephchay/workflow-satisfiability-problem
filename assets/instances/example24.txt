@@ -1,0 +1,23 @@
+#Steps: 10
+#Users: 25
+#Constraints: 10
+Authorisations u1 s6 s7 s13 s19 s21 s22 s23
+Authorisations u2 s1 s3 s5 s6 s10 s22 s24
+Authorisations u3 s1 s4 s6 s15 s17 s21 s25
+Authorisations u4 s3 s10 s15 s16 s22 s24 s25
+Authorisations u5 s3 s6 s9 s10 s11 s20 s22
+Authorisations u6 s2 s7 s11 s12 s18 s21 s22
+Authorisations u7 s3 s4 s5 s8 s10 s11 s24
+Authorisations u8 s3 s7 s9 s10 s16 s18 s23
+Authorisations u9 s5 s11 s16 s19 s21 s23 s24
+Authorisations u10 s5 s7 s9 s16 s17 s20 s22
+Separation-of-duty s5 s8
+Separation-of-duty s2 s8
+Binding-of-duty s6 s8
+At-most-k 2 s3 s5 s6
+Super-user-at-least 4 s4 s5 s7 u18 u21
+Super-user-at-least 3 s6 s8 u18 u21
+Super-user-at-least 3 s3 s6 s7 s9 u18 u21
+Super-user-at-least 2 s1 s6 s8 s10 u18 u21
+Wang-li s1 s4 s7 s9 (u1 u8 u12 u18 u19 u21) (u4 u5 u6 u17 u20 u23) (u7 u9 u10 u13 u14 u16) (u2 u3 u11 u15 u22 u24 u25)
+Assignment-dependent s7 s5 (u13 u22 u25) (u1 u11 u12 u24)

@@ -1,0 +1,93 @@
+#Steps: 20
+#Users: 50
+#Constraints: 70
+Authorisations u1 s3 s10 s12 s16 s21 s22 s23 s24 s26 s28 s35 s40 s46 s48 s50
+Authorisations u2 s1 s6 s8 s15 s17 s24 s25 s27 s28 s31 s32 s41 s43 s45 s50
+Authorisations u3 s3 s4 s5 s6 s13 s17 s23 s27 s28 s32 s36 s38 s40 s48 s50
+Authorisations u4 s3 s11 s14 s16 s17 s18 s21 s23 s25 s30 s32 s34 s35 s42 s49
+Authorisations u5 s5 s10 s12 s19 s20 s25 s26 s27 s32 s34 s35 s36 s38 s45 s48
+Authorisations u6 s1 s2 s7 s8 s14 s19 s20 s22 s25 s26 s27 s30 s31 s36 s40
+Authorisations u7 s5 s9 s10 s11 s12 s13 s15 s17 s19 s35 s36 s41 s42 s47 s48
+Authorisations u8 s1 s4 s7 s8 s10 s17 s19 s31 s34 s38 s41 s42 s44 s45 s50
+Authorisations u9 s1 s4 s11 s12 s14 s17 s27 s29 s34 s36 s40 s44 s45 s46 s48
+Authorisations u10 s1 s3 s13 s18 s19 s23 s24 s26 s27 s31 s37 s39 s40 s45 s49
+Authorisations u11 s6 s9 s10 s11 s15 s19 s24 s28 s31 s36 s41 s44 s46 s49 s50
+Authorisations u12 s3 s7 s8 s9 s13 s22 s26 s28 s29 s33 s35 s37 s40 s44 s47
+Authorisations u13 s3 s4 s7 s8 s10 s11 s17 s19 s24 s26 s27 s34 s36 s43 s49
+Authorisations u14 s4 s6 s9 s13 s14 s20 s25 s26 s27 s34 s42 s43 s44 s49 s50
+Authorisations u15 s1 s8 s17 s18 s22 s23 s25 s30 s31 s35 s40 s41 s42 s47 s50
+Authorisations u16 s5 s7 s10 s18 s19 s25 s28 s29 s30 s36 s41 s42 s46 s47 s49
+Authorisations u17 s1 s3 s4 s7 s14 s16 s17 s22 s24 s27 s28 s30 s36 s37 s50
+Authorisations u18 s4 s6 s7 s9 s11 s21 s22 s29 s32 s36 s40 s41 s44 s47 s50
+Authorisations u19 s1 s2 s3 s7 s10 s12 s16 s19 s24 s29 s39 s41 s46 s47 s50
+Authorisations u20 s2 s3 s6 s7 s8 s20 s22 s25 s28 s29 s30 s34 s45 s49 s50
+Separation-of-duty s1 s15
+Separation-of-duty s1 s12
+Separation-of-duty s12 s20
+Separation-of-duty s5 s13
+Separation-of-duty s9 s20
+Separation-of-duty s3 s4
+Separation-of-duty s16 s18
+Separation-of-duty s3 s5
+Separation-of-duty s4 s13
+Separation-of-duty s11 s14
+Separation-of-duty s11 s15
+Separation-of-duty s10 s15
+Separation-of-duty s2 s18
+Separation-of-duty s9 s17
+Separation-of-duty s4 s7
+Separation-of-duty s13 s18
+Separation-of-duty s6 s15
+Separation-of-duty s5 s15
+Separation-of-duty s4 s20
+Separation-of-duty s4 s10
+Binding-of-duty s3 s7
+Binding-of-duty s8 s19
+Binding-of-duty s2 s18
+Binding-of-duty s10 s20
+Binding-of-duty s12 s18
+Binding-of-duty s7 s12
+Binding-of-duty s2 s17
+Binding-of-duty s2 s5
+Binding-of-duty s2 s13
+Binding-of-duty s1 s17
+At-most-k 3 s1 s12 s15 s16
+At-most-k 3 s1 s4 s7 s10 s19
+At-most-k 2 s5 s7 s8 s10 s18
+At-most-k 3 s6 s10 s15 s16
+At-most-k 2 s6 s9 s11
+At-most-k 3 s4 s10 s11 s12 s19
+At-most-k 3 s1 s4 s7 s12 s19
+At-most-k 4 s2 s5 s8 s12 s16 s19 s20
+At-most-k 2 s1 s2 s4
+At-most-k 2 s4 s6 s10 s11 s18
+Super-user-at-least 2 s5 s6 s9 s10 u3 u19 u23 u26 u50
+Super-user-at-least 4 s7 s15 u3 u19 u23 u26 u50
+Super-user-at-least 4 s4 s16 u3 u19 u23 u26 u50
+Super-user-at-least 2 s1 s7 u3 u19 u23 u26 u50
+Super-user-at-least 3 s1 s2 s17 s19 u3 u19 u23 u26 u50
+Super-user-at-least 3 s7 s8 s9 u3 u19 u23 u26 u50
+Super-user-at-least 4 s16 s18 s20 u3 u19 u23 u26 u50
+Super-user-at-least 4 s4 s13 u3 u19 u23 u26 u50
+Super-user-at-least 4 s10 s11 s17 u3 u19 u23 u26 u50
+Super-user-at-least 2 s2 s11 s14 u3 u19 u23 u26 u50
+Wang-li s4 s8 s13 s14 s17 (u6 u9 u10 u12 u22 u23 u26 u28 u33 u40 u46 u50) (u3 u4 u11 u17 u20 u27 u29 u31 u36 u38 u44 u48) (u1 u8 u13 u14 u15 u18 u19 u25 u37 u42 u43 u45) (u2 u5 u7 u16 u21 u24 u30 u32 u34 u35 u39 u41 u47 u49)
+Wang-li s7 s8 s10 (u6 u9 u10 u12 u22 u23 u26 u28 u33 u40 u46 u50) (u3 u4 u11 u17 u20 u27 u29 u31 u36 u38 u44 u48) (u1 u8 u13 u14 u15 u18 u19 u25 u37 u42 u43 u45) (u2 u5 u7 u16 u21 u24 u30 u32 u34 u35 u39 u41 u47 u49)
+Wang-li s3 s14 (u6 u9 u10 u12 u22 u23 u26 u28 u33 u40 u46 u50) (u3 u4 u11 u17 u20 u27 u29 u31 u36 u38 u44 u48) (u1 u8 u13 u14 u15 u18 u19 u25 u37 u42 u43 u45) (u2 u5 u7 u16 u21 u24 u30 u32 u34 u35 u39 u41 u47 u49)
+Wang-li s1 s11 s13 s14 s15 (u6 u9 u10 u12 u22 u23 u26 u28 u33 u40 u46 u50) (u3 u4 u11 u17 u20 u27 u29 u31 u36 u38 u44 u48) (u1 u8 u13 u14 u15 u18 u19 u25 u37 u42 u43 u45) (u2 u5 u7 u16 u21 u24 u30 u32 u34 u35 u39 u41 u47 u49)
+Wang-li s5 s12 s17 (u6 u9 u10 u12 u22 u23 u26 u28 u33 u40 u46 u50) (u3 u4 u11 u17 u20 u27 u29 u31 u36 u38 u44 u48) (u1 u8 u13 u14 u15 u18 u19 u25 u37 u42 u43 u45) (u2 u5 u7 u16 u21 u24 u30 u32 u34 u35 u39 u41 u47 u49)
+Wang-li s12 s15 (u6 u9 u10 u12 u22 u23 u26 u28 u33 u40 u46 u50) (u3 u4 u11 u17 u20 u27 u29 u31 u36 u38 u44 u48) (u1 u8 u13 u14 u15 u18 u19 u25 u37 u42 u43 u45) (u2 u5 u7 u16 u21 u24 u30 u32 u34 u35 u39 u41 u47 u49)
+Wang-li s2 s3 s16 (u6 u9 u10 u12 u22 u23 u26 u28 u33 u40 u46 u50) (u3 u4 u11 u17 u20 u27 u29 u31 u36 u38 u44 u48) (u1 u8 u13 u14 u15 u18 u19 u25 u37 u42 u43 u45) (u2 u5 u7 u16 u21 u24 u30 u32 u34 u35 u39 u41 u47 u49)
+Wang-li s3 s5 s8 s11 s17 (u6 u9 u10 u12 u22 u23 u26 u28 u33 u40 u46 u50) (u3 u4 u11 u17 u20 u27 u29 u31 u36 u38 u44 u48) (u1 u8 u13 u14 u15 u18 u19 u25 u37 u42 u43 u45) (u2 u5 u7 u16 u21 u24 u30 u32 u34 u35 u39 u41 u47 u49)
+Wang-li s6 s8 s9 s11 s13 (u6 u9 u10 u12 u22 u23 u26 u28 u33 u40 u46 u50) (u3 u4 u11 u17 u20 u27 u29 u31 u36 u38 u44 u48) (u1 u8 u13 u14 u15 u18 u19 u25 u37 u42 u43 u45) (u2 u5 u7 u16 u21 u24 u30 u32 u34 u35 u39 u41 u47 u49)
+Wang-li s13 s15 (u6 u9 u10 u12 u22 u23 u26 u28 u33 u40 u46 u50) (u3 u4 u11 u17 u20 u27 u29 u31 u36 u38 u44 u48) (u1 u8 u13 u14 u15 u18 u19 u25 u37 u42 u43 u45) (u2 u5 u7 u16 u21 u24 u30 u32 u34 u35 u39 u41 u47 u49)
+Assignment-dependent s19 s7 (u20 u29 u35 u36) (u3 u11 u12 u14 u17 u29 u33 u35 u37 u41 u45)
+Assignment-dependent s1 s19 (u7 u8 u11 u20 u21 u33 u37 u38 u44 u49 u50) (u4 u16 u28 u43 u50)
+Assignment-dependent s12 s16 (u2 u4 u5 u14 u15 u21 u30) (u9 u14 u18 u28 u48)
+Assignment-dependent s14 s13 (u6 u7 u12 u19 u23 u25 u28 u35 u38 u48) (u7 u16 u42 u47)
+Assignment-dependent s5 s7 (u9 u10 u19 u21 u27 u30 u39) (u7 u8 u11 u16 u17 u29 u32 u35 u37 u39 u44 u47)
+Assignment-dependent s14 s7 (u3 u4 u5 u20 u24 u29 u31) (u6 u10 u11 u13 u19 u20 u24 u26 u33 u34 u35 u50)
+Assignment-dependent s15 s4 (u5 u9) (u6 u8 u13 u17 u27 u29 u36 u44)
+Assignment-dependent s7 s15 (u7 u10 u27 u33 u34 u42 u50) (u2 u22 u29 u50)
+Assignment-dependent s15 s8 (u4 u21 u24 u27 u29 u36 u38) (u21 u36 u41)
+Assignment-dependent s3 s11 (u11 u34) (u3 u8 u28 u31 u33 u34 u35 u37 u46 u47 u48 u50)
