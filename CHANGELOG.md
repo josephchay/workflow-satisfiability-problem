@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Proper Visualiation graphs for solution statistics, efficiency metrics, constraint analysis.
 - Cache clearing for accumulated solved instances for visualisation.
 - New plots tab for the GUI to directly visualize the each of the saved files for the user.
+- User Authorization, Step Authorization, Authorization Density, Constraint Comparison plot graphs for visualization.
 
 ### Changed
 - Updated the GUI `views.py` and `controllers.py` to fit in to our new solver solution (`ortools-fast.py` but now in a dynamic and versatile way).
