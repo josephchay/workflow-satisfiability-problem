@@ -56,28 +56,48 @@ class Generator:
                     'num_wangli': int(base_count * (multiplier // 2)),
                     'num_ada': int(base_count * (multiplier // 2))
                 })
-        elif config == "small_mixed" and not self.classic_only:
+        elif "sual_focused" in config and not self.classic_only:
             base_constraints.update({
-                'num_sod': 3,
-                'num_bod': 2,
-                'num_atmost': 1,
-                'num_oneteam': 1,
-                'num_sual': 1,
-                'num_wangli': 1,
-                'num_ada': 1
+                'num_sod': int(base_count * (multiplier // 2)),
+                'num_bod': int(base_count * (multiplier // 4)),
+                'num_atmost': int(base_count * (multiplier // 4)),
+                'num_oneteam': int(base_count * (multiplier // 4)),
+                'num_sual': int(base_count * multiplier),
+                'num_wangli': int(base_count * (multiplier // 4)),
+                'num_ada': int(base_count * (multiplier // 4))
             })
-        elif config == "classic_heavy":
+        elif "wl_focused" in config and not self.classic_only:
             base_constraints.update({
-                'num_sod': 5,
-                'num_bod': 4,
-                'num_atmost': 3,
-                'num_oneteam': 2
+                'num_sod': int(base_count * (multiplier // 2)),
+                'num_bod': int(base_count * (multiplier // 4)),
+                'num_atmost': int(base_count * (multiplier // 4)),
+                'num_oneteam': int(base_count * (multiplier // 4)),
+                'num_sual': int(base_count * (multiplier // 4)),
+                'num_wangli': int(base_count * multiplier),
+                'num_ada': int(base_count * (multiplier // 4))
+            })
+        elif "ada_focused" in config and not self.classic_only:
+            base_constraints.update({
+                'num_sod': int(base_count * (multiplier // 2)),
+                'num_bod': int(base_count * (multiplier // 4)),
+                'num_atmost': int(base_count * (multiplier // 4)),
+                'num_oneteam': int(base_count * (multiplier // 4)),
+                'num_sual': int(base_count * (multiplier // 4)),
+                'num_wangli': int(base_count * (multiplier // 4)),
+                'num_ada': int(base_count * multiplier)
+            })
+        else:  # mixed variants
+            base_constraints.update({
+                'num_sod': int(base_count * multiplier),
+                'num_bod': int(base_count * (multiplier // 2)),
+                'num_atmost': int(base_count * (multiplier // 2)),
+                'num_oneteam': int(base_count * (multiplier // 2))
             })
             if not self.classic_only:
                 base_constraints.update({
-                    'num_sual': 1,
-                    'num_wangli': 1,
-                    'num_ada': 1
+                    'num_sual': int(base_count * (multiplier // 1.5)),
+                    'num_wangli': int(base_count * (multiplier // 1.5)),
+                    'num_ada': int(base_count * (multiplier // 1.5))
                 })
 
         # Add users_per_dept if needed
@@ -124,10 +144,23 @@ class Generator:
         """Generate larger WSP instances"""
         os.makedirs("assets/instances", exist_ok=True)
         
+        # Complex instance configurations
         instance_configs = [
+            # 300+ line instances (first 3)
             InstanceConfig(25, 80, "medium_balanced", min_lines=300, auth_density=0.25, dept_size=15, multiplier=8),
+            InstanceConfig(25, 85, "sual_focused", min_lines=300, auth_density=0.25, dept_size=15, multiplier=8),
+            InstanceConfig(28, 90, "wl_focused", min_lines=300, auth_density=0.25, dept_size=18, multiplier=8),
+            
+            # 600+ line instances (next 3)
             InstanceConfig(35, 120, "large_balanced", min_lines=600, auth_density=0.2, dept_size=20, multiplier=12),
-            InstanceConfig(45, 180, "extra_large_balanced", min_lines=1000, auth_density=0.15, dept_size=30, multiplier=20)
+            InstanceConfig(38, 130, "large_mixed", min_lines=600, auth_density=0.2, dept_size=22, multiplier=12),
+            InstanceConfig(40, 140, "ada_focused", min_lines=600, auth_density=0.2, dept_size=25, multiplier=12),
+            
+            # 1000+ line instances (final 4)
+            InstanceConfig(45, 180, "extra_large_balanced", min_lines=1000, auth_density=0.15, dept_size=30, multiplier=20),
+            InstanceConfig(48, 200, "extra_large_mixed", min_lines=1000, auth_density=0.15, dept_size=35, multiplier=20),
+            InstanceConfig(50, 220, "sual_focused", min_lines=1000, auth_density=0.15, dept_size=40, multiplier=20),
+            InstanceConfig(50, 220, "massive_balanced", min_lines=1000, auth_density=0.15, dept_size=40, multiplier=20)
         ]
         
         for idx, config in enumerate(instance_configs, start=20):
@@ -170,6 +203,7 @@ class Generator:
                     print(f"Lines: {num_lines} (required: {config.min_lines})")
                     print(f"Parameters: k={config.k}, n={config.n}, auth_density={config.auth_density}")
                     print(f"Configuration: {config.description}")
+                    print(f"Attempts needed: {retry_count}")
                     break
                 elif num_lines > config.min_lines * 2:
                     multiplier = max(4, multiplier - 2)

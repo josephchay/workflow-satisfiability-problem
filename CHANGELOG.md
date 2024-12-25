@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Saving of SUAL, WangLi, and ADA constraint information to solution output for CLI.
 - SUAL, WangLi, and ADA constraints to active / inactive consideration for CLI
 - Instance generation configuration constants.
+- Increment from 3 to 10 instance files generation for complex instances.
+- Documentation for generating instances with classic constraints only in README.
 
 ### Changed
 - Updated the GUI `views.py` and `controllers.py` to fit in to our new solver solution (`ortools-fast.py` but now in a dynamic and versatile way).

@@ -87,6 +87,34 @@ or
 python generate.py --l
 ```
 
+##### Generating with Classic Constraints only
+
+To generate instances containing only classic constraints only includes:
+
+- Authorization
+- SOD
+- BOD
+- At-Most-K
+- One Team
+
+and excludes:
+
+- SUAL
+- WangLi
+- ADA
+
+```bash
+# Standard instances with classic constraints only
+python generate.py --classic-only
+```
+
+or for complex instances
+
+```bash
+# Complex instances with classic constraints only
+python generate.py -l --classic-only
+```
+
 For the entire list of options, check out the `parse_arguments` method in `generate.py`.
 
 Standard instances will generate:
