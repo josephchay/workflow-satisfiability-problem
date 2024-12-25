@@ -48,17 +48,17 @@ class ORToolsCPSolver(BaseSolver):
 
     def solve(self):
         """Main solving method"""
+        conflicts = self.identify_constraint_conflicts()
+        
         try:
             start_time = time.time()
             self.solve_time = 0
             
-            conflicts = self.analyze_constraint_conflicts()
-            
             self._log("Building model...")
             if not self._build_model():
                 print("Failed to build model. Analyzing infeasibility...")
-                result = self._handle_build_failure(start_time)
-                self._update_statistics(result)
+                result = self._handle_build_failure(start_time, conflicts)
+                self._update_statistics(result, conflicts)
                 return result
 
             self._log("Solving model...")
@@ -68,21 +68,21 @@ class ORToolsCPSolver(BaseSolver):
             if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
                 print("Solution found. Verifying constraints...")
                 result = self._process_solution(start_time)
-                self._update_statistics(result)
+                self._update_statistics(result, conflicts)
                 return result
             else:
                 print("No solution found. Analyzing infeasibility...")
-                result = self._handle_infeasible(start_time, status)
-                self._update_statistics(result)
+                result = self._handle_infeasible(start_time, status, conflicts)
+                self._update_statistics(result, conflicts)
                 return result
                 
         except Exception as e:
             print(f"Error during solving: {str(e)}")
             result = self._handle_error(start_time, e)
-            self._update_statistics(result)  # Make sure to update stats even for errors
+            self._update_statistics(result, conflicts)  # update stats even for errors
             return result
 
-    def _update_statistics(self, result):
+    def _update_statistics(self, result, conflicts):
         """Update comprehensive statistics"""
         # Initialize all dictionaries first
         self.statistics = {
@@ -177,7 +177,7 @@ class ORToolsCPSolver(BaseSolver):
 
         # Add detailed analysis in all cases
         if self.gui_mode:
-            self._add_detailed_analysis()
+            self._add_detailed_analysis(conflicts)
 
             # Add UNSAT specific analysis
             if not result.is_sat:
@@ -194,7 +194,7 @@ class ORToolsCPSolver(BaseSolver):
                     })
                     self.statistics["solution_status"]["UNSAT Analysis"] = result.reason
 
-    def _add_detailed_analysis(self):
+    def _add_detailed_analysis(self, conflicts):
         """Add detailed analysis to statistics"""
         detailed = {}
         
@@ -231,7 +231,10 @@ class ORToolsCPSolver(BaseSolver):
             "Separation of Duty": [],
             "Binding of Duty": [],
             "At Most K": [],
-            "One Team": []
+            "One Team": [],
+            "Super User At Least": [],
+            "Wang Li": [],
+            "Assignment Dependent": [],
         }
 
         # SOD constraints
@@ -268,13 +271,74 @@ class ORToolsCPSolver(BaseSolver):
                     "Teams": [[u+1 for u in team] for team in teams]
                 })
 
+        # SUAL constraints
+        if hasattr(self.instance, 'sual'):
+            for scope, h, super_users in self.instance.sual:
+                auth_super_users = []
+                for user in super_users:
+                    if all(self.instance.user_step_matrix[user][s] for s in scope):
+                        auth_super_users.append(user + 1)
+                
+                constraint_analysis["Super User At Least"].append({
+                    "Steps": [s+1 for s in scope],
+                    "Required Count": h,
+                    "Authorized Super Users": sorted(auth_super_users),
+                    "Description": f"Steps {[s+1 for s in scope]} must have {h} super users "
+                                f"if assigned to {h} or fewer users"
+                })
+
+        # Wang-Li constraints
+        if hasattr(self.instance, 'wang_li'):
+            for scope, departments in self.instance.wang_li:
+                dept_analysis = []
+                for dept_idx, dept in enumerate(departments):
+                    authorized_steps = []
+                    for step in scope:
+                        if any(self.instance.user_step_matrix[u][step] for u in dept):
+                            authorized_steps.append(step + 1)
+                    dept_analysis.append({
+                        "Department": dept_idx + 1,
+                        "Users": [u+1 for u in dept],
+                        "Authorized Steps": authorized_steps
+                    })
+                
+                constraint_analysis["Wang Li"].append({
+                    "Steps": [s+1 for s in scope],
+                    "Departments": dept_analysis,
+                    "Description": f"Steps {[s+1 for s in scope]} must be assigned to users "
+                                f"from the same department"
+                })
+
+        # ADA constraints
+        if hasattr(self.instance, 'ada'):
+            for s1, s2, source_users, target_users in self.instance.ada:
+                auth_source = [u+1 for u in source_users 
+                            if self.instance.user_step_matrix[u][s1]]
+                auth_target = [u+1 for u in target_users 
+                            if self.instance.user_step_matrix[u][s2]]
+                
+                constraint_analysis["Assignment Dependent"].append({
+                    "Source Step": s1 + 1,
+                    "Target Step": s2 + 1,
+                    "Authorized Source Users": sorted(auth_source),
+                    "Authorized Target Users": sorted(auth_target),
+                    "Description": f"If step {s1+1} is assigned to a user from {[u+1 for u in source_users]}, "
+                                f"then step {s2+1} must be assigned to a user from {[u+1 for u in target_users]}"
+                })
+
         detailed["Constraint Analysis"] = constraint_analysis
 
-        # Add conflict analysis if there are any conflicts
-        conflicts = self.analyze_constraint_conflicts()
+        # # Only add Conflict Analysis if it's not already shown in UNSAT analysis
+        # if conflicts and "reason" not in self.statistics["solution_status"]: 
+        #     detailed["Conflict Analysis"] = {
+        #         "Detected Conflicts": conflicts,
+        #         "Description": "Potential conflicts detected in constraint specifications"
+        #     }
 
-        # Only add Conflict Analysis if it's not already shown in UNSAT analysis
-        if conflicts and "reason" not in self.statistics["solution_status"]: 
+        # self.statistics["detailed_analysis"] = detailed
+
+        # Add Conflict Analysis section if conflicts exist
+        if conflicts: 
             detailed["Conflict Analysis"] = {
                 "Detected Conflicts": conflicts,
                 "Description": "Potential conflicts detected in constraint specifications"
@@ -282,10 +346,10 @@ class ORToolsCPSolver(BaseSolver):
 
         self.statistics["detailed_analysis"] = detailed
 
-    def analyze_constraint_conflicts(self):
+    def identify_constraint_conflicts(self):
         """Analyze potential constraint conflicts"""
         conflicts = []
-        
+
         # First add BOD authorization gaps as conflicts
         if self.active_constraints.get('binding_of_duty', True):
             for s1, s2 in self.instance.BOD:
@@ -336,6 +400,41 @@ class ORToolsCPSolver(BaseSolver):
                                     f"requires at least {min_users_needed:.0f} users but only "
                                     f"has {total_users} authorized users"
                     })
+
+        # Check One-team constraint feasibility
+        if self.active_constraints.get('one_team', True):
+            for idx, (steps, teams) in enumerate(self.instance.one_team):
+                # Check if all referenced users exist and have required authorizations
+                for team_idx, team in enumerate(teams):
+                    unauthorized_users = []
+                    for user in team:
+                        has_auth = False
+                        for step in steps:
+                            if self.instance.user_step_matrix[user][step]:
+                                has_auth = True
+                                break
+                        if not has_auth:
+                            unauthorized_users.append(user + 1)
+                            
+                    if unauthorized_users:
+                        conflicts.append({
+                            "Type": "One-Team Authorization Gap",
+                            "Description": f"Team {team_idx + 1} in constraint {idx + 1} has users {unauthorized_users} "
+                                        f"who are not authorized for any steps in scope {[s+1 for s in steps]}"
+                        })
+                
+                # Check if there's enough authorized users in each team
+                for step in steps:
+                    teams_covering_step = []
+                    for team_idx, team in enumerate(teams):
+                        if any(self.instance.user_step_matrix[user][step] for user in team):
+                            teams_covering_step.append(team_idx + 1)
+                    
+                    if not teams_covering_step:
+                        conflicts.append({
+                            "Type": "One-Team Coverage Gap",
+                            "Description": f"No team has any users authorized for step {step + 1}"
+                        })
 
         # Check SUAL feasibility
         if self.active_constraints.get('super_user_at_least', True):
@@ -445,10 +544,9 @@ class ORToolsCPSolver(BaseSolver):
             self._log(f"Error building model: {str(e)}")
             return False
 
-    def _handle_build_failure(self, start_time):
+    def _handle_build_failure(self, start_time, conflicts):
         """Handle model building failures"""
-        conflicts = self.analyze_constraint_conflicts()
-        
+        # Build reason message based on detected conflicts
         if not conflicts:
             reason = "Problem is infeasible but no specific cause could be determined"
         else:
@@ -458,172 +556,46 @@ class ORToolsCPSolver(BaseSolver):
         # return Solution.create_unsat(time.time() - start_time, reason=reason)
         return Solution.create_unsat(time.time() - start_time)
 
-    def _handle_infeasible(self, start_time, status):
+    def _handle_infeasible(self, start_time, status, conflicts):
         """Handle infeasible results with comprehensive conflict analysis"""
-        # Detailed analysis of potential infeasibility causes
-        reason = "\n"
-
-        # 1. Authorization Gaps Analysis
-        auth_gaps = self._get_authorization_gaps()
-        if auth_gaps:
-            reason += "CRITICAL AUTHORIZATION GAPS:\n"
-            reason += "  - Some steps have NO authorized users:\n"
-            for gap in auth_gaps:
-                reason += f"    * Step {gap+1} has no authorized users\n"
-            reason += "\n"
-
-        # 2. Separation of Duty Constraint Analysis
-        sod_conflicts = self._analyze_sod_conflicts()
-        if sod_conflicts:
-            reason += "SEPARATION OF DUTY (SOD) CONFLICTS:\n"
-            for conflict in sod_conflicts:
-                reason += f"  - {conflict}\n"
-            reason += "\n"
-
-        # 3. Binding of Duty Constraint Analysis
-        bod_conflicts = self._analyze_bod_conflicts()
-        if bod_conflicts:
-            reason += "BINDING OF DUTY (BOD) CONFLICTS:\n"
-            for conflict in bod_conflicts:
-                reason += f"  - {conflict}\n"
-            reason += "\n"
-
-        # 4. At-Most-K Constraint Analysis
-        amk_conflicts = self._analyze_at_most_k_conflicts()
-        if amk_conflicts:
-            reason += "AT-MOST-K CONSTRAINT VIOLATIONS:\n"
-            for conflict in amk_conflicts:
-                reason += f"  - {conflict}\n"
-            reason += "\n"
-
-        # 5. One-Team Constraint Analysis
-        oneteam_conflicts = self._analyze_one_team_conflicts()
-        if oneteam_conflicts:
-            reason += "ONE-TEAM CONSTRAINT CONFLICTS:\n"
-            for conflict in oneteam_conflicts:
-                reason += f"  - {conflict}\n"
-            reason += "\n"
-
-        # 6. Authorization Distribution Analysis
-        auth_distribution_issues = self._analyze_auth_distribution()
-        if auth_distribution_issues:
-            reason += "AUTHORIZATION DISTRIBUTION ISSUES:\n"
-            for issue in auth_distribution_issues:
-                reason += f"  - {issue}\n"
-            reason += "\n"
-
-        # Final summary
-        if not (auth_gaps or sod_conflicts or bod_conflicts or 
-                amk_conflicts or oneteam_conflicts or auth_distribution_issues):
-            reason += "NO SPECIFIC CONFLICTS DETECTED\n"
-            reason += "The problem appears unsatisfiable due to the complex interaction of constraints\n"
-
-        return Solution.create_unsat(time.time() - start_time, reason=reason)
-
-    def _get_authorization_gaps(self):
-        """Get steps with no authorized users"""
-        return [step for step in range(self.instance.number_of_steps)
-                if not any(self.instance.user_step_matrix[user][step] 
-                        for user in range(self.instance.number_of_users))]
-
-    def _analyze_sod_conflicts(self):
-        """Analyze potential Separation of Duty conflicts"""
-        sod_conflicts = []
-        for s1, s2 in self.instance.SOD:
-            # Check if any user is authorized for both steps
-            common_users = [
-                user for user in range(self.instance.number_of_users)
-                if (self.instance.user_step_matrix[user][s1] and 
-                    self.instance.user_step_matrix[user][s2])
-            ]
-            if common_users:
-                sod_conflicts.append(
-                    f"SOD Violation: Step {s1+1} and {s2+1} MUST be performed by different users, "
-                    f"but users {[u+1 for u in common_users]} are authorized for both"
-                )
-        return sod_conflicts
-
-    def _analyze_bod_conflicts(self):
-        """Analyze Binding of Duty constraint conflicts"""
-        bod_conflicts = []
-        for s1, s2 in self.instance.BOD:
-            # Find users authorized for both steps
-            common_users = [
-                user for user in range(self.instance.number_of_users)
-                if (self.instance.user_step_matrix[user][s1] and 
-                    self.instance.user_step_matrix[user][s2])
-            ]
-            if not common_users:
-                bod_conflicts.append(
-                    f"BOD Violation: Step {s1+1} and {s2+1} MUST be performed by the SAME user, "
-                    "but NO common authorized users exist"
-                )
-        return bod_conflicts
-
-    def _analyze_at_most_k_conflicts(self):
-        """Analyze At-Most-K constraint potential conflicts"""
-        amk_conflicts = []
-        for k, steps in self.instance.at_most_k:
-            # Calculate total authorized users for the step group
-            total_users = len(set(
-                user for user in range(self.instance.number_of_users)
-                if any(self.instance.user_step_matrix[user][s] for s in steps)
-            ))
-            min_users_needed = len(steps) / k
-            if total_users < min_users_needed:
-                amk_conflicts.append(
-                    f"At-Most-K Violation: Constraint requires at least {min_users_needed:.0f} users "
-                    f"for steps {[s+1 for s in steps]}, but only {total_users} users are available"
-                )
-        return amk_conflicts
-
-    def _analyze_one_team_conflicts(self):
-        """Analyze One-Team constraint potential conflicts"""
-        oneteam_conflicts = []
-        if hasattr(self.instance, 'one_team'):
-            for steps, teams in self.instance.one_team:
-                # Check if each step has users from at least one team
-                for step in steps:
-                    step_users = set(
-                        user for user in range(self.instance.number_of_users)
-                        if self.instance.user_step_matrix[user][step]
-                    )
-                    
-                    # Check if step users belong to any team
-                    team_match = any(
-                        step_users.intersection(set(team)) 
-                        for team in teams
-                    )
-                    
-                    if not team_match:
-                        oneteam_conflicts.append(
-                            f"One-Team Violation: Step {step+1} has NO users from any specified team groups"
-                        )
-        return oneteam_conflicts
-
-    def _analyze_auth_distribution(self):
-        """Analyze authorization distribution across steps and users"""
-        issues = []
+        # Build reason message based on detected conflicts
+        if conflicts:
+            # Organize conflicts by type
+            conflict_types = {}
+            for conflict in conflicts:
+                conflict_type = conflict.get('Type', 'Unknown Conflict')
+                if conflict_type not in conflict_types:
+                    conflict_types[conflict_type] = []
+                conflict_types[conflict_type].append(conflict['Description'])
+            
+            # Construct detailed reason
+            reason = "The problem is infeasible due to the following conflicts:\n"
+            for conflict_type, descriptions in conflict_types.items():
+                reason += f"\n{conflict_type}:\n"
+                for desc in descriptions:
+                    reason += f"  - {desc}\n"
+        else:
+            reason = "Problem is infeasible but no specific cause could be determined"
         
-        # Steps with very few authorized users
-        for step in range(self.instance.number_of_steps):
-            authorized = sum(1 for u in range(self.instance.number_of_users) 
-                            if self.instance.user_step_matrix[u][step])
-            if authorized < 2:
-                issues.append(
-                    f"Low Authorization: Step {step+1} has only {authorized} authorized user(s)"
-                )
+        # Add general notes about constraint types
+        if self.instance.SOD:
+            reason += "\nNote: Separation of Duty constraints may create additional conflicts"
+        if self.instance.at_most_k:
+            reason += "\nNote: At-most-k constraints limit user assignments"
         
-        # Users with very few authorizations
-        for user in range(self.instance.number_of_users):
-            authorized_steps = sum(1 for s in range(self.instance.number_of_steps) 
-                                    if self.instance.user_step_matrix[user][s])
-            if authorized_steps == 0:
-                issues.append(
-                    f"User {user+1} has NO authorized steps"
-                )
+        # Add constraints from other types if they exist
+        constraint_notes = [
+            (hasattr(self.instance, 'sual') and self.instance.sual, "Super User At Least constraints"),
+            (hasattr(self.instance, 'wang_li') and self.instance.wang_li, "Wang-Li constraints"),
+            (hasattr(self.instance, 'ada') and self.instance.ada, "Assignment Dependent constraints")
+        ]
         
-        return issues
+        for has_constraints, note in constraint_notes:
+            if has_constraints:
+                reason += f"\nNote: {note} may introduce additional complexity"
+        
+        # return Solution.create_unsat(time.time() - start_time, reason=reason)
+        return Solution.create_unsat(time.time() - start_time)
 
     def _handle_error(self, start_time, error):
         self._log(f"Error during solving: {str(error)}")
