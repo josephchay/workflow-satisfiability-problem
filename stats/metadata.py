@@ -14,17 +14,40 @@ class MetadataHandler:
         os.makedirs(output_dir, exist_ok=True)
         
     def save_result_metadata(self, 
-                       instance_details: Dict[str, Any],
-                       solver_result: Dict[str, Any],
-                       solver_type: str,
-                       active_constraints: Dict[str, bool],
-                       filename: str) -> str:
+                      instance_details: Dict[str, Any],
+                      solver_result: Dict[str, Any],
+                      solver_type: str,
+                      active_constraints: Dict[str, bool],
+                      filename: str) -> str:
         """Save complete metadata for a WSP instance solution."""
+        # Extract authorization from solution if available
+        authorization_analysis = {}
+        if solver_result.get('sat') == 'sat' and solver_result.get('sol'):
+            per_step = defaultdict(list)
+            per_user = defaultdict(list)
+            for assign in solver_result['sol']:
+                step = assign['step']
+                user = assign['user']
+                per_step[f's{step}'].append(f'u{user}')
+                per_user[f'u{user}'].append(f's{step}')
+            authorization_analysis = {
+                'per_step': dict(per_step),
+                'per_user': dict(per_user)
+            }
+            
         metadata = {
             "timestamp": datetime.now().isoformat(),
             "instance": {
                 "filename": filename,
-                "details": instance_details
+                "details": {
+                    **instance_details,
+                    "authorization_analysis": authorization_analysis,
+                    "workload_distribution": {
+                        "avg_steps_per_user": float(instance_details.get("Step-User Ratio", 0)),
+                        "max_steps_per_user": 0,  # Calculate if needed
+                        "utilization_percentage": float(instance_details.get("Authorization Density", "0").rstrip('%'))
+                    }
+                }
             },
             "solver": {
                 "type": solver_type,
@@ -77,7 +100,7 @@ class MetadataHandler:
                 f"{os.path.splitext(filename)[0]}_metadata.json"
             )
             if metadata:
-                # Basic instance info - always available
+                # Basic instance info
                 comparison_data['filenames'].append(metadata['instance']['filename'])
                 comparison_data['num_steps'].append(metadata['instance']['details']['Total Steps'])
                 comparison_data['num_users'].append(metadata['instance']['details']['Total Users'])
@@ -89,10 +112,24 @@ class MetadataHandler:
                 comparison_data['uniqueness'].append(metadata['metrics']['solution_unique'])
                 comparison_data['violations'].append(metadata['metrics'].get('constraint_violations', 0))
                 
-                # Get constraint distribution
-                constraints = metadata['instance']['details'].get('Constraint Distribution', {})
-                for constraint_type, count in constraints.items():
-                    key = f'constraint_{constraint_type.lower().replace(" ", "_")}'
-                    comparison_data[key].append(count)
-                    
+                # Authorization details
+                auth_analysis = metadata['instance']['details'].get('authorization_analysis', {})
+                comparison_data['authorization_analysis'].append(auth_analysis)
+                
+                # Workload distribution
+                workload = metadata['instance']['details'].get('workload_distribution', {})
+                for metric in ['avg_steps_per_user', 'max_steps_per_user', 'utilization_percentage']:
+                    comparison_data[metric].append(workload.get(metric, 0))
+                
+                # Constraint details - now using active constraints
+                constraints = metadata['solver']['active_constraints']
+                for constraint_type, is_active in constraints.items():
+                    comparison_data[f'constraint_{constraint_type}'].append(1 if is_active else 0)
+                
+                # Violations if solution exists
+                if metadata['metrics']['solution_found']:
+                    comparison_data['constraint_violations'].append(
+                        len(metadata['solver']['results'].get('violations', []))
+                    )
+        
         return dict(comparison_data)

@@ -42,36 +42,139 @@ class Visualizer:
                         dpi=300, bbox_inches='tight')
         finally:
             plt.close('all')  # Close all figures
+
+    def generate_all_plots(self, data: Dict[str, List]):
+        """Generate all plots from metadata"""
+        plot_functions = [
+            (self.plot_solving_times, "solving_times.png"),
+            (self.plot_problem_sizes, "problem_sizes.png"),
+            (self.plot_constraint_distribution, "constraint_distribution.png"),
+            (self.plot_constraint_comparison, "constraint_comparison.png"),
+            (self.plot_constraint_complexity, "constraint_complexity.png"),
+            (self.plot_solution_statistics, "solution_stats.png"),
+            (self.plot_correlation_matrix, "correlations.png"),
+            (self.plot_efficiency_metrics, "efficiency.png"),
+            (self.plot_instance_stats, "instance_stats.png"),
+            (self.plot_step_authorizations, "step_authorizations.png"),
+            (self.plot_user_authorizations, "user_authorizations.png"),
+            (self.plot_authorization_density, "auth_density.png"),
+            (self.plot_workload_distribution, "workload_distribution.png"),
+            (self.plot_constraint_compliance, "constraint_compliance.png"),
+        ]
         
+        for plot_func, filename in plot_functions:
+            try:
+                plot_func(data)
+            except Exception as e:
+                print(f"Error generating {filename}: {str(e)}")
+            finally:
+                plt.close('all')
+
     def plot_solving_times(self, data: Dict[str, List], output_file: str = "solving_times.png"):
-        """Plot solving times comparison with UNSAT handling"""
         plt.figure(figsize=(10, 6))
         
         instances = [Path(f).stem for f in data['filenames']]
-        times = []
-        colors = []
-        
-        for i, time in enumerate(data['solving_times']):
-            if time is None or time == 0:
-                times.append(0)  # Use 0 for visualization
-                colors.append(self.na_color)
-            else:
-                times.append(time / 1000)  # Convert to seconds
-                colors.append(self.colors[0])
+        times = np.array(data['solving_times']) / 1000  # Convert to seconds
         
         bars = plt.bar(instances, times)
-        for bar, color in zip(bars, colors):
-            bar.set_color(color)
-            if color == self.na_color:
-                # Add "UNSAT" text above bar
-                plt.text(bar.get_x() + bar.get_width()/2, 0.1,
-                        'UNSAT', ha='center', rotation=90,
-                        color='white')
-        
         plt.xticks(rotation=45, ha='right')
         plt.ylabel('Solving Time (seconds)')
-        plt.title('WSP Instance Solving Times (Gray = UNSAT)')
+        plt.title(f'WSP Instance Solving Times (Gray = UNSAT)\nFor Instances {instances[0]} - {instances[-1]}' if len(instances) > 1 else f'WSP Instance Solving Time: {instances[0]}')
+        plt.ylim(0, max(times) * 1.2)  # Set y-limit to 120% of max time
         
+        self.save_plot(output_file)
+        
+    def plot_step_authorizations(self, data: Dict[str, List], output_file: str = "step_authorizations.png"):
+        plt.figure(figsize=(12, 6))
+        instances = [Path(f).stem for f in data['filenames']]
+        
+        if 'authorization_analysis' in data and data['authorization_analysis']:
+            auth_data = data['authorization_analysis']
+            plt.figure(figsize=(12, 6))
+            
+            # Find max step number across all instances
+            max_step = 0
+            for instance_auth in auth_data:
+                if 'per_step' in instance_auth:
+                    steps = [int(s[1:]) for s in instance_auth['per_step'].keys()]
+                    if steps:
+                        max_step = max(max_step, max(steps))
+            
+            if max_step > 0:
+                x = np.arange(1, max_step + 1)  # Step numbers
+                width = 0.8 / len(instances)
+                
+                for i, (instance, auth) in enumerate(zip(instances, auth_data)):
+                    values = []
+                    for step in range(1, max_step + 1):
+                        step_key = f's{step}'
+                        if 'per_step' in auth and step_key in auth['per_step']:
+                            values.append(len(auth['per_step'][step_key]))
+                        else:
+                            values.append(0)
+                            
+                    plt.bar(x + i*width - width*len(instances)/2, 
+                        values, width, label=instance)
+                
+                plt.legend()
+                plt.xlabel('Steps')
+                plt.ylabel('Number of Authorized Users')
+                plt.title(f'Step Authorization Distribution\nFor Instances {instances[0]} - {instances[-1]}')
+                plt.xticks(x)
+            else:
+                plt.text(0.5, 0.5, 'No step authorization data found',
+                        ha='center', va='center')
+        else:
+            plt.text(0.5, 0.5, 'No authorization analysis data available',
+                    ha='center', va='center')
+        
+        plt.tight_layout()
+        self.save_plot(output_file)
+        
+    def plot_user_authorizations(self, data: Dict[str, List], output_file: str = "user_authorizations.png"):
+        plt.figure(figsize=(12, 6))
+        instances = [Path(f).stem for f in data['filenames']]
+        
+        if 'authorization_analysis' in data and data['authorization_analysis']:
+            auth_data = data['authorization_analysis']
+            
+            # Find max user number across all instances
+            max_user = 0
+            for instance_auth in auth_data:
+                if 'per_user' in instance_auth:
+                    users = [int(u[1:]) for u in instance_auth['per_user'].keys()]
+                    if users:
+                        max_user = max(max_user, max(users))
+            
+            if max_user > 0:
+                x = np.arange(1, max_user + 1)  # User numbers
+                width = 0.8 / len(instances)
+                
+                for i, (instance, auth) in enumerate(zip(instances, auth_data)):
+                    values = []
+                    for user in range(1, max_user + 1):
+                        user_key = f'u{user}'
+                        if 'per_user' in auth and user_key in auth['per_user']:
+                            values.append(len(auth['per_user'][user_key]))
+                        else:
+                            values.append(0)
+                            
+                    plt.bar(x + i*width - width*len(instances)/2, 
+                        values, width, label=instance)
+                
+                plt.legend()
+                plt.xlabel('Users')
+                plt.ylabel('Number of Authorized Steps')
+                plt.title(f'User Authorization Distribution\nFor Instances {instances[0]} - {instances[-1]}')
+                plt.xticks(x)
+            else:
+                plt.text(0.5, 0.5, 'No user authorization data found',
+                        ha='center', va='center')
+        else:
+            plt.text(0.5, 0.5, 'No authorization analysis data available',
+                    ha='center', va='center')
+        
+        plt.tight_layout()
         self.save_plot(output_file)
         
     def plot_problem_sizes(self, data: Dict[str, List],
@@ -94,50 +197,182 @@ class Visualizer:
         
         self.save_plot(output_file)
         
-    def plot_constraint_distribution(self, data: Dict[str, List],
-                                   output_file: str = "constraint_distribution.png"):
-        """Plot constraint type distribution"""
-        constraint_keys = [k for k in data.keys() if k.startswith('constraint_')]
-        if not constraint_keys:
-            return
-            
+    def plot_workload_distribution(self, data: Dict[str, List], output_file: str = "workload_distribution.png"):
         plt.figure(figsize=(12, 6))
         instances = [Path(f).stem for f in data['filenames']]
         
-        # Create stacked bar chart
-        bottom = np.zeros(len(instances))
-        for key in constraint_keys:
-            plt.bar(instances, data[key], bottom=bottom, 
-                   label=key.replace('constraint_', ''))
-            bottom += np.array(data[key])
+        metrics = ['avg_steps_per_user', 'max_steps_per_user', 'utilization_percentage']
+        if any(metric in data for metric in metrics):
+            x = np.arange(len(instances))
+            width = 0.3  # Increased for better visibility
             
-        plt.xticks(rotation=45, ha='right')
-        plt.ylabel('Number of Constraints')
-        plt.title('Constraint Distribution Across Instances')
-        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+            for i, metric in enumerate(metrics):
+                if metric in data:
+                    values = data[metric]
+                    plt.bar(x + i*width - width, values, width,
+                        label=metric.replace('_', ' ').title())
+            
+            plt.xlabel('Instances')
+            plt.ylabel('Value')
+            plt.title(f'Workload Distribution Metrics\nFor Instances {instances[0]} - {instances[-1]}')
+            plt.legend()
+            plt.xticks(x + width/2, instances, rotation=45, ha='right')
+        else:
+            plt.text(0.5, 0.5, 'No workload distribution data available',
+                    ha='center', va='center')
         
+        plt.tight_layout()
         self.save_plot(output_file)
-        
-    def plot_solution_statistics(self, data: Dict[str, List],
-                               output_file: str = "solution_stats.png"):
-        """Plot solution statistics"""
-        plt.figure(figsize=(10, 6))
+
+    def plot_constraint_compliance(self, data: Dict[str, List], output_file: str = "constraint_compliance.png"):
+        """Plot constraint compliance with detailed violation breakdown"""
+        plt.figure(figsize=(12, 6))
         instances = [Path(f).stem for f in data['filenames']]
         
-        # Create grouped bar chart
+        if 'solutions_found' in data and any(data['solutions_found']):
+            sat_instances = [i for i, sat in enumerate(data['solutions_found']) if sat]
+            
+            if sat_instances:
+                x = np.arange(len(instances))
+                
+                # Plot total violations
+                plt.bar(x, data['violations'], label='Total Violations', alpha=0.3)
+                
+                # Annotate SAT/UNSAT status
+                for i, is_sat in enumerate(data['solutions_found']):
+                    color = '#2ecc71' if is_sat else '#e74c3c'
+                    plt.text(i, data['violations'][i], 
+                            'SAT' if is_sat else 'UNSAT',
+                            ha='center', va='bottom', color=color)
+                
+                plt.xticks(x, instances, rotation=45, ha='right')
+                plt.ylabel('Number of Violations')
+                plt.title(f'Constraint Compliance\nFor Instances {instances[0]} - {instances[-1]}')
+                plt.legend()
+            else:
+                plt.text(0.5, 0.5, 'No solutions found (all UNSAT)',
+                        ha='center', va='center')
+        else:
+            plt.text(0.5, 0.5, 'No constraint compliance data available',
+                    ha='center', va='center')
+        
+        plt.tight_layout()
+        self.save_plot(output_file)
+
+    def plot_constraint_distribution(self, data: Dict[str, List], output_file: str = "constraint_distribution.png"):
+        plt.figure(figsize=(12, 6))
+        instances = [Path(f).stem for f in data['filenames']]
+        
+        # Get all constraint prefixed keys but not 'constraint_violations'
+        constraint_types = [k for k in data.keys() 
+                        if k.startswith('constraint_') and k != 'constraint_violations']
+        
+        if constraint_types:
+            x = np.arange(len(instances))
+            width = 0.8 / len(constraint_types)
+            
+            for i, ctype in enumerate(constraint_types):
+                values = data[ctype]
+                if any(values):  # Only plot if there are any active constraints
+                    plt.bar(x + i*width - width*len(constraint_types)/2, 
+                        values, width, 
+                        label=ctype.replace('constraint_', '').replace('_', ' ').title())
+            
+            if plt.gca().get_legend_handles_labels()[0]:
+                plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+            plt.xlabel('Instances')
+            plt.ylabel('Active (1) / Inactive (0)')
+            plt.title(f'Active Constraint Types\nFor Instances {instances[0]} - {instances[-1]}')
+            plt.xticks(x, instances, rotation=45, ha='right')
+        else:
+            plt.text(0.5, 0.5, 'No constraint type data available',
+                    ha='center', va='center')
+        
+        plt.tight_layout()
+        self.save_plot(output_file)
+        
+    def plot_solution_statistics(self, data: Dict[str, List], output_file: str = "solution_stats.png"):
+        plt.figure(figsize=(15, 10))
+        instances = [Path(f).stem for f in data['filenames']]
+        
+        # Create 2x2 subplot layout
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
+        
+        # 1. SAT/UNSAT Pie Chart
+        sat_count = sum(data['solutions_found'])
+        unsat_count = len(instances) - sat_count
+        ax1.pie([sat_count, unsat_count], 
+                labels=['SAT', 'UNSAT'],
+                colors=['#2ecc71', '#e74c3c'],
+                autopct='%1.1f%%')
+        ax1.set_title('Overall SAT/UNSAT Distribution')
+        
+        # 2. Solution Uniqueness (only for SAT instances)
+        unique_sols = sum(1 for s, u in zip(data['solutions_found'], data['uniqueness']) 
+                        if s and u is not None and u)
+        multiple_sols = sum(1 for s, u in zip(data['solutions_found'], data['uniqueness']) 
+                        if s and u is not None and not u)
+        if unique_sols + multiple_sols > 0:
+            ax2.pie([unique_sols, multiple_sols], 
+                    labels=['Unique', 'Multiple'],
+                    colors=['#3498db', '#9b59b6'],
+                    autopct='%1.1f%%')
+        else:
+            ax2.text(0.5, 0.5, 'No uniqueness data\navailable', 
+                    ha='center', va='center')
+        ax2.set_title('Solution Uniqueness (SAT instances only)')
+        
+        # 3. Instance-wise breakdown
         x = np.arange(len(instances))
         width = 0.35
+        ax3.bar(x - width/2, data['solutions_found'], width, label='SAT', color='#2ecc71')
+        uniqueness_values = [u if u is not None else 0 for u in data['uniqueness']]
+        ax3.bar(x + width/2, uniqueness_values, width, label='Unique', color='#3498db')
+        ax3.set_xticks(x)
+        ax3.set_xticklabels(instances, rotation=45, ha='right')
+        ax3.legend()
+        ax3.set_title('Per-Instance Solution Status')
         
-        plt.bar(x - width/2, [int(s) for s in data['solutions_found']], 
-               width, label='Solution Found')
-        plt.bar(x + width/2, [int(s) if s is not None else 0 for s in data['uniqueness']], 
-               width, label='Unique Solution')
+        # 4. Solving time vs solution status
+        times = np.array(data['solving_times']) / 1000  # Convert to seconds
+        colors = ['#2ecc71' if sat else '#e74c3c' for sat in data['solutions_found']]
+        ax4.bar(x, times, color=colors)
+        ax4.set_xticks(x)
+        ax4.set_xticklabels(instances, rotation=45, ha='right')
+        ax4.set_ylabel('Solving Time (seconds)')
+        ax4.set_title('Solving Time by Solution Status')
         
-        plt.xticks(x, instances, rotation=45, ha='right')
-        plt.ylabel('Status (0/1)')
-        plt.title('Solution Statistics Across Instances')
-        plt.legend()
+        plt.suptitle(f'Comprehensive Solution Statistics\nFor Instances {instances[0]} - {instances[-1]}',
+                    y=1.02, fontsize=14)
+        plt.tight_layout()
+        self.save_plot(output_file)
+
+    def plot_constraint_comparison(self, data: Dict[str, List], output_file: str = "constraint_comparison.png"):
+        """Plot comparison of different constraint types across instances"""
+        plt.figure(figsize=(12, 6))
         
+        # Get all constraint types except violations
+        constraint_types = [k for k in data.keys() 
+                        if k.startswith('constraint_') and k != 'constraint_violations']
+        
+        if constraint_types:
+            y_pos = np.arange(len(constraint_types))
+            active_counts = [sum(data[ctype]) for ctype in constraint_types]
+            
+            # Horizontal bar chart for better label readability
+            plt.barh(y_pos, active_counts)
+            
+            # Set labels
+            plt.yticks(y_pos, [ctype.replace('constraint_', '').replace('_', ' ').title() 
+                            for ctype in constraint_types])
+            
+            plt.xlabel('Number of Instances Using Constraint')
+            plt.title('Constraint Type Usage Comparison')
+        else:
+            plt.text(0.5, 0.5, 'No constraint type data available',
+                    ha='center', va='center')
+        
+        plt.tight_layout()
         self.save_plot(output_file)
         
     def plot_correlation_matrix(self, data: Dict[str, List], output_file: str = "correlations.png"):
@@ -232,6 +467,79 @@ class Visualizer:
         
         self.save_plot(output_file)
            
+    def plot_authorization_density(self, data: Dict[str, List], output_file: str = "auth_density.png"):
+        plt.figure(figsize=(12, 6))
+        instances = [Path(f).stem for f in data['filenames']]
+        
+        # Check if authorization analysis data exists and has the same length as instances
+        if ('authorization_analysis' in data and data['authorization_analysis'] and 
+                len(data['authorization_analysis']) == len(instances)):
+            auth_data = data['authorization_analysis']
+            densities = []
+            valid_instances = []
+            
+            for i, (instance, auth) in enumerate(zip(instances, auth_data)):
+                if isinstance(auth, dict) and 'per_step' in auth and 'per_user' in auth:
+                    per_step = auth['per_step']
+                    per_user = auth['per_user']
+                    if per_step and per_user:  # Check if dictionaries are not empty
+                        total_auths = sum(len(users) for users in per_step.values())
+                        total_possible = len(per_step) * len(per_user)
+                        density = (total_auths / total_possible * 100) if total_possible > 0 else 0
+                        densities.append(density)
+                        valid_instances.append(instance)
+            
+            if densities:
+                plt.bar(valid_instances, densities)
+                mean_density = np.mean(densities)
+                plt.axhline(y=mean_density, color='r', linestyle='--', 
+                        label=f'Mean Density: {mean_density:.2f}%')
+                
+                plt.ylabel('Authorization Density (%)')
+                plt.title(f'Authorization Density Comparison\nFor Instances {instances[0]} - {instances[-1]}')
+                plt.xticks(rotation=45, ha='right')
+                plt.legend()
+            else:
+                plt.text(0.5, 0.5, 'No valid authorization data found',
+                        ha='center', va='center')
+        else:
+            plt.text(0.5, 0.5, 'No authorization density data available',
+                    ha='center', va='center')
+        
+        plt.tight_layout()
+        self.save_plot(output_file)
+
+    # Add method to show constraint complexity metrics
+    def plot_constraint_complexity(self, data: Dict[str, List], output_file: str = "constraint_complexity.png"):
+        plt.figure(figsize=(12, 6))
+        instances = [Path(f).stem for f in data['filenames']]
+        
+        # Calculate complexity metrics
+        if all(key in data for key in ['num_steps', 'num_users', 'num_constraints']):
+            x = np.arange(len(instances))
+            width = 0.3
+            
+            # Calculate metrics
+            step_constraint_ratio = np.array(data['num_constraints']) / np.array(data['num_steps'])
+            user_constraint_ratio = np.array(data['num_constraints']) / np.array(data['num_users'])
+            density = np.array(data['num_constraints']) / (np.array(data['num_steps']) * np.array(data['num_users']))
+            
+            # Plot
+            plt.bar(x - width, step_constraint_ratio, width, label='Constraints/Step')
+            plt.bar(x, user_constraint_ratio, width, label='Constraints/User')
+            plt.bar(x + width, density * 100, width, label='Constraint Density (%)')
+            
+            plt.xticks(x, instances, rotation=45, ha='right')
+            plt.ylabel('Ratio/Percentage')
+            plt.title(f'Constraint Complexity Metrics\nFor Instances {instances[0]} - {instances[-1]}')
+            plt.legend()
+        else:
+            plt.text(0.5, 0.5, 'Insufficient data for complexity metrics',
+                    ha='center', va='center')
+        
+        plt.tight_layout()
+        self.save_plot(output_file)
+
     def plot_instance_stats(self, data: Dict[str, List], output_file: str = "instance_stats.png"):
         """Plot comprehensive instance statistics including UNSAT cases"""
         try:
@@ -271,23 +579,3 @@ class Visualizer:
             print(f"Error in instance_stats plot: {str(e)}")
         finally:
             plt.close('all')
-
-    def generate_all_plots(self, data: Dict[str, List]):
-        """Generate all plots from metadata"""
-        plot_functions = [
-            (self.plot_solving_times, "solving_times.png"),
-            (self.plot_problem_sizes, "problem_sizes.png"),
-            (self.plot_constraint_distribution, "constraint_distribution.png"),
-            (self.plot_solution_statistics, "solution_stats.png"),
-            (self.plot_correlation_matrix, "correlations.png"),
-            (self.plot_efficiency_metrics, "efficiency.png"),
-            (self.plot_instance_stats, "instance_stats.png")
-        ]
-        
-        for plot_func, filename in plot_functions:
-            try:
-                plot_func(data)
-            except Exception as e:
-                print(f"Error generating {filename}: {str(e)}")
-            finally:
-                plt.close('all')
