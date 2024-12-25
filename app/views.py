@@ -526,7 +526,7 @@ class AppView(customtkinter.CTk):
                 note_text=(
                     "Note: When no solution exists (UNSAT), constraint distribution cannot be checked as distribution cannot be computed. Hence, all metrics are marked as N/A."
                     if "solution_status" in stats and stats["solution_status"].get("Status") == "UNSAT"
-                    else "Note: The lower the User Utilization (%), the more efficiently work is distributed among users (minimalism).")
+                    else "Note: The lower the User Utilization (%) - especially more applicable in larger instances, the more efficiently work is distributed among users (minimalism).")
             )
             for key, value in stats["workload_distribution"].items():
                 add_metric(workload_frame, key, value)

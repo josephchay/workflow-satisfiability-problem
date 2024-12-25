@@ -1,3 +1,5 @@
+import time
+from ortools.sat.python import cp_model
 from collections import defaultdict
 
 
@@ -248,6 +250,27 @@ class Solution:
                     f.write("=" * 50 + "\n")
                     for violation in self.violations:
                         f.write(f"\t- {violation}\n")
+
+
+class UniquenessChecker(cp_model.CpSolverSolutionCallback):
+    """Solution callback that checks if solution is unique"""
+    def __init__(self, var_manager):
+        super().__init__()
+        self.var_manager = var_manager
+        self.solutions_found = 0
+        
+    def on_solution_callback(self):
+        """Called on each solution found"""
+        try:
+            # For debugging
+            self.solutions_found += 1
+            
+            # Stop after finding second solution
+            if self.solutions_found >= 2:
+                self.StopSearch()
+        except Exception as e:
+            print(f"Error in uniqueness callback: {str(e)}")
+            raise  # Re-raise to see full traceback
 
 
 class Verifier:

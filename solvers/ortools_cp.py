@@ -5,7 +5,7 @@ import time
 
 from constants import SolverType
 from solvers import BaseSolver
-from typings import VariableManager, ConstraintManager, Solution, Verifier
+from typings import VariableManager, ConstraintManager, Solution, UniquenessChecker, Verifier
 
 
 class ORToolsCPSolver(BaseSolver):
@@ -62,12 +62,55 @@ class ORToolsCPSolver(BaseSolver):
                 return result
 
             self._log("Solving model...")
+            # First find initial solution
             status = self.solver.Solve(self.model)
+            
+            # If solution found, save it and check uniqueness
+            is_unique = None
+            first_solution = None
+            if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+                # Save first solution
+                self._log("Found first solution, saving it...")
+                first_solution = self.var_manager.get_assignment_from_solution(self.solver)
+                
+                self._log("Checking solution uniqueness...")
+                try:
+                    # Create uniqueness checker
+                    uniqueness_checker = UniquenessChecker(self.var_manager)
+                    
+                    # Configure solver for finding all solutions
+                    self.solver.parameters.enumerate_all_solutions = True
+                    self.solver.parameters.num_search_workers = 1  # Use single thread for enumeration
+                    
+                    # Try to find second solution
+                    _ = self.solver.Solve(self.model, solution_callback=uniqueness_checker)
+                    
+                    # Store uniqueness result
+                    is_unique = uniqueness_checker.solutions_found == 1
+                    self.solution_unique = is_unique  # Store for statistics
+                    
+                    self._log(f"Uniqueness check complete: {'unique' if is_unique else 'not unique'}")
+                except Exception as e:
+                    self._log(f"Error during uniqueness check: {str(e)}")
+                    # If uniqueness check fails, assume non-unique
+                    is_unique = False
+                    self.solution_unique = False
+            
             self.solve_time = time.time() - start_time
             
             if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-                self._log("Solution found. Verifying constraints...")
-                result = self._process_solution(start_time)
+                self._log("Processing solution...")
+                # Use first solution we saved
+                if first_solution:
+                    # Create solution object using first solution found
+                    result = Solution.create_sat(
+                        self.solve_time,
+                        first_solution
+                    )
+                else:
+                    # Fallback to current solution if something went wrong
+                    result = self._process_solution(start_time)
+                    
                 self._update_statistics(result, conflicts)
                 return result
             else:
@@ -79,7 +122,7 @@ class ORToolsCPSolver(BaseSolver):
         except Exception as e:
             self._log(f"Error during solving: {str(e)}")
             result = self._handle_error(start_time, e)
-            self._update_statistics(result, conflicts)  # update stats even for errors
+            self._update_statistics(result, conflicts)
             return result
 
     def _update_statistics(self, result, conflicts):
@@ -98,7 +141,9 @@ class ORToolsCPSolver(BaseSolver):
         self.statistics["solution_status"] = {
             "Status": "SAT" if result.is_sat else "UNSAT",
             "Solver Used": "OR-Tools (CP)",
-            "Solution Time": f"{self.solve_time:.2f} seconds"
+            "Solution Time": f"{self.solve_time:.2f} seconds",
+            "Solution Uniqueness": "Unique" if result.is_sat and hasattr(self, 'solution_unique') and self.solution_unique else
+                                 "Not Unique" if result.is_sat and hasattr(self, 'solution_unique') else "N/A"
         }
 
         if not result.is_sat and result.reason:
