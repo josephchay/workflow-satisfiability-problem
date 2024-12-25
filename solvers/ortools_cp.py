@@ -56,7 +56,7 @@ class ORToolsCPSolver(BaseSolver):
             
             self._log("Building model...")
             if not self._build_model():
-                print("Failed to build model. Analyzing infeasibility...")
+                self._log("Failed to build model. Analyzing infeasibility...")
                 result = self._handle_build_failure(start_time, conflicts)
                 self._update_statistics(result, conflicts)
                 return result
@@ -66,18 +66,18 @@ class ORToolsCPSolver(BaseSolver):
             self.solve_time = time.time() - start_time
             
             if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-                print("Solution found. Verifying constraints...")
+                self._log("Solution found. Verifying constraints...")
                 result = self._process_solution(start_time)
                 self._update_statistics(result, conflicts)
                 return result
             else:
-                print("No solution found. Analyzing infeasibility...")
+                self._log("No solution found. Analyzing infeasibility...")
                 result = self._handle_infeasible(start_time, status, conflicts)
                 self._update_statistics(result, conflicts)
                 return result
                 
         except Exception as e:
-            print(f"Error during solving: {str(e)}")
+            self._log(f"Error during solving: {str(e)}")
             result = self._handle_error(start_time, e)
             self._update_statistics(result, conflicts)  # update stats even for errors
             return result

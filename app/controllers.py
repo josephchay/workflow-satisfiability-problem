@@ -108,9 +108,6 @@ class AppController:
                     active_constraints=active_constraints,
                     filename=os.path.basename(self.view.current_file)
                 )
-                
-                # Updated solved instance file
-                self.view.results_instance_label.configure(text=f"Instance: {os.path.basename(self.view.current_file)}")
 
                 # Display results
                 self.view.display_solution(solution)
@@ -121,6 +118,9 @@ class AppController:
                 self.view.display_statistics(solver.statistics)  # Still show statistics for UNSAT
                 status = f"No solution exists (UNSAT)"
                 
+            # Updated solved instance file
+            self.view.results_instance_label.configure(text=f"Instance: {os.path.basename(self.view.current_file)}")
+
             self.view.update_progress(1.0)
             self.view.update_status(f"{status} using {self.current_solver_type.value}")
 

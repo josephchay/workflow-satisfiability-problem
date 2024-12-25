@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation for generating instances with classic constraints only in README.
 - One Team constraint identification.
 - SUAL, WangLi, and ADA constraints detailed analysis.
+- Detailed analysis for new constraints in GUI.
 
 ### Changed
 - Updated the GUI `views.py` and `controllers.py` to fit in to our new solver solution (`ortools-fast.py` but now in a dynamic and versatile way).
@@ -44,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Introduced Separation of Concerns (SOC) for our `VariableManager` class.
 - Better large complex instance generated content for instance examples.
 - New oprimized generation script.
+- OneTeam constraint in statistics tab of GUI now has header for each component displayed.
 
 ### Refactoring
 - Introduced `InstanceParser` class for better readability for use for global function `parse_instance_file`.

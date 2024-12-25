@@ -476,7 +476,7 @@ class AppView(customtkinter.CTk):
                 "Overall status and performance metrics"
             )
             for key, value in stats["solution_status"].items():
-                is_success = True if key == "Status" and value == "SAT" else None
+                is_success = value == "SAT" if key == "Status" else None
                 add_metric(status_frame, key, value, is_success=is_success)
 
         # Problem Size Section - Always show this
@@ -715,6 +715,39 @@ class AppView(customtkinter.CTk):
                     "Steps that must be performed by users from the same team"
                 )
 
+            # SUAL Constraints
+            if const_data.get("Super User At Least"):
+                def create_sual_content(frame):
+                    for constraint in const_data["Super User At Least"]:
+                        self._create_constraint_detail(frame, constraint)
+                create_section(
+                    "Super User At Least Constraints", 
+                    create_sual_content,
+                    "Steps that require super user assignments when user count is low"
+                )
+
+            # Wang-Li Constraints            
+            if const_data.get("Wang Li"):
+                def create_wl_content(frame):
+                    for constraint in const_data["Wang Li"]:
+                        self._create_constraint_detail(frame, constraint)
+                create_section(
+                    "Wang-Li Constraints", 
+                    create_wl_content,
+                    "Steps that must be performed by users from the same department"
+                )
+                
+            # ADA Constraints
+            if const_data.get("Assignment Dependent"):
+                def create_ada_content(frame):
+                    for constraint in const_data["Assignment Dependent"]:
+                        self._create_constraint_detail(frame, constraint)
+                create_section(
+                    "Assignment Dependent Constraints", 
+                    create_ada_content,
+                    "Steps whose assignments depend on other step assignments"
+                )
+
     def _create_constraint_detail(self, parent_frame, constraint: Dict):
         """Create detailed constraint information with proper formatting"""
         detail_frame = customtkinter.CTkFrame(parent_frame, fg_color="transparent")
@@ -734,7 +767,12 @@ class AppView(customtkinter.CTk):
         header_frame = customtkinter.CTkFrame(detail_frame, fg_color="transparent")
         header_frame.pack(fill="x", pady=2)
         
-        description = constraint.get("Description", "")
+        # Create appropriate description based on constraint type
+        if "Teams" in constraint and "Steps" in constraint:
+            description = f"Steps {constraint['Steps']} must be performed by users from the same team"
+        else:
+            description = constraint.get("Description", "")
+        
         if len(description) > 60:  # For long descriptions
             short_desc = description[:57] + "..."
             desc_label = customtkinter.CTkLabel(
@@ -772,6 +810,19 @@ class AppView(customtkinter.CTk):
             )
             steps_label.pack(anchor="w", padx=5)
         
+        # Handle One-Team specific content
+        if "Teams" in constraint:
+            for team_idx, team in enumerate(constraint["Teams"], 1):
+                team_label = customtkinter.CTkLabel(
+                    content_frame,
+                    text=f"Team {team_idx}:  " + ", ".join(f"u{u}" for u in team),
+                    font=customtkinter.CTkFont(size=12),
+                    text_color="gray70",
+                    wraplength=350
+                )
+                team_label.pack(anchor="w", padx=5, pady=(2, 0))
+        
+        # Handle Common Users content
         if "Common Users" in constraint:
             users = constraint["Common Users"]
             chunks = self._format_list_in_chunks(users, 10)
@@ -785,6 +836,7 @@ class AppView(customtkinter.CTk):
                 )
                 users_label.pack(anchor="w", padx=5)
         
+        # Handle At-Most-K content
         if "K Value" in constraint:
             k_label = customtkinter.CTkLabel(
                 content_frame,
@@ -795,11 +847,10 @@ class AppView(customtkinter.CTk):
             k_label.pack(anchor="w", padx=5)
             
             steps = constraint.get("Steps", [])
-            chunks = self._format_list_in_chunks(steps, 10)
-            for chunk in chunks:
+            if steps:
                 steps_label = customtkinter.CTkLabel(
                     content_frame,
-                    text=f"Applicable steps: {chunk}",
+                    text=f"Steps: {', '.join(map(str, steps))}",
                     font=customtkinter.CTkFont(size=12),
                     text_color="gray70",
                     wraplength=350
