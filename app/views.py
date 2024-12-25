@@ -328,6 +328,7 @@ class AppView(customtkinter.CTk):
         plot_types = [
             ("Solving Times", "solving_times.png", "View solving time comparison across instances"),
             ("Problem Sizes", "problem_sizes.png", "Compare instance sizes and complexity"), 
+            ("Problem Sizes (Line)", "problem_sizes_line.png", "Compare instance sizes and complexity (line plot)"),
             ("Constraint Distribution", "constraint_distribution.png", "View constraint type distribution"),
             ("Constraint Comparison", "constraint_comparison.png", "Compare all the different types of constraints"),
             ("Constraint Complexity", "constraint_complexity.png", "View complexity of each constraint type"),
@@ -339,6 +340,7 @@ class AppView(customtkinter.CTk):
             ("User Authorizations", "user_authorizations.png", "View user authorization distribution"),
             ("Authorization Density", "auth_density.png", "View authorization density metrics"),
             ("Workload Distribution", "workload_distribution.png", "View workload distribution among users"),
+            ("Workload Distribution (Line)", "workload_distribution_line.png", "View workload distribution among users (line plot)"),
             ("Constraint Compliance", "constraint_compliance.png", "View constraint compliance metrics"),
         ]
 

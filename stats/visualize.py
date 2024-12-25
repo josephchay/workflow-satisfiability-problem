@@ -48,6 +48,7 @@ class Visualizer:
         plot_functions = [
             (self.plot_solving_times, "solving_times.png"),
             (self.plot_problem_sizes, "problem_sizes.png"),
+            (self.plot_problem_sizes_line, "problem_sizes_line.png"),
             (self.plot_constraint_distribution, "constraint_distribution.png"),
             (self.plot_constraint_comparison, "constraint_comparison.png"),
             (self.plot_constraint_complexity, "constraint_complexity.png"),
@@ -59,6 +60,7 @@ class Visualizer:
             (self.plot_user_authorizations, "user_authorizations.png"),
             (self.plot_authorization_density, "auth_density.png"),
             (self.plot_workload_distribution, "workload_distribution.png"),
+            (self.plot_workload_distribution_line, "workload_distribution_line.png"),
             (self.plot_constraint_compliance, "constraint_compliance.png"),
         ]
         
@@ -196,6 +198,25 @@ class Visualizer:
         plt.legend()
         
         self.save_plot(output_file)
+
+    def plot_problem_sizes_line(self, data: Dict[str, List], output_file: str = "problem_sizes_line.png"):
+        """Plot problem size metrics as line plot"""
+        plt.figure(figsize=(12, 6))
+        instances = [Path(f).stem for f in data['filenames']]
+        x = np.arange(len(instances))
+        
+        plt.plot(x, data['num_steps'], 'o-', label='Steps', linewidth=2)
+        plt.plot(x, data['num_users'], 's-', label='Users', linewidth=2)
+        plt.plot(x, data['num_constraints'], '^-', label='Constraints', linewidth=2)
+        
+        plt.xticks(x, instances, rotation=45, ha='right')
+        plt.ylabel('Count')
+        plt.title(f'WSP Instance Size Comparison (Line)\nFor Instances {instances[0]} - {instances[-1]}')
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+        
+        plt.tight_layout()
+        self.save_plot(output_file)
         
     def plot_workload_distribution(self, data: Dict[str, List], output_file: str = "workload_distribution.png"):
         plt.figure(figsize=(12, 6))
@@ -220,6 +241,28 @@ class Visualizer:
         else:
             plt.text(0.5, 0.5, 'No workload distribution data available',
                     ha='center', va='center')
+        
+        plt.tight_layout()
+        self.save_plot(output_file)
+
+    def plot_workload_distribution_line(self, data: Dict[str, List], output_file: str = "workload_distribution_line.png"):
+        """Plot workload distribution metrics as line plot"""
+        plt.figure(figsize=(12, 6))
+        instances = [Path(f).stem for f in data['filenames']]
+        x = np.arange(len(instances))
+        
+        metrics = ['avg_steps_per_user', 'max_steps_per_user', 'utilization_percentage']
+        
+        for metric in metrics:
+            if metric in data:
+                values = data[metric]
+                plt.plot(x, values, 'o-', label=metric.replace('_', ' ').title(), linewidth=2)
+        
+        plt.xticks(x, instances, rotation=45, ha='right')
+        plt.ylabel('Value')
+        plt.title(f'Workload Distribution Metrics (Line)\nFor Instances {instances[0]} - {instances[-1]}')
+        plt.grid(True, alpha=0.3)
+        plt.legend()
         
         plt.tight_layout()
         self.save_plot(output_file)
@@ -290,62 +333,52 @@ class Visualizer:
         
         plt.tight_layout()
         self.save_plot(output_file)
-        
+
     def plot_solution_statistics(self, data: Dict[str, List], output_file: str = "solution_stats.png"):
-        plt.figure(figsize=(15, 10))
+        """Plot solution statistics using line graph"""
+        plt.figure(figsize=(12, 6))
         instances = [Path(f).stem for f in data['filenames']]
-        
-        # Create 2x2 subplot layout
-        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
-        
-        # 1. SAT/UNSAT Pie Chart
-        sat_count = sum(data['solutions_found'])
-        unsat_count = len(instances) - sat_count
-        ax1.pie([sat_count, unsat_count], 
-                labels=['SAT', 'UNSAT'],
-                colors=['#2ecc71', '#e74c3c'],
-                autopct='%1.1f%%')
-        ax1.set_title('Overall SAT/UNSAT Distribution')
-        
-        # 2. Solution Uniqueness (only for SAT instances)
-        unique_sols = sum(1 for s, u in zip(data['solutions_found'], data['uniqueness']) 
-                        if s and u is not None and u)
-        multiple_sols = sum(1 for s, u in zip(data['solutions_found'], data['uniqueness']) 
-                        if s and u is not None and not u)
-        if unique_sols + multiple_sols > 0:
-            ax2.pie([unique_sols, multiple_sols], 
-                    labels=['Unique', 'Multiple'],
-                    colors=['#3498db', '#9b59b6'],
-                    autopct='%1.1f%%')
-        else:
-            ax2.text(0.5, 0.5, 'No uniqueness data\navailable', 
-                    ha='center', va='center')
-        ax2.set_title('Solution Uniqueness (SAT instances only)')
-        
-        # 3. Instance-wise breakdown
         x = np.arange(len(instances))
-        width = 0.35
-        ax3.bar(x - width/2, data['solutions_found'], width, label='SAT', color='#2ecc71')
-        uniqueness_values = [u if u is not None else 0 for u in data['uniqueness']]
-        ax3.bar(x + width/2, uniqueness_values, width, label='Unique', color='#3498db')
-        ax3.set_xticks(x)
-        ax3.set_xticklabels(instances, rotation=45, ha='right')
-        ax3.legend()
-        ax3.set_title('Per-Instance Solution Status')
+
+        # Create figure with two y-axes
+        fig, ax1 = plt.subplots(figsize=(12, 6))
+        ax2 = ax1.twinx()
         
-        # 4. Solving time vs solution status
+        # Plot solution status and uniqueness on primary y-axis
+        l1 = ax1.plot(x, data['solutions_found'], 'o-', color='#2ecc71', 
+                    label='SAT (1) / UNSAT (0)', linewidth=2)
+        uniqueness_values = [float(u if u is not None else 0) for u in data['uniqueness']]
+        l2 = ax1.plot(x, uniqueness_values, 's--', color='#3498db', 
+                    label='Unique (1) / Multiple (0)', linewidth=2)
+        
+        # Plot solving time on secondary y-axis
         times = np.array(data['solving_times']) / 1000  # Convert to seconds
-        colors = ['#2ecc71' if sat else '#e74c3c' for sat in data['solutions_found']]
-        ax4.bar(x, times, color=colors)
-        ax4.set_xticks(x)
-        ax4.set_xticklabels(instances, rotation=45, ha='right')
-        ax4.set_ylabel('Solving Time (seconds)')
-        ax4.set_title('Solving Time by Solution Status')
+        l3 = ax2.plot(x, times, '^-.', color='#e74c3c', 
+                    label='Solving Time (s)', linewidth=2)
         
-        plt.suptitle(f'Comprehensive Solution Statistics\nFor Instances {instances[0]} - {instances[-1]}',
-                    y=1.02, fontsize=14)
-        plt.tight_layout()
-        self.save_plot(output_file)
+        # Set labels and title
+        ax1.set_xlabel('Instances')
+        ax1.set_ylabel('Solution Status')
+        ax2.set_ylabel('Solving Time (seconds)')
+        plt.title(f'Solution Statistics\nFor Instances {instances[0]} - {instances[-1]}')
+        
+        # Set x-axis ticks
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(instances, rotation=45, ha='right')
+        
+        # Add grid
+        ax1.grid(True, alpha=0.3)
+        
+        # Add legend
+        lns = l1 + l2 + l3
+        labs = [l.get_label() for l in lns]
+        ax1.legend(lns, labs, loc='center left', bbox_to_anchor=(1.15, 0.5))
+        
+        # Adjust layout to ensure everything is visible
+        fig.tight_layout()
+        plt.savefig(os.path.join(self.output_dir, output_file), 
+                    dpi=300, bbox_inches='tight')
+        plt.close()
 
     def plot_constraint_comparison(self, data: Dict[str, List], output_file: str = "constraint_comparison.png"):
         """Plot comparison of different constraint types across instances"""
@@ -471,39 +504,27 @@ class Visualizer:
         plt.figure(figsize=(12, 6))
         instances = [Path(f).stem for f in data['filenames']]
         
-        # Check if authorization analysis data exists and has the same length as instances
-        if ('authorization_analysis' in data and data['authorization_analysis'] and 
-                len(data['authorization_analysis']) == len(instances)):
-            auth_data = data['authorization_analysis']
-            densities = []
-            valid_instances = []
+        if 'num_steps' in data and 'num_users' in data and 'num_constraints' in data:
+            x = np.arange(len(instances))
+            # Calculate density as constraints/(steps*users)
+            density = [c/(s*u)*100 for c, s, u in zip(
+                data['num_constraints'],
+                data['num_steps'],
+                data['num_users']
+            )]
             
-            for i, (instance, auth) in enumerate(zip(instances, auth_data)):
-                if isinstance(auth, dict) and 'per_step' in auth and 'per_user' in auth:
-                    per_step = auth['per_step']
-                    per_user = auth['per_user']
-                    if per_step and per_user:  # Check if dictionaries are not empty
-                        total_auths = sum(len(users) for users in per_step.values())
-                        total_possible = len(per_step) * len(per_user)
-                        density = (total_auths / total_possible * 100) if total_possible > 0 else 0
-                        densities.append(density)
-                        valid_instances.append(instance)
+            plt.plot(x, density, 'o-', linewidth=2, label='Density')
+            mean_density = np.mean(density)
+            plt.axhline(y=mean_density, color='r', linestyle='--', 
+                    label=f'Mean: {mean_density:.2f}%')
             
-            if densities:
-                plt.bar(valid_instances, densities)
-                mean_density = np.mean(densities)
-                plt.axhline(y=mean_density, color='r', linestyle='--', 
-                        label=f'Mean Density: {mean_density:.2f}%')
-                
-                plt.ylabel('Authorization Density (%)')
-                plt.title(f'Authorization Density Comparison\nFor Instances {instances[0]} - {instances[-1]}')
-                plt.xticks(rotation=45, ha='right')
-                plt.legend()
-            else:
-                plt.text(0.5, 0.5, 'No valid authorization data found',
-                        ha='center', va='center')
+            plt.xticks(x, instances, rotation=45, ha='right')
+            plt.ylabel('Authorization Density (%)')
+            plt.title(f'Authorization Density\nFor Instances {instances[0]} - {instances[-1]}')
+            plt.grid(True, alpha=0.3)
+            plt.legend()
         else:
-            plt.text(0.5, 0.5, 'No authorization density data available',
+            plt.text(0.5, 0.5, 'Insufficient data for authorization density',
                     ha='center', va='center')
         
         plt.tight_layout()

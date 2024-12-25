@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cache clearing for accumulated solved instances for visualisation.
 - New plots tab for the GUI to directly visualize the each of the saved files for the user.
 - User Authorization, Step Authorization, Authorization Density, Constraint Comparison plot graphs for visualization.
+- Line graph visualization plots for Problem Size and Workload Distribution.
 
 ### Changed
 - Updated the GUI `views.py` and `controllers.py` to fit in to our new solver solution (`ortools-fast.py` but now in a dynamic and versatile way).
@@ -52,6 +53,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Better large complex instance generated content for instance examples.
 - New oprimized generation script.
 - OneTeam constraint in statistics tab of GUI now has header for each component displayed.
+- Updated how Authorization Density visualiation plots the graph.
+- Turned Solution statistics graph to line plots with more sophisticated informative metrics.
 
 ### Refactoring
 - Introduced `InstanceParser` class for better readability for use for global function `parse_instance_file`.
