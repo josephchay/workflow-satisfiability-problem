@@ -1,10 +1,11 @@
 import os
 from typing import Dict, Optional
+import traceback
 
 from constants import SolverType
 from typings import Instance
 from filesystem import InstanceParser
-from stats import MetadataHandler
+from stats import MetadataHandler, Visualizer
 
 
 class AppController:
@@ -17,10 +18,16 @@ class AppController:
         # Connect button callbacks
         self.view.select_button.configure(command=self.select_file)
         self.view.solve_button.configure(command=self.solve)
-        self.view.visualize_button.grid(row=10, column=0, padx=20, pady=10)
+        self.view.visualize_button.configure(command=self.visualize)
+        self.view.clear_viz_button.configure(command=self.clear_visualization_cache)
         
-        # Initialize metadata handler
-        self.metadata_handler = MetadataHandler()
+        # Initialize statistics handlers
+        self.metadata_handler = MetadataHandler(output_dir="results/metadata")
+        self.visualizer = Visualizer(output_dir="results/plots")
+
+        # Track solved instances
+        self.solved_instances = []
+        self.update_visualization_status()
 
         # Initialize solver descriptions
         self._update_solver_description()
@@ -97,17 +104,24 @@ class AppController:
                     'sat': 'sat',
                     'sol': solution,
                     'exe_time': solver.solve_time * 1000,
-                    'violations': result.violations if hasattr(result, 'violations') else []
+                    'violations': result.violations if hasattr(result, 'violations') else [],
+                    'is_unique': solver.solution_unique if hasattr(solver, 'solution_unique') else None
                 }
                 
-                # Save metadata with proper format
+                # Save metadata
+                filename = os.path.basename(self.view.current_file)
                 self.metadata_handler.save_result_metadata(
                     instance_details=solver.statistics["problem_size"],
-                    solver_result=solver_results,  # Use formatted results
+                    solver_result=solver_results,
                     solver_type=self.current_solver_type.value,
                     active_constraints=active_constraints,
-                    filename=os.path.basename(self.view.current_file)
+                    filename=filename
                 )
+                
+                # Track solved instance
+                if filename not in self.solved_instances:
+                    self.solved_instances.append(filename)
+                    self.update_visualization_status()
 
                 # Display results
                 self.view.display_solution(solution)
@@ -119,7 +133,9 @@ class AppController:
                 status = f"No solution exists (UNSAT)"
                 
             # Updated solved instance file
-            self.view.results_instance_label.configure(text=f"Instance: {os.path.basename(self.view.current_file)}")
+            self.view.results_instance_label.configure(
+                text=f"Instance: {os.path.basename(self.view.current_file)}"
+            )
 
             self.view.update_progress(1.0)
             self.view.update_status(f"{status} using {self.current_solver_type.value}")
@@ -127,7 +143,6 @@ class AppController:
         except Exception as e:
             self.view.update_status(f"Error solving: {str(e)}")
             self.view.update_progress(0)
-            import traceback
             traceback.print_exc()
 
     def get_active_constraints(self) -> Dict[str, bool]:
@@ -196,3 +211,58 @@ class AppController:
             }
         }
         self.view.display_instance_details(stats)
+
+    def visualize(self):
+        """Handle visualization generation"""
+        if not self.solved_instances:
+            self.view.update_status("No solved instances to visualize")
+            return
+            
+        try:
+            self.view.update_status("Generating visualizations...")
+            self.view.update_progress(0.1)
+            
+            # Get comparison data
+            comparison_data = self.metadata_handler.get_comparison_data(
+                self.solved_instances
+            )
+            
+            # Generate visualizations with progress updates
+            num_plots = 6  # Total number of plot types
+            for i, plot_func in enumerate([
+                self.visualizer.plot_solving_times,
+                self.visualizer.plot_problem_sizes,
+                self.visualizer.plot_constraint_distribution,
+                self.visualizer.plot_solution_statistics,
+                self.visualizer.plot_correlation_matrix,
+                self.visualizer.plot_efficiency_metrics
+            ]):
+                plot_func(comparison_data)
+                self.view.update_progress((i + 1) / num_plots)
+            
+            # Open results directory
+            plots_dir = os.path.abspath(self.visualizer.output_dir)
+            if os.name == 'nt':  # Windows
+                os.startfile(plots_dir)
+            else:  # Linux/Mac
+                os.system(f'xdg-open {plots_dir}')
+            
+            self.view.update_status(
+                f"Generated visualizations for {len(self.solved_instances)} instances"
+            )
+            self.view.update_progress(1.0)
+            
+        except Exception as e:
+            self.view.update_status(f"Error generating visualizations: {str(e)}")
+            self.view.update_progress(0)
+            traceback.print_exc()
+
+    def clear_visualization_cache(self):
+        """Clear solved instances cache"""
+        self.solved_instances = []
+        self.update_visualization_status()
+        self.view.update_status("Visualization cache cleared")
+        
+    def update_visualization_status(self):
+        """Update visualization status in view"""
+        self.view.update_viz_status(len(self.solved_instances))

@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - One Team constraint identification.
 - SUAL, WangLi, and ADA constraints detailed analysis.
 - Detailed analysis for new constraints in GUI.
+- Metadata information handling for each instance processed.
+- Visualization graphs for single and multiple instances (accumulated) over the number of instances solved.
 
 ### Changed
 - Updated the GUI `views.py` and `controllers.py` to fit in to our new solver solution (`ortools-fast.py` but now in a dynamic and versatile way).

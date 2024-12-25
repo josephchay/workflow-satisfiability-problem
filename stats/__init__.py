@@ -1,2 +1,2 @@
-from .visualize import plot_all_metrics
+from .visualize import Visualizer
 from .metadata import MetadataHandler

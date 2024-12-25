@@ -40,72 +40,155 @@ class AppView(customtkinter.CTk):
         self._create_main_frame()
 
     def _create_sidebar(self):
-        # Create sidebar frame with fixed width
+        """Create scrollable sidebar with all controls"""
+        # Create outer sidebar frame
         self.sidebar_frame = customtkinter.CTkFrame(
             self, 
             width=210,
             corner_radius=0
         )
         self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
-        self.sidebar_frame.grid_rowconfigure(12, weight=1)
         
-        # Prevent sidebar from expanding
+        # Make sidebar frame non-expandable
         self.sidebar_frame.grid_propagate(False)
-
-        # Create logo label
-        self.logo_label = customtkinter.CTkLabel(
+        
+        # Create scrollable frame for entire sidebar
+        self.sidebar_scrollable = customtkinter.CTkScrollableFrame(
             self.sidebar_frame,
+            width=190,
+            corner_radius=0,
+            fg_color="transparent"
+        )
+        self.sidebar_scrollable.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        
+        # Configure outer frame to expand scrollable
+        self.sidebar_frame.grid_rowconfigure(0, weight=1)
+        self.sidebar_frame.grid_columnconfigure(0, weight=1)
+
+        # 1. Header Section
+        self.logo_label = customtkinter.CTkLabel(
+            self.sidebar_scrollable,
             text="WSP Solver",
             font=customtkinter.CTkFont(size=20, weight="bold")
         )
-        self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 10))
+        self.logo_label.pack(pady=(20, 10))
 
-        # Create file label
+        # 2. File Selection Section
         self.file_label = customtkinter.CTkLabel(
-            self.sidebar_frame,
+            self.sidebar_scrollable,
             text="No file selected",
             wraplength=180
         )
-        self.file_label.grid(row=1, column=0, padx=20, pady=5)
+        self.file_label.pack(pady=5)
 
-        # Create buttons
         self.select_button = customtkinter.CTkButton(
-            self.sidebar_frame,
+            self.sidebar_scrollable,
             text="Select File",
             width=180
         )
-        self.select_button.grid(row=2, column=0, padx=20, pady=10)
+        self.select_button.pack(pady=10)
 
-        # Create solver selection frame
-        self._create_solver_frame()
+        # 3. Solver Selection Section
+        solver_label = customtkinter.CTkLabel(
+            self.sidebar_scrollable,
+            text="Solver Selection:",
+            font=customtkinter.CTkFont(size=14, weight="bold")
+        )
+        solver_label.pack(pady=(10, 5))
+        
+        self.solver_type = customtkinter.CTkOptionMenu(
+            self.sidebar_scrollable,
+            values=[st.value for st in SolverType],
+            command=None,
+            width=180
+        )
+        self.solver_type.pack(pady=5)
+        
+        self.solver_description = customtkinter.CTkLabel(
+            self.sidebar_scrollable,
+            text="",
+            wraplength=180,
+            font=customtkinter.CTkFont(size=12)
+        )
+        self.solver_description.pack(pady=5)
 
-        # Create constraints frame
-        self._create_constraints_frame()
+        # 4. Constraints Section
+        constraints_label = customtkinter.CTkLabel(
+            self.sidebar_scrollable,
+            text="Active Constraints:",
+            font=customtkinter.CTkFont(size=14, weight="bold")
+        )
+        constraints_label.pack(pady=(10, 5))
+        
+        self.constraint_vars = {}
+        constraints = [
+            ('authorizations', "Authorizations"),
+            ('separation_of_duty', "Separation of Duty"),
+            ('binding_of_duty', "Binding of Duty"),
+            ('at_most_k', "At-Most-K"),
+            ('one_team', "One-Team"),
+            ('super_user_at_least', "SUAL"),
+            ('wang_li', "Wang-Li"),
+            ('assignment_dependent', "Asgn-Dependent")
+        ]
+        
+        for key, text in constraints:
+            frame = customtkinter.CTkFrame(self.sidebar_scrollable, fg_color="transparent")
+            frame.pack(fill="x", padx=10, pady=2)
+            
+            self.constraint_vars[key] = customtkinter.CTkSwitch(
+                frame,
+                text=text,
+                onvalue=True,
+                offvalue=False,
+                width=40
+            )
+            self.constraint_vars[key].pack(side="left", padx=10)
+            self.constraint_vars[key].select()
 
-        # Create solve button
+        # 5. Solve Buttons Section
         self.solve_button = customtkinter.CTkButton(
-            self.sidebar_frame,
+            self.sidebar_scrollable,
             text="Solve",
             width=180
         )
-        self.solve_button.grid(row=8, column=0, padx=20, pady=10)
+        self.solve_button.pack(pady=(20, 10))
 
-        # Create clear button
         self.clear_button = customtkinter.CTkButton(
-            self.sidebar_frame,
+            self.sidebar_scrollable,
             text="Clear Results",
-            command=self.clear_results,
             width=180
         )
-        self.clear_button.grid(row=9, column=0, padx=20, pady=10)
+        self.clear_button.pack(pady=10)
 
-        # Generate Visualizations button
+        # 6. Visualization Section
+        viz_label = customtkinter.CTkLabel(
+            self.sidebar_scrollable,
+            text="Visualization Controls:",
+            font=customtkinter.CTkFont(size=14, weight="bold")
+        )
+        viz_label.pack(pady=(20, 5))
+        
         self.visualize_button = customtkinter.CTkButton(
-            self.sidebar_frame,
-            text="Generate Visualizations",
-            command=self.visualize,
+            self.sidebar_scrollable,
+            text="Generate Plots",
             width=180
         )
+        self.visualize_button.pack(pady=5)
+        
+        self.clear_viz_button = customtkinter.CTkButton(
+            self.sidebar_scrollable,
+            text="Clear Plot Cache",
+            width=180
+        )
+        self.clear_viz_button.pack(pady=5)
+        
+        self.viz_status_label = customtkinter.CTkLabel(
+            self.sidebar_scrollable,
+            text="No instances in cache",
+            wraplength=160
+        )
+        self.viz_status_label.pack(pady=(5, 20))
 
     def _create_solver_frame(self):
         """Create solver selection frame"""
@@ -941,6 +1024,48 @@ class AppView(customtkinter.CTk):
         # Update instance label
         self.results_instance_label.configure(text="No instance loaded")
 
-    def visualize(self):
-        """Generate visualizations"""
-        pass
+    def _create_visualization_frame(self):
+        """Create visualization control frame"""
+        viz_frame = customtkinter.CTkFrame(self.sidebar_scrollable)
+        viz_frame.pack(fill="x", padx=10, pady=10)
+        
+        # Title
+        viz_label = customtkinter.CTkLabel(
+            viz_frame,
+            text="Visualization Controls:",
+            font=customtkinter.CTkFont(size=14, weight="bold")
+        )
+        viz_label.pack(pady=5)
+        
+        # Visualize button
+        self.visualize_button = customtkinter.CTkButton(
+            viz_frame,
+            text="Generate Plots",
+            width=180
+        )
+        self.visualize_button.pack(pady=5)
+        
+        # Clear cache button - now using same style as other buttons
+        self.clear_viz_button = customtkinter.CTkButton(
+            viz_frame,
+            text="Clear Plot Cache",
+            width=180
+        )
+        self.clear_viz_button.pack(pady=5)
+        
+        # Status label for visualization
+        self.viz_status_label = customtkinter.CTkLabel(
+            viz_frame,
+            text="No instances in cache",
+            wraplength=160
+        )
+        self.viz_status_label.pack(pady=5)
+
+    def update_viz_status(self, num_instances: int):
+        """Update visualization status label"""
+        if num_instances == 0:
+            self.viz_status_label.configure(text="No instances in cache")
+        else:
+            self.viz_status_label.configure(
+                text=f"{num_instances} instance{'s' if num_instances > 1 else ''} ready for visualization"
+            )
