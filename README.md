@@ -253,4 +253,4 @@ Check out `LICENSE` under this project.
 
 ## Acknowledgments
 
-Wholeheartedly, I greatly and gratefully attribute this work to Professor Dr. Doreen Sim for her expertise with continuous inspiration and supervision.
+Wholeheartedly, I express my gratitude to Professor Dr. Doreen Sim for her expertise with continuous inspiration and steadfast guidance.
