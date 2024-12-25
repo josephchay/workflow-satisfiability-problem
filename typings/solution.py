@@ -80,14 +80,16 @@ class Solution:
             else:
                 f.write("UNSATISFIABLE SOLUTION\n")
                 if self.reason:
-                    f.write("\nReason for Unsatisfiability:\n")
+                    f.write("\n" + "=" * 40 + "\n")
+                    f.write("DETAILED UNSAT REASONING ANALYSIS\n")
+                    f.write("=" * 40 + "\n")
                     f.write(f"\t{self.reason}\n")
 
             # Detailed Constraint Information
             if solver_instance:
-                f.write("\n" + "=" * 50 + "\n")
+                f.write("\n" + "=" * 40 + "\n")
                 f.write("CONSTRAINT DETAILS\n")
-                f.write("=" * 50 + "\n")
+                f.write("=" * 40 + "\n")
 
                 # 1. Authorization Constraints
                 f.write("\nAuthorization Constraints:\n")
