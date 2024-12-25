@@ -166,7 +166,7 @@ class AppView(customtkinter.CTk):
             ('one_team', "One-Team"),
             ('super_user_at_least', "SUAL"),
             ('wang_li', "Wang-Li"),
-            ('assignment_dependent', "Asgn-Dep")
+            ('assignment_dependent', "Asgn-Dependent")
         ]
         
         for key, text in constraints:

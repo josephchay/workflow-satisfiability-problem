@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SAT and UNSAT notes for Workload Distribution under statistics tab panel for GUI.
 - Saving of SUAL, WangLi, and ADA constraint information to solution output for CLI.
 - SUAL, WangLi, and ADA constraints to active / inactive consideration for CLI
+- Instance generation configuration constants.
 
 ### Changed
 - Updated the GUI `views.py` and `controllers.py` to fit in to our new solver solution (`ortools-fast.py` but now in a dynamic and versatile way).
@@ -29,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update dislpay on solved instance file on the results tab of the GUI.
 - UNSAT Solution output from CLI will still display the solver used.
 - Store value for `parse_arg` for SUAL, WangLi, and ADA arguments in `main_cli.py`.
+- ADA constraint name display for activation / deactivation panel in GUI.
 
 ### Improvement
 - Modified metric information in `metadata.py` and how its handled in the `controllers.py`.
@@ -37,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added statistics visibility for UNSAT results in the statistics tab of GUI.
 - Introduced Separation of Concerns (SOC) for our `VariableManager` class.
 - Better large complex instance generated content for instance examples.
+- New oprimized generation script.
 
 ### Refactoring
 - Introduced `InstanceParser` class for better readability for use for global function `parse_instance_file`.
