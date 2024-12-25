@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend for matplotlib
 import os
 import sys
 from app import AppView, AppController

@@ -14,25 +14,12 @@ class MetadataHandler:
         os.makedirs(output_dir, exist_ok=True)
         
     def save_result_metadata(self, 
-                           instance_details: Dict[str, Any],
-                           solver_result: Dict[str, Any],
-                           solver_type: str,
-                           active_constraints: Dict[str, bool],
-                           filename: str) -> str:
-        """
-        Save complete metadata for a WSP instance solution.
-        
-        Args:
-            instance_details: Problem size statistics
-            solver_result: Solver results including solution
-            solver_type: Type of solver used
-            active_constraints: Which constraints were active
-            filename: Original instance filename
-        
-        Returns:
-            Path to saved metadata file
-        """
-        # Create metadata structure
+                       instance_details: Dict[str, Any],
+                       solver_result: Dict[str, Any],
+                       solver_type: str,
+                       active_constraints: Dict[str, bool],
+                       filename: str) -> str:
+        """Save complete metadata for a WSP instance solution."""
         metadata = {
             "timestamp": datetime.now().isoformat(),
             "instance": {
@@ -48,11 +35,10 @@ class MetadataHandler:
                 "solving_time_ms": solver_result.get('exe_time', 0),
                 "solution_found": solver_result.get('sat') == 'sat',
                 "solution_unique": solver_result.get('is_unique', None),
-                "constraint_violations": len(solver_result.get('violations', [])),
+                "constraint_violations": len(solver_result.get('violations', [])) if solver_result.get('sat') == 'sat' else 0,
             }
         }
         
-        # Save to file
         output_file = os.path.join(
             self.output_dir,
             f"{os.path.splitext(filename)[0]}_metadata.json"
@@ -83,11 +69,7 @@ class MetadataHandler:
         return results
         
     def get_comparison_data(self, filenames: List[str]) -> Dict[str, List]:
-        """
-        Load metadata for specific instances for comparison.
-        
-        Returns dict with lists of values for each metric to compare.
-        """
+        """Load metadata for instances, handling UNSAT cases"""
         comparison_data = defaultdict(list)
         
         for filename in filenames:
@@ -95,19 +77,22 @@ class MetadataHandler:
                 f"{os.path.splitext(filename)[0]}_metadata.json"
             )
             if metadata:
-                # Extract key metrics
+                # Basic instance info - always available
                 comparison_data['filenames'].append(metadata['instance']['filename'])
-                comparison_data['solving_times'].append(metadata['metrics']['solving_time_ms'])
-                comparison_data['solutions_found'].append(metadata['metrics']['solution_found'])
-                comparison_data['uniqueness'].append(metadata['metrics']['solution_unique'])
-                comparison_data['violations'].append(metadata['metrics']['constraint_violations'])
                 comparison_data['num_steps'].append(metadata['instance']['details']['Total Steps'])
                 comparison_data['num_users'].append(metadata['instance']['details']['Total Users'])
                 comparison_data['num_constraints'].append(metadata['instance']['details']['Total Constraints'])
                 
-                # Extract constraint-specific data
+                # Solution status and metrics
+                comparison_data['solving_times'].append(metadata['metrics']['solving_time_ms'])
+                comparison_data['solutions_found'].append(metadata['metrics']['solution_found'])
+                comparison_data['uniqueness'].append(metadata['metrics']['solution_unique'])
+                comparison_data['violations'].append(metadata['metrics'].get('constraint_violations', 0))
+                
+                # Get constraint distribution
                 constraints = metadata['instance']['details'].get('Constraint Distribution', {})
                 for constraint_type, count in constraints.items():
-                    comparison_data[f'constraint_{constraint_type}'].append(count)
+                    key = f'constraint_{constraint_type.lower().replace(" ", "_")}'
+                    comparison_data[key].append(count)
                     
-        return dict(comparison_data)  # Convert defaultdict to regular dict
+        return dict(comparison_data)

@@ -123,8 +123,8 @@ class AppView(customtkinter.CTk):
         self.constraint_vars = {}
         constraints = [
             ('authorizations', "Authorizations"),
-            ('separation_of_duty', "Separation of Duty"),
-            ('binding_of_duty', "Binding of Duty"),
+            ('separation_of_duty', "SOD"),
+            ('binding_of_duty', "BOD"),
             ('at_most_k', "At-Most-K"),
             ('one_team', "One-Team"),
             ('super_user_at_least', "SUAL"),
@@ -284,14 +284,15 @@ class AppView(customtkinter.CTk):
         
         # Add tabs
         self.results_tab = self.results_notebook.add("Results")
-        self.instance_tab = self.results_notebook.add("Instance Details")
+        self.instance_tab = self.results_notebook.add("Instance Details") 
         self.stats_tab = self.results_notebook.add("Statistics")
+        self.plots_tab = self.results_notebook.add("Plots")
         
         # Configure tabs
-        for tab in [self.results_tab, self.instance_tab, self.stats_tab]:
+        for tab in [self.results_tab, self.instance_tab, self.stats_tab, self.plots_tab]:
             tab.grid_rowconfigure(0, weight=1)
             tab.grid_columnconfigure(0, weight=1)
-        
+
         # Create instance label for results tab
         self.results_instance_label = customtkinter.CTkLabel(
             self.results_tab,
@@ -309,6 +310,67 @@ class AppView(customtkinter.CTk):
         
         self.stats_frame = customtkinter.CTkScrollableFrame(self.stats_tab)
         self.stats_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Setup plots tab
+        self._setup_plots_tab()
+
+    def _setup_plots_tab(self):
+        plots_frame = customtkinter.CTkScrollableFrame(self.plots_tab)
+        plots_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        title = customtkinter.CTkLabel(
+            plots_frame,
+            text="Available Plots",
+            font=customtkinter.CTkFont(size=16, weight="bold")
+        )
+        title.pack(pady=10)
+
+        plot_types = [
+            ("Solving Times", "solving_times.png", "View solving time comparison across instances"),
+            ("Problem Sizes", "problem_sizes.png", "Compare instance sizes and complexity"), 
+            ("Constraint Distribution", "constraint_distribution.png", "View constraint type distribution"),
+            ("Solution Statistics", "solution_stats.png", "Compare solution characteristics"),
+            ("Correlation Matrix", "correlations.png", "View relationships between metrics"),
+            ("Efficiency Metrics", "efficiency.png", "Compare solver efficiency metrics"),
+            ("Instance Statistics", "instance_stats.png", "View comprehensive instance statistics")
+        ]
+
+        for title, filename, description in plot_types:
+            frame = customtkinter.CTkFrame(plots_frame, fg_color="transparent")
+            frame.pack(fill="x", padx=5, pady=5)
+
+            button = customtkinter.CTkButton(
+                frame,
+                text=title,
+                command=lambda f=filename: self.open_plot(f)
+            )
+            button.pack(side="left", padx=5)
+
+            desc_label = customtkinter.CTkLabel(
+                frame,
+                text=description,
+                wraplength=300
+            )
+            desc_label.pack(side="left", padx=5)
+
+            # # Add generate all plots button
+            # self.generate_plots_button = customtkinter.CTkButton(
+            #     plots_frame,
+            #     text="Generate All Plots",
+            #     command=None  # Will be set by controller
+            # )
+            # self.generate_plots_button.pack(pady=10)
+
+    def open_plot(self, filename):
+        """Open a plot image in the default image viewer"""
+        filepath = os.path.join("results/plots", filename)
+        if os.path.exists(filepath):
+            if os.name == 'nt':  # Windows
+                os.startfile(filepath)
+            else:  # Linux/Mac
+                os.system(f'xdg-open "{filepath}"')
+        else:
+            self.update_status("Plot not yet generated. Please generate plots first.")
 
     def _create_progress_indicators(self):
         # Create progress bar
@@ -1040,7 +1102,7 @@ class AppView(customtkinter.CTk):
         # Visualize button
         self.visualize_button = customtkinter.CTkButton(
             viz_frame,
-            text="Generate Plots",
+            text="Generate Visualizations",
             width=180
         )
         self.visualize_button.pack(pady=5)

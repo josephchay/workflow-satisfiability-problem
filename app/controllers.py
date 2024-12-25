@@ -1,4 +1,6 @@
 import os
+import traceback
+import matplotlib.pyplot as plt
 from typing import Dict, Optional
 import traceback
 
@@ -21,6 +23,8 @@ class AppController:
         self.view.visualize_button.configure(command=self.visualize)
         self.view.clear_viz_button.configure(command=self.clear_visualization_cache)
         
+        # self.view.generate_plots_button.configure(command=self.generate_plots)
+
         # Initialize statistics handlers
         self.metadata_handler = MetadataHandler(output_dir="results/metadata")
         self.visualizer = Visualizer(output_dir="results/plots")
@@ -55,13 +59,14 @@ class AppController:
 
     def select_file(self):
         """Handle file selection"""
-        filename = self.view.get_file_selection()
+        file = self.view.get_file_selection()
         
-        if filename:
+        if file:
             try:
-                instance = InstanceParser.parse_file(filename)
+                instance = InstanceParser.parse_file(file)
                 self.current_instance = instance
-                self.view.update_file_label(filename)
+                self.view.update_file_label(file)
+                filename = os.path.basename(file)
                 self.view.update_status(f"File loaded: {filename}")
                 
                 # Display instance details
@@ -78,63 +83,56 @@ class AppController:
             return
         
         try:
-            # Get active constraints
             active_constraints = self.get_active_constraints()
             self.view.update_status(f"Solving with {self.current_solver_type.value}...")
             self.view.update_progress(0.1)
 
-            # Create solver using factory
             solver = self.solver_factory.create_solver(
                 self.current_solver_type,
                 self.current_instance,
                 active_constraints,
-                gui_mode=True  # Enable GUI mode since this is the controller for the GUI Application
+                gui_mode=True
             )
 
-            # Run solver
             result = solver.solve()
 
             self.view.update_progress(0.6)
 
-            # Process solution
-            if result.is_sat:
-                solution = self._format_solution(result)
-                # Format solver results correctly for metadata handler
-                solver_results = {
-                    'sat': 'sat',
-                    'sol': solution,
-                    'exe_time': solver.solve_time * 1000,
-                    'violations': result.violations if hasattr(result, 'violations') else [],
-                    'is_unique': solver.solution_unique if hasattr(solver, 'solution_unique') else None
-                }
-                
-                # Save metadata
-                filename = os.path.basename(self.view.current_file)
-                self.metadata_handler.save_result_metadata(
-                    instance_details=solver.statistics["problem_size"],
-                    solver_result=solver_results,
-                    solver_type=self.current_solver_type.value,
-                    active_constraints=active_constraints,
-                    filename=filename
-                )
-                
-                # Track solved instance
-                if filename not in self.solved_instances:
-                    self.solved_instances.append(filename)
-                    self.update_visualization_status()
+            # Format solver results
+            solver_results = {
+                'sat': 'sat' if result.is_sat else 'unsat',
+                'sol': self._format_solution(result) if result.is_sat else None,
+                'exe_time': solver.solve_time * 1000,
+                'violations': result.violations if hasattr(result, 'violations') else [],
+                'is_unique': solver.solution_unique if hasattr(solver, 'solution_unique') else None
+            }
+            
+            # Save metadata regardless of SAT/UNSAT
+            filename = os.path.basename(self.view.current_file)
+            self.metadata_handler.save_result_metadata(
+                instance_details=solver.statistics["problem_size"],
+                solver_result=solver_results,
+                solver_type=self.current_solver_type.value,
+                active_constraints=active_constraints,
+                filename=filename
+            )
+            
+            # Track solved instance
+            if filename not in self.solved_instances:
+                self.solved_instances.append(filename)
+                self.update_visualization_status()
 
-                # Display results
-                self.view.display_solution(solution)
-                self.view.display_statistics(solver.statistics)
+            if result.is_sat:
+                self.view.display_solution(solver_results['sol'])
                 status = "Solution found!"
             else:
                 self.view.display_solution(None)
-                self.view.display_statistics(solver.statistics)  # Still show statistics for UNSAT
-                status = f"No solution exists (UNSAT)"
+                status = "No solution exists (UNSAT)"
                 
-            # Updated solved instance file
+            self.view.display_statistics(solver.statistics)
+                
             self.view.results_instance_label.configure(
-                text=f"Instance: {os.path.basename(self.view.current_file)}"
+                text=f"Instance: {filename}"
             )
 
             self.view.update_progress(1.0)
@@ -227,42 +225,79 @@ class AppController:
                 self.solved_instances
             )
             
-            # Generate visualizations with progress updates
-            num_plots = 6  # Total number of plot types
-            for i, plot_func in enumerate([
-                self.visualizer.plot_solving_times,
-                self.visualizer.plot_problem_sizes,
-                self.visualizer.plot_constraint_distribution,
-                self.visualizer.plot_solution_statistics,
-                self.visualizer.plot_correlation_matrix,
-                self.visualizer.plot_efficiency_metrics
-            ]):
-                plot_func(comparison_data)
-                self.view.update_progress((i + 1) / num_plots)
-            
-            # Open results directory
-            plots_dir = os.path.abspath(self.visualizer.output_dir)
-            if os.name == 'nt':  # Windows
-                os.startfile(plots_dir)
-            else:  # Linux/Mac
-                os.system(f'xdg-open {plots_dir}')
-            
-            self.view.update_status(
-                f"Generated visualizations for {len(self.solved_instances)} instances"
-            )
-            self.view.update_progress(1.0)
-            
+            # Generate plots with cleanup
+            try:
+                plt.close('all')  # Clean up any existing plots
+                self.visualizer.generate_all_plots(comparison_data)
+                
+                # plots_dir = os.path.abspath(self.visualizer.output_dir)
+                plots_dir = self.visualizer.output_dir
+                self.view.update_status(
+                    f"Generated visualizations saved to: {plots_dir}"
+                )
+                self.view.update_progress(1.0)
+                
+            except Exception as e:
+                self.view.update_status(f"Error in visualization: {str(e)}")
+                self.view.update_progress(0)
+            finally:
+                plt.close('all')
+                
         except Exception as e:
-            self.view.update_status(f"Error generating visualizations: {str(e)}")
+            self.view.update_status(f"Error accessing data: {str(e)}")
             self.view.update_progress(0)
-            traceback.print_exc()
-
+        
     def clear_visualization_cache(self):
-        """Clear solved instances cache"""
-        self.solved_instances = []
-        self.update_visualization_status()
-        self.view.update_status("Visualization cache cleared")
+        """Clean up before clearing cache"""
+        try:
+            plt.close('all')  # Clean up any open plots
+            self.solved_instances = []
+            self.update_visualization_status()
+            self.view.update_status("Visualization cache cleared")
+        except Exception as e:
+            self.view.update_status(f"Error clearing cache: {str(e)}")
+        finally:
+            plt.close('all')
         
     def update_visualization_status(self):
         """Update visualization status in view"""
         self.view.update_viz_status(len(self.solved_instances))
+
+    def generate_plots(self):
+        """Generate all plots without opening directory"""
+        if not self.solved_instances:
+            self.view.update_status("No solved instances to visualize")
+            return
+            
+        try:
+            self.view.update_status("Generating plots...")
+            self.view.update_progress(0.1)
+            
+            # Get comparison data
+            comparison_data = self.metadata_handler.get_comparison_data(
+                self.solved_instances
+            )
+            
+            # Generate plots
+            try:
+                plt.close('all')  # Clean up any existing plots
+                self.visualizer.generate_all_plots(comparison_data)
+                
+                self.view.update_status(
+                    f"Successfully generated plots for {len(self.solved_instances)} instances"
+                )
+                
+                # Switch to plots tab
+                self.view.results_notebook.set("Plots")
+                
+            except Exception as e:
+                self.view.update_status(f"Error in visualization: {str(e)}")
+                traceback.print_exc()
+            finally:
+                plt.close('all')
+                
+        except Exception as e:
+            self.view.update_status(f"Error accessing data: {str(e)}")
+            traceback.print_exc()
+        finally:
+            self.view.update_progress(1.0)
