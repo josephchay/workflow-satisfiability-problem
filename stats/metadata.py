@@ -11,14 +11,15 @@ class MetadataHandler:
     
     def __init__(self, output_dir: str = "results/metadata"):
         self.output_dir = output_dir
+
         os.makedirs(output_dir, exist_ok=True)
         
     def save_result_metadata(self, 
-                      instance_details: Dict[str, Any],
-                      solver_result: Dict[str, Any],
-                      solver_type: str,
-                      active_constraints: Dict[str, bool],
-                      filename: str) -> str:
+                        instance_details: Dict[str, Any],
+                        solver_result: Dict[str, Any],
+                        solver_type: str,
+                        active_constraints: Dict[str, bool],
+                        filename: str) -> str:
         """Save complete metadata for a WSP instance solution."""
         # Extract authorization from solution if available
         authorization_analysis = {}
@@ -34,7 +35,21 @@ class MetadataHandler:
                 'per_step': dict(per_step),
                 'per_user': dict(per_user)
             }
-            
+
+        constraint_distribution = instance_details.get('constraint_distribution', {})        
+
+        # Get constraint counts directly
+        constraint_types = {
+            'authorizations': instance_details.get('Authorization', 0), 
+            'separation_of_duty': instance_details.get('Separation Of Duty', 0),
+            'binding_of_duty': instance_details.get('Binding Of Duty', 0),
+            'at_most_k': instance_details.get('At Most K', 0),
+            'one_team': instance_details.get('One Team', 0),
+            'super_user_at_least': instance_details.get('Super User At Least', 0),
+            'wang_li': instance_details.get('Wang Li', 0),
+            'assignment_dependent': instance_details.get('Assignment Dependent', 0)
+        }
+        
         metadata = {
             "timestamp": datetime.now().isoformat(),
             "instance": {
@@ -44,9 +59,11 @@ class MetadataHandler:
                     "authorization_analysis": authorization_analysis,
                     "workload_distribution": {
                         "avg_steps_per_user": float(instance_details.get("Step-User Ratio", 0)),
-                        "max_steps_per_user": 0,  # Calculate if needed
+                        "max_steps_per_user": float(instance_details.get("Max Steps Per User", 0)),
                         "utilization_percentage": float(instance_details.get("Authorization Density", "0").rstrip('%'))
-                    }
+                    },
+                    "constraint_distribution": constraint_distribution,
+                    "constraint_types": constraint_types,
                 }
             },
             "solver": {
@@ -70,8 +87,8 @@ class MetadataHandler:
         with open(output_file, 'w') as f:
             json.dump(metadata, f, indent=2)
             
-        return output_file
-        
+        return output_file 
+    
     def load_result_metadata(self, filename: str) -> Optional[Dict]:
         """Load metadata from file"""
         filepath = os.path.join(self.output_dir, filename)
@@ -106,6 +123,16 @@ class MetadataHandler:
                 comparison_data['num_users'].append(metadata['instance']['details']['Total Users'])
                 comparison_data['num_constraints'].append(metadata['instance']['details']['Total Constraints'])
                 
+                # Constraint types
+                constraint_types = metadata['instance']['details'].get('constraint_types', {})
+                for ctype, count in constraint_types.items():
+                    comparison_data[f'constraint_{ctype}'].append(count)
+
+                # Get active constraints
+                active = metadata['solver']['active_constraints']
+                for ctype, is_active in active.items():
+                    comparison_data[f'constraint_{ctype}_active'].append(1 if is_active else 0)
+
                 # Solution status and metrics
                 comparison_data['solving_times'].append(metadata['metrics']['solving_time_ms'])
                 comparison_data['solutions_found'].append(metadata['metrics']['solution_found'])

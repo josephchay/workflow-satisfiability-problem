@@ -27,7 +27,7 @@ class AppController:
 
         # Initialize statistics handlers
         self.metadata_handler = MetadataHandler(output_dir="results/metadata")
-        self.visualizer = Visualizer(output_dir="results/plots")
+        self.visualizer = Visualizer(self.metadata_handler, output_dir="results/plots")
 
         # Track solved instances
         self.solved_instances = []
@@ -110,7 +110,17 @@ class AppController:
             # Save metadata regardless of SAT/UNSAT
             filename = os.path.basename(self.view.current_file)
             self.metadata_handler.save_result_metadata(
-                instance_details=solver.statistics["problem_size"],
+                instance_details={
+                    **solver.statistics["problem_size"],
+                    'Authorization': solver.statistics["constraint_distribution"]["Authorization"],
+                    'Separation Of Duty': solver.statistics["constraint_distribution"]["Separation Of Duty"],
+                    'Binding Of Duty': solver.statistics["constraint_distribution"]["Binding Of Duty"],
+                    'At Most K': solver.statistics["constraint_distribution"]["At Most K"],
+                    'One Team': solver.statistics["constraint_distribution"]["One Team"],
+                    'Super User At Least': solver.statistics["constraint_distribution"]["Super User At Least"],
+                    'Wang Li': solver.statistics["constraint_distribution"]["Wang Li"],
+                    'Assignment Dependent': solver.statistics["constraint_distribution"]["Assignment Dependent"]
+                },
                 solver_result=solver_results,
                 solver_type=self.current_solver_type.value,
                 active_constraints=active_constraints,

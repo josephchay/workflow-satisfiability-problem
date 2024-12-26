@@ -210,14 +210,14 @@ class ORToolsCPSolver(BaseSolver):
 
         # Constraint Distribution
         self.statistics["constraint_distribution"] = {
-            "Authorization": sum(1 for user in self.instance.auth if user),
+            "Authorization": sum(1 for row in self.instance.auth if any(row)),
             "Separation Of Duty": len(self.instance.SOD),
             "Binding Of Duty": len(self.instance.BOD),
             "At Most K": len(self.instance.at_most_k),
-            "One Team": len(self.instance.one_team),
-            "Super User At Least": len(self.instance.sual),
-            "Wang Li": len(self.instance.wang_li),
-            "Assignment Dependent": len(self.instance.ada),
+            "One Team": len(getattr(self.instance, 'one_team', [])),
+            "Super User At Least": len(getattr(self.instance, 'sual', [])),
+            "Wang Li": len(getattr(self.instance, 'wang_li', [])),
+            "Assignment Dependent": len(getattr(self.instance, 'ada', []))
         }
 
         # Add detailed analysis in all cases

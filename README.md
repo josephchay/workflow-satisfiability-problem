@@ -253,4 +253,4 @@ Check out `LICENSE` under this project.
 
 ## Acknowledgments
 
-Wholeheartedly, I express my gratitude to Professor Dr. Doreen Sim for her expertise with continuous inspiration and steadfast guidance.
+Wholeheartedly, I express my gratitude to Professor Dr. Doreen Sim for her expertise with continuous inspiration and steadfast guidance. Her teachings have greatly enabled a broaden-comprehensibility for my mindset towards Symbolic Artificial Intelligence, its importance through theoretical studies, and practical implementations.

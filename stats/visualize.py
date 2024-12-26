@@ -1,3 +1,6 @@
+import json
+import re
+from collections import defaultdict
 import matplotlib.pyplot as plt
 import numpy as np
 from typing import List, Dict
@@ -9,8 +12,10 @@ from pathlib import Path
 class Visualizer:
     """Generates visualizations for WSP metadata"""
     
-    def __init__(self, output_dir: str = "results/plots"):
+    def __init__(self, metadata_handler, output_dir: str = "results/plots"):
+        self.metadata_handler = metadata_handler
         self.output_dir = output_dir
+
         os.makedirs(output_dir, exist_ok=True)
         
         # Set style with error handling
@@ -53,6 +58,7 @@ class Visualizer:
             (self.plot_constraint_comparison, "constraint_comparison.png"),
             (self.plot_constraint_complexity, "constraint_complexity.png"),
             (self.plot_solution_statistics, "solution_stats.png"),
+            (self.plot_solution_statistics_bar, "solution_stats_bar.png"),
             (self.plot_correlation_matrix, "correlations.png"),
             (self.plot_efficiency_metrics, "efficiency.png"),
             (self.plot_instance_stats, "instance_stats.png"),
@@ -306,30 +312,95 @@ class Visualizer:
         plt.figure(figsize=(12, 6))
         instances = [Path(f).stem for f in data['filenames']]
         
-        # Get all constraint prefixed keys but not 'constraint_violations'
-        constraint_types = [k for k in data.keys() 
-                        if k.startswith('constraint_') and k != 'constraint_violations']
+        # Get all constraint types
+        constraint_types = ['authorizations', 'separation_of_duty', 'binding_of_duty', 
+                        'at_most_k', 'one_team', 'super_user_at_least', 
+                        'wang_li', 'assignment_dependent']
         
-        if constraint_types:
-            x = np.arange(len(instances))
-            width = 0.8 / len(constraint_types)
-            
-            for i, ctype in enumerate(constraint_types):
-                values = data[ctype]
-                if any(values):  # Only plot if there are any active constraints
-                    plt.bar(x + i*width - width*len(constraint_types)/2, 
-                        values, width, 
-                        label=ctype.replace('constraint_', '').replace('_', ' ').title())
-            
-            if plt.gca().get_legend_handles_labels()[0]:
-                plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-            plt.xlabel('Instances')
-            plt.ylabel('Active (1) / Inactive (0)')
-            plt.title(f'Active Constraint Types\nFor Instances {instances[0]} - {instances[-1]}')
-            plt.xticks(x, instances, rotation=45, ha='right')
-        else:
-            plt.text(0.5, 0.5, 'No constraint type data available',
+        x = np.arange(len(instances))
+        width = 0.8 / len(constraint_types)
+        
+        # Create legend handles and labels manually
+        legend_handles = []
+        legend_labels = []
+        
+        has_data = False
+        for i, ctype in enumerate(constraint_types):
+            key = f'constraint_{ctype}'
+            label_added = False
+            if key in data:
+                for j, instance in enumerate(instances):
+                    metadata = self.metadata_handler.load_result_metadata(f"{instance}_metadata.json")
+                    if metadata and 'instance' in metadata:
+                        has_constraint = metadata['instance']['details']['constraint_types'].get(ctype, 0) > 0
+                        if has_constraint:
+                            has_data = True
+                            is_active = metadata['solver']['active_constraints'].get(ctype, False)
+                            color = self.colors[i] if is_active else self.na_color
+                            bar = plt.bar(x[j] + i*width - width*len(constraint_types)/2,
+                                        1, width, color=color)
+                            
+                            # Add to legend only once per constraint type
+                            if not label_added:
+                                legend_handles.append(plt.Rectangle((0,0),1,1, facecolor=self.colors[i]))
+                                legend_labels.append(ctype.replace('_', ' ').title())
+                                label_added = True
+        
+        if not has_data:
+            plt.text(0.5, 0.5, 'No constraint data available',
                     ha='center', va='center')
+        else:
+            plt.xlabel('Instances')
+            plt.ylabel('Constraint Status')
+            plt.title(f'Constraint Distribution\nFor Instances {instances[0]} - {instances[-1]}')
+            plt.xticks(x, instances, rotation=45, ha='right')
+            plt.legend(legend_handles, legend_labels, 
+                    bbox_to_anchor=(1.05, 1), loc='upper left')
+        
+        plt.tight_layout()
+        self.save_plot(output_file)
+
+    def plot_constraint_comparison(self, data: Dict[str, List], output_file: str = "constraint_comparison.png"):
+        plt.figure(figsize=(12, 6))
+        instances = [Path(f).stem for f in data['filenames']]
+        
+        # Track constraints across all instances
+        type_stats = defaultdict(lambda: {'present': 0, 'active': 0})
+        
+        for instance in instances:
+            metadata = self.metadata_handler.load_result_metadata(f"{instance}_metadata.json")
+            if metadata and 'instance' in metadata:
+                constraint_types = metadata['instance']['details'].get('constraint_types', {})
+                active_constraints = metadata['solver']['active_constraints']
+                
+                for ctype, count in constraint_types.items():
+                    if count > 0:
+                        type_stats[ctype]['present'] += 1
+                        if active_constraints.get(ctype, False):
+                            type_stats[ctype]['active'] += 1
+        
+        if not type_stats:
+            plt.text(0.5, 0.5, 'No constraint data available',
+                    ha='center', va='center')
+        else:
+            constraint_types = sorted(type_stats.keys())
+            y_pos = np.arange(len(constraint_types))
+            
+            inactive = [type_stats[ct]['present'] - type_stats[ct]['active'] for ct in constraint_types]
+            active = [type_stats[ct]['active'] for ct in constraint_types]
+            
+            plt.barh(y_pos, inactive, color=self.na_color, label='Available but Inactive')
+            plt.barh(y_pos, active, left=inactive, color=self.colors[0], label='Active')
+            
+            plt.yticks(y_pos, [ct.replace('_', ' ').title() for ct in constraint_types])
+            plt.xlabel('Number of Instances')
+            plt.title('Constraint Type Usage Across Instances')
+            
+            for i, (a, p) in enumerate(zip(active, inactive)):
+                if a + p > 0:
+                    plt.text(a + p + 0.1, i, f'{a}/{a+p} active', va='center')
+                    
+            plt.legend()
         
         plt.tight_layout()
         self.save_plot(output_file)
@@ -380,34 +451,44 @@ class Visualizer:
                     dpi=300, bbox_inches='tight')
         plt.close()
 
-    def plot_constraint_comparison(self, data: Dict[str, List], output_file: str = "constraint_comparison.png"):
-        """Plot comparison of different constraint types across instances"""
+    def plot_solution_statistics_bar(self, data: Dict[str, List], output_file: str = "solution_stats_bar.png"):
+        """Plot solution statistics using bar chart"""
         plt.figure(figsize=(12, 6))
+        instances = [Path(f).stem for f in data['filenames']]
+        x = np.arange(len(instances))
+        width = 0.25  # Width of bars
         
-        # Get all constraint types except violations
-        constraint_types = [k for k in data.keys() 
-                        if k.startswith('constraint_') and k != 'constraint_violations']
+        # Plot bars for each metric
+        plt.bar(x - width, data['solutions_found'], width,
+                color='#2ecc71', label='SAT (1) / UNSAT (0)')
         
-        if constraint_types:
-            y_pos = np.arange(len(constraint_types))
-            active_counts = [sum(data[ctype]) for ctype in constraint_types]
-            
-            # Horizontal bar chart for better label readability
-            plt.barh(y_pos, active_counts)
-            
-            # Set labels
-            plt.yticks(y_pos, [ctype.replace('constraint_', '').replace('_', ' ').title() 
-                            for ctype in constraint_types])
-            
-            plt.xlabel('Number of Instances Using Constraint')
-            plt.title('Constraint Type Usage Comparison')
+        uniqueness_values = [float(u if u is not None else 0) for u in data['uniqueness']]
+        plt.bar(x, uniqueness_values, width,
+                color='#3498db', label='Unique (1) / Multiple (0)')
+        
+        # Normalize solving times to [0,1] for comparison
+        times = np.array(data['solving_times']) / 1000  # Convert to seconds
+        if max(times) > 0:  # Avoid division by zero
+            normalized_times = times / max(times)
         else:
-            plt.text(0.5, 0.5, 'No constraint type data available',
-                    ha='center', va='center')
+            normalized_times = times
+        plt.bar(x + width, normalized_times, width,
+                color='#e74c3c', label='Normalized Solving Time')
         
+        # Add solving time values as text above bars
+        for i, time in enumerate(times):
+            plt.text(x[i] + width, normalized_times[i], f'{time:.2f}s',
+                    ha='center', va='bottom')
+        
+        plt.xlabel('Instances')
+        plt.ylabel('Values')
+        plt.title(f'Solution Statistics\nFor Instances {instances[0]} - {instances[-1]}')
+        plt.xticks(x, instances, rotation=45, ha='right')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
         plt.tight_layout()
         self.save_plot(output_file)
-        
+
     def plot_correlation_matrix(self, data: Dict[str, List], output_file: str = "correlations.png"):
         """Plot correlation matrix with robust error handling"""
         try:

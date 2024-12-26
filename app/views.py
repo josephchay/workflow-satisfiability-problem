@@ -333,6 +333,7 @@ class AppView(customtkinter.CTk):
             ("Constraint Comparison", "constraint_comparison.png", "Compare all the different types of constraints"),
             ("Constraint Complexity", "constraint_complexity.png", "View complexity of each constraint type"),
             ("Solution Statistics", "solution_stats.png", "Compare solution characteristics"),
+            ("Solution Statistics (Bar)", "solution_stats_bar.png", "Compare solution characteristics (bar plot)"),
             ("Correlation Matrix", "correlations.png", "View relationships between metrics"),
             ("Efficiency Metrics", "efficiency.png", "Compare solver efficiency metrics"),
             ("Instance Statistics", "instance_stats.png", "View comprehensive instance statistics"),

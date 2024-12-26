@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New plots tab for the GUI to directly visualize the each of the saved files for the user.
 - User Authorization, Step Authorization, Authorization Density, Constraint Comparison plot graphs for visualization.
 - Line graph visualization plots for Problem Size and Workload Distribution.
+- Supplementary bar graph visualization plot for Solution Statistics for better visual aid by enabling better visibility of each component under each instance.
 
 ### Changed
 - Updated the GUI `views.py` and `controllers.py` to fit in to our new solver solution (`ortools-fast.py` but now in a dynamic and versatile way).
@@ -55,6 +56,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - OneTeam constraint in statistics tab of GUI now has header for each component displayed.
 - Updated how Authorization Density visualiation plots the graph.
 - Turned Solution statistics graph to line plots with more sophisticated informative metrics.
+- Constraint distribution graph checks whether if the instance have that constraint or not, if it does not have, then does not display that bar for that instance, and if the constraint type is present but deactivated, then displays a gray bar for that instance.
+- Constraint comparison checks whether if the instance contains each constraint or not, if it does not have, then that type of constraint is not counted into the respective instance.
+- Better constraint distribution tracking in the OR-Tools CP solver.
+- Include metadata for constraint distribution and comparison in the saving of Metada handlings.
 
 ### Refactoring
 - Introduced `InstanceParser` class for better readability for use for global function `parse_instance_file`.
