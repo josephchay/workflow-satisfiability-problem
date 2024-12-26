@@ -11,6 +11,7 @@ class SolverFactory:
     def __init__(self):
         # Try to initialize JVM at factory creation
         try:
+            # SAT4J requires a unique manual instantiation of the JVM
             init_jvm()
         except FileNotFoundError as e:
             print(f"Warning: {str(e)}")
@@ -21,11 +22,8 @@ class SolverFactory:
         self.solvers = {}
         
     def _import_solver(self, solver_type: SolverType):
-        """Import solver class based on type"""
-        if solver_type not in self.solvers:
-            from solvers import ORToolsCPSolver as solver # Default solver
-        else:
-            raise ValueError(f"Unknown solver type: {solver_type}")
+        """Import respective solver class"""
+        from solvers import ORToolsCPSolver as solver # Default solver
             
         self.solvers[solver_type] = solver
 

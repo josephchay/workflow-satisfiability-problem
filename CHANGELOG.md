@@ -37,6 +37,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Z3 Solver with Variable and Constraint managers, with tailored and dedicated constraint handling logic for the solver itself.
 - DEAP Genetic algorithm solver with optimzied and best hyperparameters via tuning and experimentation.
 - Gurobi algorithm and solver with likewise its own constraints handlings.
+- Simulated Annealing as a metaheuristic solver, further enhanced from just merely heuristic algorithm solution as a deeper dive provides a more enhancde solution.
+- SAT4J as a boolean based solution as an alternative an rival competition to OR-Tools for comparison and analysis on both of their performance.
+- PuLP as an integer based solution as a rival solution towards Gurobi which is also another integer based solution as it uses the CBC, short for Coin-or branch-and-cut, presenting a rather much unique implementation which can be more suitable towards WSP problems.
 
 ### Changed
 - Updated the GUI `views.py` and `controllers.py` to fit in to our new solver solution (`ortools-fast.py` but now in a dynamic and versatile way).
