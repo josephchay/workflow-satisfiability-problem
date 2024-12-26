@@ -55,7 +55,7 @@ class Visualizer:
             (self.plot_problem_sizes, "problem_sizes.png"),
             (self.plot_problem_sizes_line, "problem_sizes_line.png"),
             (self.plot_constraint_distribution, "constraint_distribution.png"),
-            (self.plot_constraint_comparison, "constraint_comparison.png"),
+            (self.plot_constraint_activation, "constraint_activation.png"),
             (self.plot_constraint_complexity, "constraint_complexity.png"),
             (self.plot_solution_statistics, "solution_stats.png"),
             (self.plot_solution_statistics_bar, "solution_stats_bar.png"),
@@ -330,7 +330,7 @@ class Visualizer:
             label_added = False
             if key in data:
                 for j, instance in enumerate(instances):
-                    metadata = self.metadata_handler.load_result_metadata(f"{instance}_metadata.json")
+                    metadata = self.metadata_handler.load(f"{instance}_metadata.json")
                     if metadata and 'instance' in metadata:
                         has_constraint = metadata['instance']['details']['constraint_types'].get(ctype, 0) > 0
                         if has_constraint:
@@ -360,7 +360,8 @@ class Visualizer:
         plt.tight_layout()
         self.save_plot(output_file)
 
-    def plot_constraint_comparison(self, data: Dict[str, List], output_file: str = "constraint_comparison.png"):
+    def plot_constraint_activation(self, data: Dict[str, List], output_file: str = "constraint_comparison.png"):
+        """Plot activated and inactivated constraints across instances"""
         plt.figure(figsize=(12, 6))
         instances = [Path(f).stem for f in data['filenames']]
         
@@ -368,7 +369,7 @@ class Visualizer:
         type_stats = defaultdict(lambda: {'present': 0, 'active': 0})
         
         for instance in instances:
-            metadata = self.metadata_handler.load_result_metadata(f"{instance}_metadata.json")
+            metadata = self.metadata_handler.load(f"{instance}_metadata.json")
             if metadata and 'instance' in metadata:
                 constraint_types = metadata['instance']['details'].get('constraint_types', {})
                 active_constraints = metadata['solver']['active_constraints']

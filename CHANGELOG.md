@@ -44,6 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - UNSAT Solution output from CLI will still display the solver used.
 - Store value for `parse_arg` for SUAL, WangLi, and ADA arguments in `main_cli.py`.
 - ADA constraint name display for activation / deactivation panel in GUI.
+- Renamed `constraint_comparison.png` file and its related components to `constraint_activation.png`.
+- Shorten method naming for `Metadatahandler` for more definitive and meaningful projection and usage.
 
 ### Improvement
 - Modified metric information in `metadata.py` and how its handled in the `controllers.py`.

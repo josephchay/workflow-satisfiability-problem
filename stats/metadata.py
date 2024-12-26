@@ -14,12 +14,11 @@ class MetadataHandler:
 
         os.makedirs(output_dir, exist_ok=True)
         
-    def save_result_metadata(self, 
-                        instance_details: Dict[str, Any],
-                        solver_result: Dict[str, Any],
-                        solver_type: str,
-                        active_constraints: Dict[str, bool],
-                        filename: str) -> str:
+    def save(self, instance_details: Dict[str, Any],
+                    solver_result: Dict[str, Any],
+                    solver_type: str,
+                    active_constraints: Dict[str, bool],
+                    filename: str) -> str:
         """Save complete metadata for a WSP instance solution."""
         # Extract authorization from solution if available
         authorization_analysis = {}
@@ -89,7 +88,7 @@ class MetadataHandler:
             
         return output_file 
     
-    def load_result_metadata(self, filename: str) -> Optional[Dict]:
+    def load(self, filename: str) -> Optional[Dict]:
         """Load metadata from file"""
         filepath = os.path.join(self.output_dir, filename)
         if not os.path.exists(filepath):
@@ -103,7 +102,7 @@ class MetadataHandler:
         results = []
         for filename in os.listdir(self.output_dir):
             if filename.endswith('_metadata.json'):
-                metadata = self.load_result_metadata(filename)
+                metadata = self.load(filename)
                 if metadata:
                     results.append(metadata)
         return results
@@ -113,7 +112,7 @@ class MetadataHandler:
         comparison_data = defaultdict(list)
         
         for filename in filenames:
-            metadata = self.load_result_metadata(
+            metadata = self.load(
                 f"{os.path.splitext(filename)[0]}_metadata.json"
             )
             if metadata:

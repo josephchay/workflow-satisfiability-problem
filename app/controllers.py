@@ -109,7 +109,7 @@ class AppController:
             
             # Save metadata regardless of SAT/UNSAT
             filename = os.path.basename(self.view.current_file)
-            self.metadata_handler.save_result_metadata(
+            self.metadata_handler.save(
                 instance_details={
                     **solver.statistics["problem_size"],
                     'Authorization': solver.statistics["constraint_distribution"]["Authorization"],

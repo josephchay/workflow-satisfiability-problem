@@ -330,7 +330,7 @@ class AppView(customtkinter.CTk):
             ("Problem Sizes", "problem_sizes.png", "Compare instance sizes and complexity"), 
             ("Problem Sizes (Line)", "problem_sizes_line.png", "Compare instance sizes and complexity (line plot)"),
             ("Constraint Distribution", "constraint_distribution.png", "View constraint type distribution"),
-            ("Constraint Comparison", "constraint_comparison.png", "Compare all the different types of constraints"),
+            ("Constraint Activation", "constraint_activation.png", "View active and inactive constraints in each instance"),
             ("Constraint Complexity", "constraint_complexity.png", "View complexity of each constraint type"),
             ("Solution Statistics", "solution_stats.png", "Compare solution characteristics"),
             ("Solution Statistics (Bar)", "solution_stats_bar.png", "Compare solution characteristics (bar plot)"),
