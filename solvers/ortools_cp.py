@@ -3,6 +3,7 @@ from typing import Dict
 from ortools.sat.python import cp_model
 import time
 
+from utils import log
 from constants import SolverType
 from solvers import BaseSolver
 from typings import VariableManager, ConstraintManager, Solution, UniquenessChecker, Verifier
@@ -54,14 +55,14 @@ class ORToolsCPSolver(BaseSolver):
             start_time = time.time()
             self.solve_time = 0
             
-            self._log("Building model...")
+            log(self.gui_mode, "Building model...")
             if not self._build_model():
-                self._log("Failed to build model. Analyzing infeasibility...")
+                log(self.gui_mode, "Failed to build model. Analyzing infeasibility...")
                 result = self._handle_build_failure(start_time, conflicts)
                 self._update_statistics(result, conflicts)
                 return result
 
-            self._log("Solving model...")
+            log(self.gui_mode, "Solving model...")
             # First find initial solution
             status = self.solver.Solve(self.model)
             
@@ -70,10 +71,10 @@ class ORToolsCPSolver(BaseSolver):
             first_solution = None
             if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
                 # Save first solution
-                self._log("Found first solution, saving it...")
+                log(self.gui_mode, "Found first solution, saving it...")
                 first_solution = self.var_manager.get_assignment_from_solution(self.solver)
                 
-                self._log("Checking solution uniqueness...")
+                log(self.gui_mode, "Checking solution uniqueness...")
                 try:
                     # Create uniqueness checker
                     uniqueness_checker = UniquenessChecker(self.var_manager)
@@ -89,9 +90,9 @@ class ORToolsCPSolver(BaseSolver):
                     is_unique = uniqueness_checker.solutions_found == 1
                     self.solution_unique = is_unique  # Store for statistics
                     
-                    self._log(f"Uniqueness check complete: {'unique' if is_unique else 'not unique'}")
+                    log(self.gui_mode, f"Uniqueness check complete: {'unique' if is_unique else 'not unique'}")
                 except Exception as e:
-                    self._log(f"Error during uniqueness check: {str(e)}")
+                    log(self.gui_mode, f"Error during uniqueness check: {str(e)}")
                     # If uniqueness check fails, assume non-unique
                     is_unique = False
                     self.solution_unique = False
@@ -99,7 +100,7 @@ class ORToolsCPSolver(BaseSolver):
             self.solve_time = time.time() - start_time
             
             if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-                self._log("Processing solution...")
+                log(self.gui_mode, "Processing solution...")
                 # Use first solution we saved
                 if first_solution:
                     # Create solution object using first solution found
@@ -114,13 +115,13 @@ class ORToolsCPSolver(BaseSolver):
                 self._update_statistics(result, conflicts)
                 return result
             else:
-                self._log("No solution found. Analyzing infeasibility...")
+                log(self.gui_mode, "No solution found. Analyzing infeasibility...")
                 result = self._handle_infeasible(start_time, status, conflicts)
                 self._update_statistics(result, conflicts)
                 return result
                 
         except Exception as e:
-            self._log(f"Error during solving: {str(e)}")
+            log(self.gui_mode, f"Error during solving: {str(e)}")
             result = self._handle_error(start_time, e)
             self._update_statistics(result, conflicts)
             return result
@@ -538,7 +539,7 @@ class ORToolsCPSolver(BaseSolver):
     def _process_solution(self, start_time):
         solution_dict =  self.var_manager.get_assignment_from_solution(self.solver)
 
-        # self._log("\nSolution found. Verifying constraints...")
+        # log(self.gui_mode, "\nSolution found. Verifying constraints...")
         result = Solution.create_sat(
             time.time() - start_time,
             solution_dict
@@ -553,22 +554,22 @@ class ORToolsCPSolver(BaseSolver):
         result.solver_type = self.SOLVER_TYPE.value
         
         if violations:
-            self._log("\nCONSTRAINT VIOLATIONS FOUND!")
-            # self._log("\nConstraint Violations Found:")
+            log(self.gui_mode, "\nCONSTRAINT VIOLATIONS FOUND!")
+            # log(self.gui_mode, "\nConstraint Violations Found:")
             # for violation in violations:
-            #     self._log(violation)
+            #     log(violation)
         else:
-            self._log("\nALL CONSTRAINTS SATISFIED!")
+            log(self.gui_mode, "\nALL CONSTRAINTS SATISFIED!")
 
         return result
     
     def _build_model(self):
         """Build model with active constraints"""
         try:
-            self._log("Creating variables...")
+            log(self.gui_mode, "Creating variables...")
             self.var_manager.create_variables()
             
-            self._log("Adding constraints...")
+            log(self.gui_mode, "Adding constraints...")
             self.constraint_manager = ConstraintManager(
                 self.model,
                 self.instance,
@@ -578,15 +579,15 @@ class ORToolsCPSolver(BaseSolver):
             # Add active constraints only
             is_feasible, errors = self.constraint_manager.add_constraints(self.active_constraints)
             if not is_feasible:
-                self._log("Failed to add constraints:")
+                log(self.gui_mode, "Failed to add constraints:")
                 for error in errors:
-                    self._log(f"  - {error}")
+                    log(self.gui_mode, f"  - {error}")
                 return False
                 
             return True
 
         except Exception as e:
-            self._log(f"Error building model: {str(e)}")
+            log(self.gui_mode, f"Error building model: {str(e)}")
             return False
 
     def _handle_build_failure(self, start_time, conflicts):
@@ -643,7 +644,7 @@ class ORToolsCPSolver(BaseSolver):
         return Solution.create_unsat(time.time() - start_time)
 
     def _handle_error(self, start_time, error):
-        self._log(f"Error during solving: {str(error)}")
+        log(self.gui_mode, f"Error during solving: {str(error)}")
 
         """Handle solver errors"""
         error_msg = f"Error during solving: {str(error)}\n"

@@ -27,7 +27,7 @@ class AppController:
 
         # Initialize statistics handlers
         self.metadata_handler = MetadataHandler(output_dir="results/metadata")
-        self.visualizer = Visualizer(self.metadata_handler, output_dir="results/plots")
+        self.visualizer = Visualizer(self.metadata_handler, output_dir="results/plots", gui_mode=True)
 
         # Track solved instances
         self.solved_instances = []
@@ -238,7 +238,7 @@ class AppController:
             # Generate plots with cleanup
             try:
                 plt.close('all')  # Clean up any existing plots
-                self.visualizer.generate_all_plots(comparison_data)
+                self.visualizer.visualize(data=comparison_data)
                 
                 # plots_dir = os.path.abspath(self.visualizer.output_dir)
                 plots_dir = self.visualizer.output_dir

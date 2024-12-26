@@ -1,5 +1,5 @@
 import json
-import re
+from typing import Optional
 from collections import defaultdict
 import matplotlib.pyplot as plt
 import numpy as np
@@ -8,75 +8,176 @@ import os
 import seaborn as sns
 from pathlib import Path
 
+from utils import log
+
 
 class Visualizer:
     """Generates visualizations for WSP metadata"""
     
-    def __init__(self, metadata_handler, output_dir: str = "results/plots"):
+    def __init__(self, metadata_handler, output_dir: str = "results/plots", gui_mode: bool = False):
         self.metadata_handler = metadata_handler
         self.output_dir = output_dir
+        self.gui_mode = gui_mode
 
         os.makedirs(output_dir, exist_ok=True)
         
-        # Set style with error handling
+        self._setup_plotting_style()
+       
+    def _setup_plotting_style(self):
+        """Initialize plotting styles and parameters"""
         try:
             plt.style.use('seaborn-v0_8-whitegrid')
         except:
             plt.style.use('default')
             plt.rcParams['axes.grid'] = True
             
-        # Custom color scheme including a "NA" color
         self.colors = ['#2ecc71', '#3498db', '#9b59b6', '#e74c3c', '#34495e']
-        self.na_color = '#95a5a6'  # Gray for NA/UNSAT values
+        self.na_color = '#95a5a6'
         plt.rcParams['axes.prop_cycle'] = plt.cycler(color=self.colors)
         
-        # General style improvements
-        plt.rcParams['figure.figsize'] = (10, 6)
-        plt.rcParams['font.size'] = 10
-        plt.rcParams['axes.labelsize'] = 12
-        plt.rcParams['axes.titlesize'] = 14
-        plt.rcParams['xtick.labelsize'] = 10
-        plt.rcParams['ytick.labelsize'] = 10
-        plt.rcParams['legend.fontsize'] = 10
-        plt.rcParams['figure.titlesize'] = 16
-       
+        plt.rcParams.update({
+            'figure.figsize': (10, 6),
+            'font.size': 10,
+            'axes.labelsize': 12,
+            'axes.titlesize': 14,
+            'xtick.labelsize': 10,
+            'ytick.labelsize': 10,
+            'legend.fontsize': 10,
+            'figure.titlesize': 16
+        })
+
     def save_plot(self, filename: str):
         """Save plot to file with proper error handling"""
         try:
             plt.savefig(os.path.join(self.output_dir, filename), 
-                        dpi=300, bbox_inches='tight')
+                       dpi=300, bbox_inches='tight')
+        except Exception as e:
+            log(self.gui_mode, f"Error saving plot {filename}: {str(e)}")
         finally:
             plt.close('all')  # Close all figures
 
-    def generate_all_plots(self, data: Dict[str, List]):
-        """Generate all plots from metadata"""
-        plot_functions = [
-            (self.plot_solving_times, "solving_times.png"),
-            (self.plot_problem_sizes, "problem_sizes.png"),
-            (self.plot_problem_sizes_line, "problem_sizes_line.png"),
-            (self.plot_constraint_distribution, "constraint_distribution.png"),
-            (self.plot_constraint_activation, "constraint_activation.png"),
-            (self.plot_constraint_complexity, "constraint_complexity.png"),
-            (self.plot_solution_statistics, "solution_stats.png"),
-            (self.plot_solution_statistics_bar, "solution_stats_bar.png"),
-            (self.plot_correlation_matrix, "correlations.png"),
-            (self.plot_efficiency_metrics, "efficiency.png"),
-            (self.plot_instance_stats, "instance_stats.png"),
-            (self.plot_step_authorizations, "step_authorizations.png"),
-            (self.plot_user_authorizations, "user_authorizations.png"),
-            (self.plot_authorization_density, "auth_density.png"),
-            (self.plot_workload_distribution, "workload_distribution.png"),
-            (self.plot_workload_distribution_line, "workload_distribution_line.png"),
-            (self.plot_constraint_compliance, "constraint_compliance.png"),
-        ]
+    def load_metadata_files(self, metadata_dir: str) -> Dict[str, List]:
+        """Load metadata from existing files"""
+        comparison_data = defaultdict(list)
         
-        for plot_func, filename in plot_functions:
-            try:
-                plot_func(data)
-            except Exception as e:
-                print(f"Error generating {filename}: {str(e)}")
-            finally:
-                plt.close('all')
+        try:
+            # Get all metadata files
+            metadata_files = [f for f in os.listdir(metadata_dir) 
+                            if f.endswith('_metadata.json')]
+            
+            if not metadata_files:
+                log(self.gui_mode, f"No metadata files found in {metadata_dir}")
+                return dict(comparison_data)
+            
+            log(self.gui_mode, f"Found {len(metadata_files)} metadata files")
+            
+            for filename in sorted(metadata_files):
+                try:
+                    with open(os.path.join(metadata_dir, filename)) as f:
+                        metadata = json.load(f)
+                    
+                    # Basic instance info
+                    comparison_data['filenames'].append(metadata['instance']['filename'])
+                    comparison_data['num_steps'].append(metadata['instance']['details']['Total Steps'])
+                    comparison_data['num_users'].append(metadata['instance']['details']['Total Users'])
+                    comparison_data['num_constraints'].append(metadata['instance']['details']['Total Constraints'])
+                    
+                    # Constraint types
+                    constraint_types = metadata['instance']['details'].get('constraint_types', {})
+                    for ctype, count in constraint_types.items():
+                        comparison_data[f'constraint_{ctype}'].append(count)
+                    
+                    # Get active constraints
+                    active = metadata['solver']['active_constraints']
+                    for ctype, is_active in active.items():
+                        comparison_data[f'constraint_{ctype}_active'].append(1 if is_active else 0)
+                    
+                    # Solution status and metrics
+                    comparison_data['solving_times'].append(metadata['metrics']['solving_time_ms'])
+                    comparison_data['solutions_found'].append(metadata['metrics']['solution_found'])
+                    comparison_data['uniqueness'].append(metadata['metrics']['solution_unique'])
+                    comparison_data['violations'].append(metadata['metrics'].get('constraint_violations', 0))
+                    
+                    # Authorization analysis
+                    auth_analysis = metadata['instance']['details'].get('authorization_analysis', {})
+                    comparison_data['authorization_analysis'].append(auth_analysis)
+                    
+                    # Workload distribution
+                    workload = metadata['instance']['details'].get('workload_distribution', {})
+                    for metric in ['avg_steps_per_user', 'max_steps_per_user', 'utilization_percentage']:
+                        comparison_data[metric].append(workload.get(metric, 0))
+                    
+                except Exception as e:
+                    log(self.gui_mode, f"Error processing {filename}: {str(e)}")
+                    continue
+            
+            return dict(comparison_data)
+            
+        except Exception as e:
+            log(self.gui_mode, f"Error loading metadata files: {str(e)}")
+            return dict(comparison_data)
+
+    def visualize(self, data: Optional[Dict[str, List]] = None,
+                        metadata_dir: Optional[str] = None,
+                        specific_plots: Optional[List[str]] = None):
+        """Generate visualizations from either provided data or metadata files"""
+        try:
+            # Load data if not provided
+            if data is None and metadata_dir:
+                log(self.gui_mode, f"Loading metadata from {metadata_dir}")
+                data = self.load_metadata_files(metadata_dir)
+            
+            if not data:
+                log(self.gui_mode, "No data available for visualization")
+                return
+            
+            # Define available plot functions
+            plot_functions = {
+                "solving_times": (self.plot_solving_times, "solving_times.png"),
+                "problem_sizes": (self.plot_problem_sizes, "problem_sizes.png"),
+                "problem_sizes_line": (self.plot_problem_sizes_line, "problem_sizes_line.png"),
+                "constraint_distribution": (self.plot_constraint_distribution, "constraint_distribution.png"),
+                "constraint_activation": (self.plot_constraint_activation, "constraint_activation.png"),
+                "constraint_complexity": (self.plot_constraint_complexity, "constraint_complexity.png"),
+                "solution_statistics": (self.plot_solution_statistics, "solution_stats.png"),
+                "solution_statistics_bar": (self.plot_solution_statistics_bar, "solution_stats_bar.png"),
+                "correlation_matrix": (self.plot_correlation_matrix, "correlations.png"),
+                "efficiency_metrics": (self.plot_efficiency_metrics, "efficiency.png"),
+                "instance_stats": (self.plot_instance_stats, "instance_stats.png"),
+                "step_authorizations": (self.plot_step_authorizations, "step_authorizations.png"),
+                "user_authorizations": (self.plot_user_authorizations, "user_authorizations.png"),
+                "authorization_density": (self.plot_authorization_density, "auth_density.png"),
+                "workload_distribution": (self.plot_workload_distribution, "workload_distribution.png"),
+                "workload_distribution_line": (self.plot_workload_distribution_line, "workload_distribution_line.png"),
+                "constraint_compliance": (self.plot_constraint_compliance, "constraint_compliance.png")
+            }
+            
+            # Determine which plots to generate
+            if specific_plots:
+                plots_to_generate = {
+                    name: func for name, func in plot_functions.items() 
+                    if name in specific_plots
+                }
+            else:
+                plots_to_generate = plot_functions
+            
+            # Generate selected plots
+            generated_plots = []
+            for name, (plot_func, filename) in plots_to_generate.items():
+                try:
+                    log(self.gui_mode, f"Generating {name} plot...")
+                    plot_func(data)
+                    generated_plots.append(filename)
+                except Exception as e:
+                    log(self.gui_mode, f"Error generating {filename}: {str(e)}")
+                finally:
+                    plt.close('all')
+            
+            return generated_plots
+            
+        except Exception as e:
+            log(self.gui_mode, f"Error during visualization generation: {str(e)}")
+            return []
 
     def plot_solving_times(self, data: Dict[str, List], output_file: str = "solving_times.png"):
         plt.figure(figsize=(10, 6))
@@ -309,106 +410,75 @@ class Visualizer:
         self.save_plot(output_file)
 
     def plot_constraint_distribution(self, data: Dict[str, List], output_file: str = "constraint_distribution.png"):
-        """Plot constraint distribution with enhanced debugging"""
-        try:
-            print("\nDEBUG: Starting plot_constraint_distribution")
-            plt.figure(figsize=(12, 6))
-            instances = [Path(f).stem for f in data['filenames']]
-            print(f"DEBUG: Found {len(instances)} instances")
+        """Plot constraint distribution across instances"""
+        plt.figure(figsize=(12, 6))
+        instances = [Path(f).stem for f in data['filenames']]
+        
+        # Get all constraint types
+        constraint_types = ['authorizations', 'separation_of_duty', 'binding_of_duty', 
+                        'at_most_k', 'one_team', 'super_user_at_least', 
+                        'wang_li', 'assignment_dependent']
+        
+        x = np.arange(len(instances))
+        width = 0.8 / len(constraint_types)
+        
+        # Create legend handles and labels manually
+        legend_handles = []
+        legend_labels = []
+        
+        has_data = False
+        for i, ctype in enumerate(constraint_types):
+            key = f'constraint_{ctype}'
+            label_added = False
             
-            # Get all constraint types
-            constraint_types = ['authorizations', 'separation_of_duty', 'binding_of_duty', 
-                            'at_most_k', 'one_team', 'super_user_at_least', 
-                            'wang_li', 'assignment_dependent']
-            print(f"DEBUG: Constraint types to check: {constraint_types}")
-            
-            x = np.arange(len(instances))
-            width = 0.8 / len(constraint_types)
-            print(f"DEBUG: Bar width calculated as {width}")
-            
-            # Create legend handles and labels manually
-            legend_handles = []
-            legend_labels = []
-            
-            has_data = False
-            for i, ctype in enumerate(constraint_types):
-                print(f"\nDEBUG: Processing constraint type: {ctype}")
-                key = f'constraint_{ctype}'
-                label_added = False
-                
-                if key in data:
-                    print(f"DEBUG: Found key {key} in data")
-                    for j, instance in enumerate(instances):
-                        try:
-                            print(f"DEBUG: Processing instance {instance}")
-                            metadata = self.metadata_handler.load(f"{instance}_metadata.json")
-                            
-                            if metadata is None:
-                                print(f"DEBUG: No metadata found for instance {instance}")
-                                continue
-                                
-                            if 'instance' not in metadata:
-                                print(f"DEBUG: No instance data in metadata for {instance}")
-                                continue
-                                
-                            constraint_types_data = metadata['instance']['details'].get('constraint_types', {})
-                            print(f"DEBUG: Constraint types data: {constraint_types_data}")
-                            
-                            has_constraint = constraint_types_data.get(ctype, 0) > 0
-                            print(f"DEBUG: Has constraint {ctype}: {has_constraint}")
-                            
-                            if has_constraint:
-                                has_data = True
-                                is_active = metadata['solver']['active_constraints'].get(ctype, False)
-                                print(f"DEBUG: Constraint active: {is_active}")
-                                
-                                color = self.colors[i % len(self.colors)] if is_active else self.na_color
-                                bar_position = x[j] + i*width - width*len(constraint_types)/2
-                                print(f"DEBUG: Plotting bar at position {bar_position}")
-                                
-                                plt.bar(bar_position, 1, width, color=color)
-                                
-                                if not label_added:
-                                    legend_handles.append(plt.Rectangle((0,0),1,1, facecolor=self.colors[i % len(self.colors)]))
-                                    legend_labels.append(ctype.replace('_', ' ').title())
-                                    label_added = True
-                                    print(f"DEBUG: Added legend entry for {ctype}")
-                        except Exception as e:
-                            print(f"DEBUG: Error processing instance {instance}: {str(e)}")
+            if key in data:
+                for j, instance in enumerate(instances):
+                    try:
+                        metadata = self.metadata_handler.load(f"{instance}_metadata.json")
+                        
+                        if metadata is None:
                             continue
-                else:
-                    print(f"DEBUG: Key {key} not found in data")
+                            
+                        if 'instance' not in metadata:
+                            continue
+                            
+                        constraint_types_data = metadata['instance']['details'].get('constraint_types', {})
+                        
+                        has_constraint = constraint_types_data.get(ctype, 0) > 0
+                        
+                        if has_constraint:
+                            has_data = True
+                            is_active = metadata['solver']['active_constraints'].get(ctype, False)
+                            
+                            color = self.colors[i % len(self.colors)] if is_active else self.na_color
+                            bar_position = x[j] + i*width - width*len(constraint_types)/2
+                            
+                            plt.bar(bar_position, 1, width, color=color)
+                            
+                            if not label_added:
+                                legend_handles.append(plt.Rectangle((0,0),1,1, facecolor=self.colors[i % len(self.colors)]))
+                                legend_labels.append(ctype.replace('_', ' ').title())
+                                label_added = True
+                    except Exception as e:
+                        continue
+        
+        if not has_data:
+            plt.text(0.5, 0.5, 'No constraint data available',
+                    ha='center', va='center')
+        else:
+            plt.xlabel('Instances')
+            plt.ylabel('Constraint Status')
+            plt.title('Constraint Distribution')
+            plt.xticks(x, instances, rotation=45, ha='right')
             
-            if not has_data:
-                print("DEBUG: No constraint data found, displaying message")
-                plt.text(0.5, 0.5, 'No constraint data available',
-                        ha='center', va='center')
-            else:
-                print("DEBUG: Finalizing plot")
-                plt.xlabel('Instances')
-                plt.ylabel('Constraint Status')
-                plt.title('Constraint Distribution')
-                plt.xticks(x, instances, rotation=45, ha='right')
-                
-                # Add legend outside plot area
-                if legend_handles and legend_labels:
-                    print(f"DEBUG: Adding legend with {len(legend_handles)} entries")
-                    plt.legend(legend_handles, legend_labels, 
-                            bbox_to_anchor=(1.05, 1), loc='upper left')
-                
-            print("DEBUG: Adjusting layout")
-            plt.tight_layout()
+            # Add legend outside plot area
+            if legend_handles and legend_labels:
+                plt.legend(legend_handles, legend_labels, 
+                        bbox_to_anchor=(1.05, 1), loc='upper left')
             
-            print(f"DEBUG: Saving plot to {output_file}")
-            self.save_plot(output_file)
-            print("DEBUG: Plot saved successfully")
-            
-        except Exception as e:
-            print(f"DEBUG: Error in plot_constraint_distribution: {str(e)}")
-            print(f"DEBUG: Error type: {type(e)}")
-            import traceback
-            print("DEBUG: Full traceback:")
-            traceback.print_exc()
+        plt.tight_layout()
+        
+        self.save_plot(output_file)
 
     def plot_constraint_activation(self, data: Dict[str, List], output_file: str = "constraint_activation.png"):
         """Plot activated and inactivated constraints across instances"""
@@ -592,10 +662,10 @@ class Visualizer:
                        xticklabels=labels, yticklabels=labels,
                        mask=mask, cbar_kws={'label': 'Correlation'})
             
-            plt.title('Correlation Matrix of WSP Metrics\n(Empty cells indicate insufficient data)')
+            plt.title('Correlation Matrix of WSP Metrics')
             
         except Exception as e:
-            print(f"Error generating correlation matrix: {str(e)}")
+            log(self.gui_mode, f"Error generating correlation matrix: {str(e)}")
             # Create empty plot with message
             plt.figure(figsize=(10, 8))
             plt.text(0.5, 0.5, 'Correlation matrix unavailable\nInsufficient data',
@@ -729,6 +799,6 @@ class Visualizer:
             plt.tight_layout()
             self.save_plot(output_file)
         except Exception as e:
-            print(f"Error in instance_stats plot: {str(e)}")
+            log(self.gui_mode, f"Error in instance_stats plot: {str(e)}")
         finally:
             plt.close('all')
