@@ -139,15 +139,19 @@ class CPSATVariableManager(VariableManagerBase):
             return False
 
 
-class Z3VariableManager(VariableManagerBase):
-    """Concrete Z3 implementations"""
+class Z3VariableManager:
+    """Manages Z3 variables and assignments"""
     def __init__(self, solver: z3.Solver, instance):
-        super().__init__(instance)
         self.solver = solver
+        self.instance = instance
+        self.step_variables = {}
+        self.user_step_variables = defaultdict(dict)
+        self._initialized = False
         
     def create_variables(self) -> bool:
+        """Create Z3 boolean variables for user-step assignments"""
         try:
-            self.step_variables.clear() 
+            self.step_variables.clear()
             self.user_step_variables.clear()
             
             for step in range(self.instance.number_of_steps):
@@ -162,6 +166,106 @@ class Z3VariableManager(VariableManagerBase):
             return True
         except Exception:
             return False
+
+    def get_assignment_from_model(self, model: z3.ModelRef) -> Dict[int, int]:
+        """Extract step -> user assignment from model"""
+        assignment = {}
+        for step in range(self.instance.number_of_steps):
+            for user, var in self.step_variables[step]:
+                if z3.is_true(model[var]):
+                    assignment[step + 1] = user + 1
+                    break
+        return assignment
+
+
+class CPSATConstraintManager:
+    """Manages WSP constraints using individual constraint classes"""
+    def __init__(self, model, instance, var_manager):
+        self.model = model
+        self.instance = instance
+        self.var_manager = var_manager
+        
+        # Initialize all constraints
+        self.constraints = {
+            'authorization': AuthorizationConstraint(model, instance, var_manager),
+            'binding_of_duty': BindingOfDutyConstraint(model, instance, var_manager),
+            'separation_of_duty': SeparationOfDutyConstraint(model, instance, var_manager),
+            'at_most_k': AtMostKConstraint(model, instance, var_manager),
+            'one_team': OneTeamConstraint(model, instance, var_manager),
+            'super_user_at_least': SUALConstraint(model, instance, var_manager),
+            'wang_li': WangLiConstraint(model, instance, var_manager),
+            'assignment_dependent': AssignmentDependentConstraint(model, instance, var_manager)
+        }
+        
+    def add_constraints(self, active_constraints: dict) -> Tuple[bool, List[str]]:
+        """Add active constraints to the model"""
+        errors = []
+        
+        for name, constraint in self.constraints.items():
+            # Only add if constraint is active and exists in instance
+            if active_constraints.get(name, True):
+                # Check if constraint type exists in instance
+                has_constraints = (
+                    (name == 'super_user_at_least' and hasattr(self.instance, 'sual') and self.instance.sual) or
+                    (name == 'wang_li' and hasattr(self.instance, 'wang_li') and self.instance.wang_li) or
+                    (name == 'assignment_dependent' and hasattr(self.instance, 'ada') and self.instance.ada) or
+                    (name in ['authorization', 'binding_of_duty', 'separation_of_duty', 'at_most_k', 'one_team'])
+                )
+                
+                if has_constraints:
+                    is_feasible, constraint_errors = constraint.check_feasibility()
+                    if not is_feasible:
+                        errors.extend(constraint_errors)
+                        continue
+                        
+                    if not constraint.add_to_model():
+                        errors.append(f"Failed to add {name} constraints to model")
+                    
+        return len(errors) == 0, errors
+
+
+class Z3ConstraintManager:
+    """Manages Z3 constraints"""
+    def __init__(self, solver: z3.Solver, instance, var_manager: Z3VariableManager):
+        self.solver = solver
+        self.instance = instance
+        self.var_manager = var_manager
+        
+        # Initialize all constraint classes
+        self.constraints = {
+            'authorization': AuthorizationConstraint(),
+            'binding_of_duty': BindingOfDutyConstraint(), 
+            'separation_of_duty': SeparationOfDutyConstraint(),
+            'at_most_k': AtMostKConstraint(),
+            'one_team': OneTeamConstraint(),
+            'super_user_at_least': SUALConstraint(),
+            'wang_li': WangLiConstraint(),
+            'assignment_dependent': AssignmentDependentConstraint()
+        }
+
+    def add_constraints(self, active_constraints: Dict[str, bool]) -> Tuple[bool, List[str]]:
+        """Add active constraints to solver"""
+        errors = []
+        
+        for name, constraint in self.constraints.items():
+            if active_constraints.get(name, True):
+                has_constraints = (
+                    (name == 'super_user_at_least' and hasattr(self.instance, 'sual') and self.instance.sual) or
+                    (name == 'wang_li' and hasattr(self.instance, 'wang_li') and self.instance.wang_li) or
+                    (name == 'assignment_dependent' and hasattr(self.instance, 'ada') and self.instance.ada) or
+                    (name in ['authorization', 'binding_of_duty', 'separation_of_duty', 'at_most_k', 'one_team'])
+                )
+                
+                if has_constraints:
+                    is_feasible, constraint_errors = constraint.check_feasibility(self.var_manager)
+                    if not is_feasible:
+                        errors.extend(constraint_errors)
+                        continue
+                        
+                    if not constraint.add_to_solver(self.solver, self.var_manager):
+                        errors.append(f"Failed to add {name} constraints to model")
+                    
+        return len(errors) == 0, errors
 
 
 class AuthorizationConstraint(BaseConstraint):
@@ -596,48 +700,3 @@ class AssignmentDependentConstraint(BaseConstraint):
                 target_count = z3.Sum([z3.If(v, 1, 0) for v in target_vars])
                 solver.add(z3.Implies(source_used, target_count >= 1))
 
-
-class ConstraintManager:
-    """Manages WSP constraints using individual constraint classes"""
-    def __init__(self, model, instance, var_manager):
-        self.model = model
-        self.instance = instance
-        self.var_manager = var_manager
-        
-        # Initialize all constraints
-        self.constraints = {
-            'authorization': AuthorizationConstraint(model, instance, var_manager),
-            'binding_of_duty': BindingOfDutyConstraint(model, instance, var_manager),
-            'separation_of_duty': SeparationOfDutyConstraint(model, instance, var_manager),
-            'at_most_k': AtMostKConstraint(model, instance, var_manager),
-            'one_team': OneTeamConstraint(model, instance, var_manager),
-            'super_user_at_least': SUALConstraint(model, instance, var_manager),
-            'wang_li': WangLiConstraint(model, instance, var_manager),
-            'assignment_dependent': AssignmentDependentConstraint(model, instance, var_manager)
-        }
-        
-    def add_constraints(self, active_constraints: dict) -> Tuple[bool, List[str]]:
-        """Add active constraints to the model"""
-        errors = []
-        
-        for name, constraint in self.constraints.items():
-            # Only add if constraint is active and exists in instance
-            if active_constraints.get(name, True):
-                # Check if constraint type exists in instance
-                has_constraints = (
-                    (name == 'super_user_at_least' and hasattr(self.instance, 'sual') and self.instance.sual) or
-                    (name == 'wang_li' and hasattr(self.instance, 'wang_li') and self.instance.wang_li) or
-                    (name == 'assignment_dependent' and hasattr(self.instance, 'ada') and self.instance.ada) or
-                    (name in ['authorization', 'binding_of_duty', 'separation_of_duty', 'at_most_k', 'one_team'])
-                )
-                
-                if has_constraints:
-                    is_feasible, constraint_errors = constraint.check_feasibility()
-                    if not is_feasible:
-                        errors.extend(constraint_errors)
-                        continue
-                        
-                    if not constraint.add_to_model():
-                        errors.append(f"Failed to add {name} constraints to model")
-                    
-        return len(errors) == 0, errors

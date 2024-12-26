@@ -46,13 +46,7 @@ class AppController:
         """Update the solver description based on current type"""
         descriptions = {
             SolverType.ORTOOLS_CP: "OR-Tools (Constraint Programming)",
-            SolverType.ORTOOLS_CS: "OR-Tools (Constraint Satisfaction Encoding)",
-            SolverType.ORTOOLS_PBPB: "OR-Tools (Pattern-Based Pseudo-Boolean Encoding)",
-            SolverType.ORTOOLS_UDPB: "OR-Tools (User-Dependent Pseudo-Boolean Encoding)",
-            SolverType.Z3_PBPB: "Z3 (Pattern-Based Pseudo-Boolean Encoding)",
-            SolverType.Z3_UDPB: "Z3 (User-Dependent Pseudo-Boolean Encoding)",
-            SolverType.SAT4J_PBPB: "SAT4J (Pattern-Based Pseudo-Boolean Encoding)",
-            SolverType.SAT4J_UDPB: "SAT4J (User-Dependent Pseudo-Boolean Encoding)",
+            SolverType.Z_THREE: "Z3 Theorem Prover",
         }
         description = descriptions.get(self.current_solver_type, "")
         self.view.update_solver_description(description)

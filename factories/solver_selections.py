@@ -25,6 +25,8 @@ class SolverFactory:
         if solver_type not in self.solvers:
             if solver_type == SolverType.ORTOOLS_CP:
                 from solvers import ORToolsCPSolver as solver
+            elif solver_type == SolverType.Z_THREE:
+                from solvers import Z3Solver as solver
             # elif solver_type == SolverType.ORTOOLS_CS:
             #     from solvers.ortools import ORToolsCSWSPSolver as solver
             # elif solver_type == SolverType.ORTOOLS_UDPB:
@@ -48,10 +50,10 @@ class SolverFactory:
         """Get solver instance for specified type"""
         self._import_solver(solver_type)
         
-        if solver_type in [SolverType.SAT4J_PBPB, SolverType.SAT4J_UDPB]:
-            if not jpype.isJVMStarted():
-                raise RuntimeError(
-                    "JVM not initialized. Please ensure sat4j-pb.jar is in the project root."
-                )
+        # if solver_type in [SolverType.SAT4J_PBPB, SolverType.SAT4J_UDPB]:
+        #     if not jpype.isJVMStarted():
+        #         raise RuntimeError(
+        #             "JVM not initialized. Please ensure sat4j-pb.jar is in the project root."
+        #         )
 
         return self.solvers[solver_type](instance, active_constraints, gui_mode)

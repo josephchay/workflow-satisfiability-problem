@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - User Authorization, Step Authorization, Authorization Density, Constraint Comparison plot graphs for visualization.
 - Line graph visualization plots for Problem Size and Workload Distribution.
 - Supplementary bar graph visualization plot for Solution Statistics for better visual aid by enabling better visibility of each component under each instance.
+- Z3 Solver with Variable and Constraint managers, with tailored and dedicated constraint handling logic for the solver itself.
 
 ### Changed
 - Updated the GUI `views.py` and `controllers.py` to fit in to our new solver solution (`ortools-fast.py` but now in a dynamic and versatile way).
