@@ -1,44 +1,36 @@
 from abc import ABC, abstractmethod
+from typing import Protocol, List, Tuple, Any, Set, Dict
 from collections import defaultdict
+import z3
 from ortools.sat.python import cp_model
-from typing import List, Tuple, Set, Dict
 
 
-class VariableManager:
-    """Manages CP-SAT variables for the WSP problem"""
-    def __init__(self, model: cp_model.CpModel, instance):
-        self.model = model
+class Solver(Protocol):
+    """Protocol defining solver interface"""
+    def add(self, constraint: Any) -> None:
+        """Add constraint to solver"""
+        pass
+
+
+class Variable(Protocol):
+    """Protocol defining variable interface"""
+    pass
+
+
+class VariableManagerBase(ABC):
+    """Abstract base class for variable managers"""
+    def __init__(self, instance):
         self.instance = instance
-        self.step_variables: Dict[int, List[Tuple[int, cp_model.IntVar]]] = {}
-        self.user_step_variables: Dict[int, Dict[int, cp_model.IntVar]] = defaultdict(dict)
+        self.step_variables = {}
+        self.user_step_variables = defaultdict(dict)
         self._initialized = False
         self.user_sets = {}
-        
+
+    @abstractmethod
     def create_variables(self) -> bool:
-        """
-        Create boolean variables for user-step assignments.
-        Returns True if variables were created successfully.
-        """
-        try:
-            self.step_variables.clear()
-            self.user_step_variables.clear()
-            
-            # Create variables only for authorized user-step pairs
-            for step in range(self.instance.number_of_steps):
-                self.step_variables[step] = []
-                for user in range(self.instance.number_of_users):
-                    if self.instance.user_step_matrix[user][step]:
-                        var = self.model.NewBoolVar(f's{step + 1}_u{user + 1}')
-                        self.step_variables[step].append((user, var))
-                        self.user_step_variables[user][step] = var
-                        
-            self._initialized = True
-            return True
-            
-        except Exception as e:
-            print(f"Error creating variables: {str(e)}")
-            return False
-            
+        """Create solver variables"""
+        pass
+        
     def get_step_variables(self, step: int) -> List[Tuple[int, cp_model.IntVar]]:
         """Get list of (user, variable) pairs for a step"""
         self._check_initialized()
@@ -104,26 +96,77 @@ class VariableManager:
 
 
 class BaseConstraint(ABC):
-    """Abstract base class for all WSP constraints"""
-    def __init__(self, model, instance, var_manager):
-        self.model = model
-        self.instance = instance
-        self.var_manager = var_manager
-
+    """Abstract base constraint class usable by any solver"""
+    
     @abstractmethod
-    def add_to_model(self) -> bool:
-        """Add constraint to the model. Returns False if infeasible."""
+    def add_to_solver(self, solver: Solver, var_manager: VariableManagerBase) -> bool:
+        """Add constraint to solver"""
         pass
         
     @abstractmethod
-    def check_feasibility(self) -> Tuple[bool, List[str]]:
-        """Check if constraint can potentially be satisfied."""
+    def check_feasibility(self, var_manager: VariableManagerBase) -> Tuple[bool, List[str]]:
+        """Check if constraint can potentially be satisfied"""
         pass
 
 
+class CPSATVariableManager(VariableManagerBase):
+    """Concrete CPSAT implementations"""
+    def __init__(self, model: cp_model.CpModel, instance):
+        super().__init__(instance)
+        self.model = model
+        
+    def create_variables(self) -> bool:
+        """
+        Create boolean variables for user-step assignments.
+        Returns True if variables were created successfully.
+        """
+        try:
+            self.step_variables.clear()
+            self.user_step_variables.clear()
+            
+            # Create variables only for authorized user-step pairs
+            for step in range(self.instance.number_of_steps):
+                self.step_variables[step] = []
+                for user in range(self.instance.number_of_users):
+                    if self.instance.user_step_matrix[user][step]:
+                        var = self.model.NewBoolVar(f's{step + 1}_u{user + 1}')
+                        self.step_variables[step].append((user, var))
+                        self.user_step_variables[user][step] = var
+                        
+            self._initialized = True
+            return True
+        except Exception:
+            return False
+
+
+class Z3VariableManager(VariableManagerBase):
+    """Concrete Z3 implementations"""
+    def __init__(self, solver: z3.Solver, instance):
+        super().__init__(instance)
+        self.solver = solver
+        
+    def create_variables(self) -> bool:
+        try:
+            self.step_variables.clear() 
+            self.user_step_variables.clear()
+            
+            for step in range(self.instance.number_of_steps):
+                self.step_variables[step] = []
+                for user in range(self.instance.number_of_users):
+                    if self.instance.user_step_matrix[user][step]:
+                        var = z3.Bool(f's{step + 1}_u{user + 1}')
+                        self.step_variables[step].append((user, var))
+                        self.user_step_variables[user][step] = var
+                        
+            self._initialized = True
+            return True
+        except Exception:
+            return False
+
+
 class AuthorizationConstraint(BaseConstraint):
-    """Ensures each step is assigned to exactly one authorized user"""
-    def check_feasibility(self) -> Tuple[bool, List[str]]:
+    def check_feasibility(self, var_manager: VariableManagerBase) -> Tuple[bool, List[str]]:
+        # Common feasibility check logic
         infeasible_steps = []
         for step in range(self.instance.number_of_steps):
             if not any(self.instance.user_step_matrix[user][step] 
@@ -133,84 +176,119 @@ class AuthorizationConstraint(BaseConstraint):
         return (len(infeasible_steps) == 0, 
                 [f"No authorized users for step {step}" for step in infeasible_steps])
 
-    def add_to_model(self) -> bool:
-        is_feasible, errors = self.check_feasibility()
+    def add_to_solver(self, solver: Solver, var_manager: VariableManagerBase) -> bool:
+        is_feasible, errors = self.check_feasibility(var_manager)
         if not is_feasible:
             return False
             
-        for step, user_vars in self.var_manager.step_variables.items():
-            self.model.AddExactlyOne(var for _, var in user_vars)
+        # Add solver-specific constraints
+        if isinstance(solver, cp_model.CpModel):
+            self._add_to_cpsat(solver, var_manager)
+        elif isinstance(solver, z3.Solver):
+            self._add_to_z3(solver, var_manager)
+            
         return True
+        
+    def _add_to_cpsat(self, model: cp_model.CpModel, var_manager: CPSATVariableManager):
+        for step, user_vars in var_manager.step_variables.items():
+            model.AddExactlyOne(var for _, var in user_vars)
+            
+    def _add_to_z3(self, solver: z3.Solver, var_manager: Z3VariableManager):
+        for step, user_vars in var_manager.step_variables.items():
+            # At least one user
+            solver.add(z3.Or([var for _, var in user_vars]))
+            # At most one user 
+            for i, (_, var1) in enumerate(user_vars):
+                for var2 in (v for _, v in user_vars[i+1:]):
+                    solver.add(z3.Not(z3.And(var1, var2)))
 
 
 class BindingOfDutyConstraint(BaseConstraint):
-    """Ensures specified steps are assigned to the same user"""
-    def check_feasibility(self) -> Tuple[bool, List[str]]:
+    def check_feasibility(self, var_manager: VariableManagerBase) -> Tuple[bool, List[str]]:
         infeasible = []
-        for s1, s2 in self.instance.BOD:
-            common_users = self._get_common_users(s1, s2)
+        for s1, s2 in var_manager.instance.BOD:
+            common_users = set(var_manager.get_authorized_users(s1)) & set(var_manager.get_authorized_users(s2))
             if not common_users:
                 infeasible.append((s1 + 1, s2 + 1))
                 
         return (len(infeasible) == 0,
-                [f"No users authorized for both steps {s1} and {s2}" 
-                 for s1, s2 in infeasible])
+                [f"No users authorized for both steps {s1} and {s2}" for s1, s2 in infeasible])
 
-    def _get_common_users(self, s1: int, s2: int) -> Set[int]:
-        """Get users authorized for both steps"""
-        return {user for user in range(self.instance.number_of_users)
-                if (self.instance.user_step_matrix[user][s1] and 
-                    self.instance.user_step_matrix[user][s2])}
-
-    def add_to_model(self) -> bool:
-        is_feasible, errors = self.check_feasibility()
+    def add_to_solver(self, solver: Solver, var_manager: VariableManagerBase) -> bool:
+        is_feasible, errors = self.check_feasibility(var_manager)
         if not is_feasible:
             return False
-            
-        for s1, s2 in self.instance.BOD:
+
+        if isinstance(solver, cp_model.CpModel):
+            self._add_to_cpsat(solver, var_manager)
+        elif isinstance(solver, z3.Solver):
+            self._add_to_z3(solver, var_manager)
+        return True
+
+    def _add_to_cpsat(self, model: cp_model.CpModel, var_manager: CPSATVariableManager):
+        for s1, s2 in var_manager.instance.BOD:
             s1_vars = []
             s2_vars = []
-            
-            for user in range(self.instance.number_of_users):
-                if (self.instance.user_step_matrix[user][s1] and 
-                    self.instance.user_step_matrix[user][s2]):
-                    var1 = self.var_manager.user_step_variables[user][s1]
-                    var2 = self.var_manager.user_step_variables[user][s2]
-                    self.model.Add(var1 == var2)
+            for user in range(var_manager.instance.number_of_users):
+                if (s1 in var_manager.user_step_variables[user] and 
+                    s2 in var_manager.user_step_variables[user]):
+                    var1 = var_manager.user_step_variables[user][s1]
+                    var2 = var_manager.user_step_variables[user][s2]
+                    model.Add(var1 == var2)
                     s1_vars.append(var1)
                     s2_vars.append(var2)
-            
-            self.model.Add(sum(s1_vars) == 1)
-            self.model.Add(sum(s2_vars) == 1)
-            
-        return True
+            model.Add(sum(s1_vars) == 1)
+            model.Add(sum(s2_vars) == 1)
+
+    def _add_to_z3(self, solver: z3.Solver, var_manager: Z3VariableManager):
+        for s1, s2 in var_manager.instance.BOD:
+            common_users = []
+            for user in range(var_manager.instance.number_of_users):
+                if (s1 in var_manager.user_step_variables[user] and 
+                    s2 in var_manager.user_step_variables[user]):
+                    var1 = var_manager.user_step_variables[user][s1]
+                    var2 = var_manager.user_step_variables[user][s2]
+                    solver.add(var1 == var2)
+                    common_users.append(var1)
+            if common_users:
+                solver.add(z3.PbEq([(v, 1) for v in common_users], 1))
 
 
 class SeparationOfDutyConstraint(BaseConstraint):
-    """Ensures specified steps are assigned to different users"""
-    def check_feasibility(self) -> Tuple[bool, List[str]]:
-        # SOD constraints are always potentially feasible if there are at least 
-        # two authorized users across both steps
+    def check_feasibility(self, var_manager: VariableManagerBase) -> Tuple[bool, List[str]]:
         return True, []
 
-    def add_to_model(self) -> bool:
-        for s1, s2 in self.instance.SOD:
-            for user in range(self.instance.number_of_users):
-                if (s1 in self.var_manager.user_step_variables[user] and 
-                    s2 in self.var_manager.user_step_variables[user]):
-                    var1 = self.var_manager.user_step_variables[user][s1]
-                    var2 = self.var_manager.user_step_variables[user][s2]
-                    self.model.Add(var1 + var2 <= 1)
+    def add_to_solver(self, solver: Solver, var_manager: VariableManagerBase) -> bool:
+        if isinstance(solver, cp_model.CpModel):
+            self._add_to_cpsat(solver, var_manager)
+        elif isinstance(solver, z3.Solver):
+            self._add_to_z3(solver, var_manager)
         return True
+
+    def _add_to_cpsat(self, model: cp_model.CpModel, var_manager: CPSATVariableManager):
+        for s1, s2 in var_manager.instance.SOD:
+            for user in range(var_manager.instance.number_of_users):
+                if (s1 in var_manager.user_step_variables[user] and 
+                    s2 in var_manager.user_step_variables[user]):
+                    var1 = var_manager.user_step_variables[user][s1]
+                    var2 = var_manager.user_step_variables[user][s2]
+                    model.Add(var1 + var2 <= 1)
+
+    def _add_to_z3(self, solver: z3.Solver, var_manager: Z3VariableManager):
+        for s1, s2 in var_manager.instance.SOD:
+            for user in range(var_manager.instance.number_of_users):
+                if (s1 in var_manager.user_step_variables[user] and 
+                    s2 in var_manager.user_step_variables[user]):
+                    var1 = var_manager.user_step_variables[user][s1]
+                    var2 = var_manager.user_step_variables[user][s2]
+                    solver.add(z3.Not(z3.And(var1, var2)))
 
 
 class AtMostKConstraint(BaseConstraint):
-    """Ensures users are not assigned more than k steps from specified groups"""
-    def check_feasibility(self) -> Tuple[bool, List[str]]:
+    def check_feasibility(self, var_manager: VariableManagerBase) -> Tuple[bool, List[str]]:
         infeasible = []
-        for k, steps in self.instance.at_most_k:
-            total_users = len(set(u for u in range(self.instance.number_of_users)
-                                for s in steps if self.instance.user_step_matrix[u][s]))
+        for k, steps in var_manager.instance.at_most_k:
+            total_users = len(set().union(*[var_manager.get_authorized_users(s) for s in steps]))
             min_users_needed = len(steps) / k
             if total_users < min_users_needed:
                 infeasible.append((k, steps, total_users, min_users_needed))
@@ -220,227 +298,303 @@ class AtMostKConstraint(BaseConstraint):
                  f"at least {min_needed:.0f} users but only has {total}" 
                  for k, steps, total, min_needed in infeasible])
 
-    def add_to_model(self) -> bool:
-        is_feasible, errors = self.check_feasibility()
+    def add_to_solver(self, solver: Solver, var_manager: VariableManagerBase) -> bool:
+        is_feasible, errors = self.check_feasibility(var_manager)
         if not is_feasible:
             return False
-            
-        for k, steps in self.instance.at_most_k:
-            for user in range(self.instance.number_of_users):
+
+        if isinstance(solver, cp_model.CpModel):
+            self._add_to_cpsat(solver, var_manager)
+        elif isinstance(solver, z3.Solver):
+            self._add_to_z3(solver, var_manager)
+        return True
+
+    def _add_to_cpsat(self, model: cp_model.CpModel, var_manager: CPSATVariableManager):
+        for k, steps in var_manager.instance.at_most_k:
+            for user in range(var_manager.instance.number_of_users):
                 user_step_vars = []
                 for step in steps:
-                    if step in self.var_manager.user_step_variables[user]:
-                        user_step_vars.append(
-                            self.var_manager.user_step_variables[user][step]
-                        )
-                
+                    if step in var_manager.user_step_variables[user]:
+                        user_step_vars.append(var_manager.user_step_variables[user][step])
                 if user_step_vars:
-                    self.model.Add(sum(user_step_vars) <= k)
-        
-        # Add global limit based on minimum k
-        if self.instance.at_most_k:
-            min_k = min(k for k, _ in self.instance.at_most_k)
-            for user in range(self.instance.number_of_users):
-                user_vars = []
-                for step in range(self.instance.number_of_steps):
-                    if step in self.var_manager.user_step_variables[user]:
-                        user_vars.append(self.var_manager.user_step_variables[user][step])
-                if user_vars:
-                    self.model.Add(sum(user_vars) <= min_k)
-                    
-        return True
+                    model.Add(sum(user_step_vars) <= k)
+
+    def _add_to_z3(self, solver: z3.Solver, var_manager: Z3VariableManager):
+        for k, steps in var_manager.instance.at_most_k:
+            for user in range(var_manager.instance.number_of_users):
+                user_step_vars = []
+                for step in steps:
+                    if step in var_manager.user_step_variables[user]:
+                        user_step_vars.append(var_manager.user_step_variables[user][step])
+                if user_step_vars:
+                    solver.add(z3.PbLe([(v, 1) for v in user_step_vars], k))
 
 
 class OneTeamConstraint(BaseConstraint):
-    """Ensures steps are assigned to users from the same team"""
-    def check_feasibility(self) -> Tuple[bool, List[str]]:
-        # One team constraints are always potentially feasible if teams are non-empty
-        return True, []
+    def check_feasibility(self, var_manager: VariableManagerBase) -> Tuple[bool, List[str]]:
+        if not hasattr(var_manager.instance, 'one_team'):
+            return True, []
+            
+        errors = []
+        for idx, (steps, teams) in enumerate(var_manager.instance.one_team):
+            for team_idx, team in enumerate(teams):
+                authorized = False
+                for step in steps:
+                    if any(var_manager.instance.user_step_matrix[user][step] for user in team):
+                        authorized = True
+                        break
+                if not authorized:
+                    errors.append(f"Team {team_idx + 1} has no authorized users for any step in scope {[s+1 for s in steps]}")
+        return len(errors) == 0, errors
 
-    def add_to_model(self) -> bool:
-        for steps, teams in self.instance.one_team:
-            team_vars = [self.model.NewBoolVar(f'team_{i}') 
-                        for i in range(len(teams))]
-            self.model.AddExactlyOne(team_vars)
+    def add_to_solver(self, solver: Solver, var_manager: VariableManagerBase) -> bool:
+        if not hasattr(var_manager.instance, 'one_team'):
+            return True
+            
+        is_feasible, errors = self.check_feasibility(var_manager)
+        if not is_feasible:
+            return False
+
+        if isinstance(solver, cp_model.CpModel):
+            self._add_to_cpsat(solver, var_manager)
+        elif isinstance(solver, z3.Solver):
+            self._add_to_z3(solver, var_manager)
+        return True
+
+    def _add_to_cpsat(self, model: cp_model.CpModel, var_manager: CPSATVariableManager):
+        for steps, teams in var_manager.instance.one_team:
+            team_vars = [model.NewBoolVar(f'team_{i}') for i in range(len(teams))]
+            model.AddExactlyOne(team_vars)
             
             for step in steps:
                 for team_idx, team in enumerate(teams):
                     team_var = team_vars[team_idx]
-                    for user, var in self.var_manager.step_variables[step]:
+                    for user, var in var_manager.step_variables[step]:
                         if user not in team:
-                            self.model.Add(var == 0).OnlyEnforceIf(team_var)
-        return True
+                            model.Add(var == 0).OnlyEnforceIf(team_var)
 
-
-"""NEW ADDITIONAL CONSTRAINTS"""
+    def _add_to_z3(self, solver: z3.Solver, var_manager: Z3VariableManager):
+        for steps, teams in var_manager.instance.one_team:
+            team_vars = [z3.Bool(f'team_{len(solver.assertions())}_{i}') for i in range(len(teams))]
+            # Exactly one team
+            solver.add(z3.PbEq([(v, 1) for v in team_vars], 1))
+            
+            for step in steps:
+                for team_idx, team in enumerate(teams):
+                    team_var = team_vars[team_idx]
+                    for user, var in var_manager.step_variables[step]:
+                        if user not in team:
+                            solver.add(z3.Implies(team_var, z3.Not(var)))
 
 
 class SUALConstraint(BaseConstraint):
-    def check_feasibility(self) -> Tuple[bool, List[str]]:
+    def check_feasibility(self, var_manager: VariableManagerBase) -> Tuple[bool, List[str]]:
+        if not hasattr(var_manager.instance, 'sual'):
+            return True, []
+            
         errors = []
-        
-        for scope, h, super_users in self.instance.sual:
-            # Check each step in scope has either:
-            # 1. More than h authorized users, or
-            # 2. At least one authorized super user
+        for scope, h, super_users in var_manager.instance.sual:
+            authorized_super_users = set(super_users)
             for step in scope:
-                authorized = self.var_manager.get_authorized_users(step)
-                if len(authorized) <= h:
-                    super_auth = authorized.intersection(super_users)
-                    if not super_auth:
-                        errors.append(
-                            f"Step {step+1} must have either >{h} authorized users "
-                            f"or at least one authorized super user"
-                        )
-                        
-            # Verify at least one super user is authorized for all steps in scope
-            common_super_users = set(super_users)
-            for step in scope:
-                common_super_users &= self.var_manager.get_authorized_users(step)
-            if not common_super_users:
-                errors.append(
-                    f"No super user is authorized for all steps in scope {[s+1 for s in scope]}"
-                )
-                    
+                authorized_super_users &= var_manager.get_authorized_users(step)
+            if len(authorized_super_users) < h:
+                errors.append(f"Only {len(authorized_super_users)} super users authorized for all steps "
+                            f"{[s+1 for s in scope]}, but {h} required")
         return len(errors) == 0, errors
 
-    def add_to_model(self) -> bool:
-        is_feasible, errors = self.check_feasibility()
+    def add_to_solver(self, solver: Solver, var_manager: VariableManagerBase) -> bool:
+        if not hasattr(var_manager.instance, 'sual'):
+            return True
+            
+        is_feasible, errors = self.check_feasibility(var_manager)
         if not is_feasible:
             return False
-            
-        for scope, h, super_users in self.instance.sual:
-            # For each step in scope
+
+        if isinstance(solver, cp_model.CpModel):
+            self._add_to_cpsat(solver, var_manager)
+        elif isinstance(solver, z3.Solver):
+            self._add_to_z3(solver, var_manager)
+        return True
+
+    def _add_to_cpsat(self, model: cp_model.CpModel, var_manager: CPSATVariableManager):
+        for scope, h, super_users in var_manager.instance.sual:
             for step in scope:
-                # Get all users assigned to this step
-                step_vars = [var for _, var in self.var_manager.get_step_variables(step)]
-                
-                # Get super users assigned to this step
-                super_vars = [var for user, var in self.var_manager.get_step_variables(step)
+                step_vars = [var for _, var in var_manager.get_step_variables(step)]
+                super_vars = [var for user, var in var_manager.get_step_variables(step)
                             if user in super_users]
                 
-                # Create indicator for when total assignments <= h
-                condition = self.model.NewBoolVar(f'sual_cond_{step}')
-                self.model.Add(sum(step_vars) <= h).OnlyEnforceIf(condition)
-                self.model.Add(sum(step_vars) > h).OnlyEnforceIf(condition.Not())
+                condition = model.NewBoolVar(f'sual_cond_{step}')
+                model.Add(sum(step_vars) <= h).OnlyEnforceIf(condition)
+                model.Add(sum(step_vars) > h).OnlyEnforceIf(condition.Not())
                 
-                # If condition true, must use a super user
                 if super_vars:
-                    self.model.AddBoolOr(super_vars).OnlyEnforceIf(condition)
+                    model.AddBoolOr(super_vars).OnlyEnforceIf(condition)
+
+    def _add_to_z3(self, solver: z3.Solver, var_manager: Z3VariableManager):
+        for scope, h, super_users in var_manager.instance.sual:
+            for step in scope:
+                step_vars = [var for _, var in var_manager.get_step_variables(step)]
+                super_vars = [var for user, var in var_manager.get_step_variables(step)
+                            if user in super_users]
                 
-        return True
+                condition = z3.Bool(f'sual_cond_{step}')
+                
+                # Encode condition as step_count <= h
+                step_count = z3.Sum([z3.If(var, 1, 0) for var in step_vars])
+                solver.add(z3.Implies(condition, step_count <= h))
+                solver.add(z3.Implies(z3.Not(condition), step_count > h))
+                
+                if super_vars:
+                    solver.add(z3.Implies(condition, z3.Or(super_vars)))
 
 
 class WangLiConstraint(BaseConstraint):
-    def check_feasibility(self) -> Tuple[bool, List[str]]:
+    def check_feasibility(self, var_manager: VariableManagerBase) -> Tuple[bool, List[str]]:
+        if not hasattr(var_manager.instance, 'wang_li'):
+            return True, []
+            
         errors = []
-        
-        for scope, departments in self.instance.wang_li:
-            # For each department, check if it can handle all steps
-            valid_dept_found = False
+        for scope, departments in var_manager.instance.wang_li:
+            valid_dept = False
             for dept_idx, dept in enumerate(departments):
-                can_handle_all = True
-                for step in scope:
-                    auth_dept_users = self.var_manager.get_department_authorized_users(step, dept)
-                    if not auth_dept_users:
-                        can_handle_all = False
-                        break
-                if can_handle_all:
-                    valid_dept_found = True
+                if all(any(var_manager.instance.user_step_matrix[u][s] for u in dept) 
+                      for s in scope):
+                    valid_dept = True
                     break
-                    
-            if not valid_dept_found:
-                errors.append(
-                    f"No department can handle all steps in scope {[s+1 for s in scope]}"
-                )
-                
+            if not valid_dept:
+                errors.append(f"No department can cover all steps {[s+1 for s in scope]}")
         return len(errors) == 0, errors
 
-    def add_to_model(self) -> bool:
-        is_feasible, errors = self.check_feasibility()
+    def add_to_solver(self, solver: Solver, var_manager: VariableManagerBase) -> bool:
+        if not hasattr(var_manager.instance, 'wang_li'):
+            return True
+            
+        is_feasible, errors = self.check_feasibility(var_manager)
         if not is_feasible:
             return False
+
+        if isinstance(solver, cp_model.CpModel):
+            self._add_to_cpsat(solver, var_manager)
+        elif isinstance(solver, z3.Solver):
+            self._add_to_z3(solver, var_manager)
+        return True
+
+    def _add_to_cpsat(self, model: cp_model.CpModel, var_manager: CPSATVariableManager):
+        for scope, departments in var_manager.instance.wang_li:
+            dept_vars = [model.NewBoolVar(f'dept_{i}') for i in range(len(departments))]
+            model.AddExactlyOne(dept_vars)
             
-        for scope, departments in self.instance.wang_li:
-            # Create department choice variables
-            dept_vars = [self.model.NewBoolVar(f'dept_{i}') 
-                        for i in range(len(departments))]
-            
-            # Exactly one department must be chosen
-            self.model.AddExactlyOne(dept_vars)
-            
-            # For each step in scope
             for step in scope:
-                # For each user-step assignment
-                for user, var in self.var_manager.get_step_variables(step):
-                    # For each department
-                    user_dept_assignments = []
+                for user, var in var_manager.step_variables[step]:
+                    # Find which departments the user belongs to
+                    user_depts = []
                     for dept_idx, dept in enumerate(departments):
                         if user in dept:
-                            # User can be assigned if their department is chosen
-                            user_dept_assignments.append(dept_vars[dept_idx])
+                            user_depts.append(dept_vars[dept_idx])
                     
-                    # User can only be assigned if they're in the chosen department
-                    if user_dept_assignments:
-                        self.model.AddImplication(var, self.model.AddBoolOr(user_dept_assignments))
+                    if user_depts:
+                        model.AddImplication(var, model.AddBoolOr(user_depts))
                     else:
-                        self.model.Add(var == 0)  # User cannot be assigned
-                        
-        return True
-    
+                        model.Add(var == 0)
+
+    def _add_to_z3(self, solver: z3.Solver, var_manager: Z3VariableManager):
+        for scope, departments in var_manager.instance.wang_li:
+            dept_vars = [z3.Bool(f'dept_{len(solver.assertions())}_{i}') 
+                        for i in range(len(departments))]
+            
+            # Exactly one department
+            solver.add(z3.PbEq([(v, 1) for v in dept_vars], 1))
+            
+            for step in scope:
+                for user, var in var_manager.step_variables[step]:
+                    user_depts = []
+                    for dept_idx, dept in enumerate(departments):
+                        if user in dept:
+                            user_depts.append(dept_vars[dept_idx])
+                    
+                    if user_depts:
+                        solver.add(z3.Implies(var, z3.Or(user_depts)))
+                    else:
+                        solver.add(z3.Not(var))
+
 
 class AssignmentDependentConstraint(BaseConstraint):
-    def check_feasibility(self) -> Tuple[bool, List[str]]:
+    def check_feasibility(self, var_manager: VariableManagerBase) -> Tuple[bool, List[str]]:
+        if not hasattr(var_manager.instance, 'ada'):
+            return True, []
+            
         errors = []
-        
-        for s1, s2, source_users, target_users in self.instance.ada:
-            # Verify there are authorized users in source_users for s1
-            auth_source = self.var_manager.get_authorized_users(s1)
-            if not auth_source.intersection(source_users):
-                errors.append(
-                    f"No authorized users from source set for step {s1+1}"
-                )
+        for s1, s2, source_users, target_users in var_manager.instance.ada:
+            auth_source = var_manager.get_authorized_users(s1) & set(source_users)
+            if not auth_source:
+                errors.append(f"No authorized source users for step {s1+1}")
                 continue
                 
-            # If s1 can be assigned to source_users, verify s2 has target users
-            auth_target = self.var_manager.get_authorized_users(s2)
-            if not auth_target.intersection(target_users):
-                errors.append(
-                    f"No authorized users from target set for step {s2+1}"
-                )
+            auth_target = var_manager.get_authorized_users(s2) & set(target_users)
+            if not auth_target:
+                errors.append(f"No authorized target users for step {s2+1}")
                 
         return len(errors) == 0, errors
 
-    def add_to_model(self) -> bool:
-        is_feasible, errors = self.check_feasibility()
+    def add_to_solver(self, solver: Solver, var_manager: VariableManagerBase) -> bool:
+        if not hasattr(var_manager.instance, 'ada'):
+            return True
+            
+        is_feasible, errors = self.check_feasibility(var_manager)
         if not is_feasible:
             return False
-            
-        for s1, s2, source_users, target_users in self.instance.ada:
-            # Get variables for source step with source users
-            source_vars = self.var_manager.get_user_step_variables_filtered(s1, source_users)
-            if not source_vars:
-                continue
-                
-            # Get variables for target step with target users
-            target_vars = self.var_manager.get_user_step_variables_filtered(s2, target_users)
-            if not target_vars:
-                continue
-                
-            # Create an indicator for when a source user is assigned
-            source_assigned = self.model.NewBoolVar(f'ada_{s1}_{s2}')
-            self.model.Add(sum(var for _, var in source_vars) >= 1).OnlyEnforceIf(source_assigned)
-            self.model.Add(sum(var for _, var in source_vars) == 0).OnlyEnforceIf(source_assigned.Not())
-            
-            # If source assigned, must use target user
-            self.model.Add(sum(var for _, var in target_vars) >= 1).OnlyEnforceIf(source_assigned)
-            
-            # Non-target users cannot be assigned when source is assigned
-            for user, var in self.var_manager.get_step_variables(s2):
-                if user not in target_users:
-                    self.model.Add(var == 0).OnlyEnforceIf(source_assigned)
-                    
+
+        if isinstance(solver, cp_model.CpModel):
+            self._add_to_cpsat(solver, var_manager)
+        elif isinstance(solver, z3.Solver):
+            self._add_to_z3(solver, var_manager)
         return True
+
+    def _add_to_cpsat(self, model: cp_model.CpModel, var_manager: CPSATVariableManager):
+        for s1, s2, source_users, target_users in var_manager.instance.ada:
+            source_vars = []
+            target_vars = []
+            
+            for user in source_users:
+                if s1 in var_manager.user_step_variables[user]:
+                    source_vars.append(var_manager.user_step_variables[user][s1])
+                    
+            for user in target_users:
+                if s2 in var_manager.user_step_variables[user]:
+                    target_vars.append(var_manager.user_step_variables[user][s2])
+
+            if source_vars and target_vars:
+                source_used = model.NewBoolVar(f'ada_source_{s1}_{s2}')
+                model.Add(sum(source_vars) >= 1).OnlyEnforceIf(source_used)
+                model.Add(sum(source_vars) == 0).OnlyEnforceIf(source_used.Not())
+                
+                # If source assigned, must use target
+                model.Add(sum(target_vars) >= 1).OnlyEnforceIf(source_used)
+
+    def _add_to_z3(self, solver: z3.Solver, var_manager: Z3VariableManager):
+        for s1, s2, source_users, target_users in var_manager.instance.ada:
+            source_vars = []
+            target_vars = []
+            
+            for user in source_users:
+                if s1 in var_manager.user_step_variables[user]:
+                    source_vars.append(var_manager.user_step_variables[user][s1])
+                    
+            for user in target_users:
+                if s2 in var_manager.user_step_variables[user]:
+                    target_vars.append(var_manager.user_step_variables[user][s2])
+
+            if source_vars and target_vars:
+                source_used = z3.Bool(f'ada_source_{s1}_{s2}')
+                
+                # Encode source usage
+                source_count = z3.Sum([z3.If(v, 1, 0) for v in source_vars])
+                solver.add(z3.Implies(source_used, source_count >= 1))
+                solver.add(z3.Implies(z3.Not(source_used), source_count == 0))
+                
+                # If source used, must use target
+                target_count = z3.Sum([z3.If(v, 1, 0) for v in target_vars])
+                solver.add(z3.Implies(source_used, target_count >= 1))
 
 
 class ConstraintManager:
