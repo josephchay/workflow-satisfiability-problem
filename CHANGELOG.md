@@ -60,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Constraint comparison checks whether if the instance contains each constraint or not, if it does not have, then that type of constraint is not counted into the respective instance.
 - Better constraint distribution tracking in the OR-Tools CP solver.
 - Include metadata for constraint distribution and comparison in the saving of Metada handlings.
+- Made `plot_constraint_distribution` to be able to handle larger instances.
 
 ### Removed
 - Removed unnecessary title header description for each instance.

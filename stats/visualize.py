@@ -309,56 +309,106 @@ class Visualizer:
         self.save_plot(output_file)
 
     def plot_constraint_distribution(self, data: Dict[str, List], output_file: str = "constraint_distribution.png"):
-        plt.figure(figsize=(12, 6))
-        instances = [Path(f).stem for f in data['filenames']]
-        
-        # Get all constraint types
-        constraint_types = ['authorizations', 'separation_of_duty', 'binding_of_duty', 
-                        'at_most_k', 'one_team', 'super_user_at_least', 
-                        'wang_li', 'assignment_dependent']
-        
-        x = np.arange(len(instances))
-        width = 0.8 / len(constraint_types)
-        
-        # Create legend handles and labels manually
-        legend_handles = []
-        legend_labels = []
-        
-        has_data = False
-        for i, ctype in enumerate(constraint_types):
-            key = f'constraint_{ctype}'
-            label_added = False
-            if key in data:
-                for j, instance in enumerate(instances):
-                    metadata = self.metadata_handler.load(f"{instance}_metadata.json")
-                    if metadata and 'instance' in metadata:
-                        has_constraint = metadata['instance']['details']['constraint_types'].get(ctype, 0) > 0
-                        if has_constraint:
-                            has_data = True
-                            is_active = metadata['solver']['active_constraints'].get(ctype, False)
-                            color = self.colors[i] if is_active else self.na_color
-                            bar = plt.bar(x[j] + i*width - width*len(constraint_types)/2,
-                                        1, width, color=color)
+        """Plot constraint distribution with enhanced debugging"""
+        try:
+            print("\nDEBUG: Starting plot_constraint_distribution")
+            plt.figure(figsize=(12, 6))
+            instances = [Path(f).stem for f in data['filenames']]
+            print(f"DEBUG: Found {len(instances)} instances")
+            
+            # Get all constraint types
+            constraint_types = ['authorizations', 'separation_of_duty', 'binding_of_duty', 
+                            'at_most_k', 'one_team', 'super_user_at_least', 
+                            'wang_li', 'assignment_dependent']
+            print(f"DEBUG: Constraint types to check: {constraint_types}")
+            
+            x = np.arange(len(instances))
+            width = 0.8 / len(constraint_types)
+            print(f"DEBUG: Bar width calculated as {width}")
+            
+            # Create legend handles and labels manually
+            legend_handles = []
+            legend_labels = []
+            
+            has_data = False
+            for i, ctype in enumerate(constraint_types):
+                print(f"\nDEBUG: Processing constraint type: {ctype}")
+                key = f'constraint_{ctype}'
+                label_added = False
+                
+                if key in data:
+                    print(f"DEBUG: Found key {key} in data")
+                    for j, instance in enumerate(instances):
+                        try:
+                            print(f"DEBUG: Processing instance {instance}")
+                            metadata = self.metadata_handler.load(f"{instance}_metadata.json")
                             
-                            # Add to legend only once per constraint type
-                            if not label_added:
-                                legend_handles.append(plt.Rectangle((0,0),1,1, facecolor=self.colors[i]))
-                                legend_labels.append(ctype.replace('_', ' ').title())
-                                label_added = True
-        
-        if not has_data:
-            plt.text(0.5, 0.5, 'No constraint data available',
-                    ha='center', va='center')
-        else:
-            plt.xlabel('Instances')
-            plt.ylabel('Constraint Status')
-            plt.title(f'Constraint Distribution')
-            plt.xticks(x, instances, rotation=45, ha='right')
-            plt.legend(legend_handles, legend_labels, 
-                    bbox_to_anchor=(1.05, 1), loc='upper left')
-        
-        plt.tight_layout()
-        self.save_plot(output_file)
+                            if metadata is None:
+                                print(f"DEBUG: No metadata found for instance {instance}")
+                                continue
+                                
+                            if 'instance' not in metadata:
+                                print(f"DEBUG: No instance data in metadata for {instance}")
+                                continue
+                                
+                            constraint_types_data = metadata['instance']['details'].get('constraint_types', {})
+                            print(f"DEBUG: Constraint types data: {constraint_types_data}")
+                            
+                            has_constraint = constraint_types_data.get(ctype, 0) > 0
+                            print(f"DEBUG: Has constraint {ctype}: {has_constraint}")
+                            
+                            if has_constraint:
+                                has_data = True
+                                is_active = metadata['solver']['active_constraints'].get(ctype, False)
+                                print(f"DEBUG: Constraint active: {is_active}")
+                                
+                                color = self.colors[i % len(self.colors)] if is_active else self.na_color
+                                bar_position = x[j] + i*width - width*len(constraint_types)/2
+                                print(f"DEBUG: Plotting bar at position {bar_position}")
+                                
+                                plt.bar(bar_position, 1, width, color=color)
+                                
+                                if not label_added:
+                                    legend_handles.append(plt.Rectangle((0,0),1,1, facecolor=self.colors[i % len(self.colors)]))
+                                    legend_labels.append(ctype.replace('_', ' ').title())
+                                    label_added = True
+                                    print(f"DEBUG: Added legend entry for {ctype}")
+                        except Exception as e:
+                            print(f"DEBUG: Error processing instance {instance}: {str(e)}")
+                            continue
+                else:
+                    print(f"DEBUG: Key {key} not found in data")
+            
+            if not has_data:
+                print("DEBUG: No constraint data found, displaying message")
+                plt.text(0.5, 0.5, 'No constraint data available',
+                        ha='center', va='center')
+            else:
+                print("DEBUG: Finalizing plot")
+                plt.xlabel('Instances')
+                plt.ylabel('Constraint Status')
+                plt.title('Constraint Distribution')
+                plt.xticks(x, instances, rotation=45, ha='right')
+                
+                # Add legend outside plot area
+                if legend_handles and legend_labels:
+                    print(f"DEBUG: Adding legend with {len(legend_handles)} entries")
+                    plt.legend(legend_handles, legend_labels, 
+                            bbox_to_anchor=(1.05, 1), loc='upper left')
+                
+            print("DEBUG: Adjusting layout")
+            plt.tight_layout()
+            
+            print(f"DEBUG: Saving plot to {output_file}")
+            self.save_plot(output_file)
+            print("DEBUG: Plot saved successfully")
+            
+        except Exception as e:
+            print(f"DEBUG: Error in plot_constraint_distribution: {str(e)}")
+            print(f"DEBUG: Error type: {type(e)}")
+            import traceback
+            print("DEBUG: Full traceback:")
+            traceback.print_exc()
 
     def plot_constraint_activation(self, data: Dict[str, List], output_file: str = "constraint_activation.png"):
         """Plot activated and inactivated constraints across instances"""
