@@ -45,8 +45,9 @@ class AppController:
     def _update_solver_description(self):
         """Update the solver description based on current type"""
         descriptions = {
-            SolverType.ORTOOLS_CP: "OR-Tools (Constraint Programming)",
+            SolverType.ORTOOLS_CP: "OR-Tools",
             SolverType.Z_THREE: "Z3 Theorem Prover",
+            SolverType.SAT4J: "SAT4J"
         }
         description = descriptions.get(self.current_solver_type, "")
         self.view.update_solver_description(description)

@@ -6,7 +6,8 @@ import time
 from utils import log
 from constants import SolverType
 from solvers import BaseSolver
-from typings import CPSATVariableManager, CPSATConstraintManager, Solution, UniquenessChecker, Verifier
+from constraints.ortools_constraints import VariableManager, ConstraintManager
+from typings import Solution, Verifier, UniquenessChecker
 
 
 class ORToolsCPSolver(BaseSolver):
@@ -23,7 +24,7 @@ class ORToolsCPSolver(BaseSolver):
         self._setup_solver()
         
         # Initialize managers
-        self.var_manager = CPSATVariableManager(self.model, instance)
+        self.var_manager = VariableManager(self.model, instance)
 
         # Initialize constraint manager
         self.constraint_manager = None
@@ -160,7 +161,7 @@ class ORToolsCPSolver(BaseSolver):
             self.var_manager.create_variables()
             
             log(self.gui_mode, "Adding constraints...")
-            self.constraint_manager = CPSATConstraintManager(
+            self.constraint_manager = ConstraintManager(
                 self.model,
                 self.instance,
                 self.var_manager

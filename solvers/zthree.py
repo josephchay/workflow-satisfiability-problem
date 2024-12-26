@@ -5,7 +5,8 @@ import z3
 from utils import log
 from constants import SolverType
 from solvers import BaseSolver
-from typings import Z3VariableManager, Z3ConstraintManager, Solution, UniquenessChecker, Verifier
+from constraints.zthree_constraints import Z3VariableManager, Z3ConstraintManager
+from typings import Solution, UniquenessChecker, Verifier
 
 
 class Z3Solver(BaseSolver):
