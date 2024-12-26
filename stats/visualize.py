@@ -87,7 +87,7 @@ class Visualizer:
         bars = plt.bar(instances, times)
         plt.xticks(rotation=45, ha='right')
         plt.ylabel('Solving Time (seconds)')
-        plt.title(f'WSP Instance Solving Times (Gray = UNSAT)\nFor Instances {instances[0]} - {instances[-1]}' if len(instances) > 1 else f'WSP Instance Solving Time: {instances[0]}')
+        plt.title(f'WSP Instance Solving Times (Gray = UNSAT)')
         plt.ylim(0, max(times) * 1.2)  # Set y-limit to 120% of max time
         
         self.save_plot(output_file)
@@ -127,7 +127,7 @@ class Visualizer:
                 plt.legend()
                 plt.xlabel('Steps')
                 plt.ylabel('Number of Authorized Users')
-                plt.title(f'Step Authorization Distribution\nFor Instances {instances[0]} - {instances[-1]}')
+                plt.title(f'Step Authorization Distribution')
                 plt.xticks(x)
             else:
                 plt.text(0.5, 0.5, 'No step authorization data found',
@@ -173,7 +173,7 @@ class Visualizer:
                 plt.legend()
                 plt.xlabel('Users')
                 plt.ylabel('Number of Authorized Steps')
-                plt.title(f'User Authorization Distribution\nFor Instances {instances[0]} - {instances[-1]}')
+                plt.title(f'User Authorization Distribution')
                 plt.xticks(x)
             else:
                 plt.text(0.5, 0.5, 'No user authorization data found',
@@ -217,7 +217,7 @@ class Visualizer:
         
         plt.xticks(x, instances, rotation=45, ha='right')
         plt.ylabel('Count')
-        plt.title(f'WSP Instance Size Comparison (Line)\nFor Instances {instances[0]} - {instances[-1]}')
+        plt.title(f'WSP Instance Size Comparison (Line)')
         plt.grid(True, alpha=0.3)
         plt.legend()
         
@@ -241,7 +241,7 @@ class Visualizer:
             
             plt.xlabel('Instances')
             plt.ylabel('Value')
-            plt.title(f'Workload Distribution Metrics\nFor Instances {instances[0]} - {instances[-1]}')
+            plt.title(f'Workload Distribution Metrics')
             plt.legend()
             plt.xticks(x + width/2, instances, rotation=45, ha='right')
         else:
@@ -266,7 +266,7 @@ class Visualizer:
         
         plt.xticks(x, instances, rotation=45, ha='right')
         plt.ylabel('Value')
-        plt.title(f'Workload Distribution Metrics (Line)\nFor Instances {instances[0]} - {instances[-1]}')
+        plt.title(f'Workload Distribution Metrics (Line)')
         plt.grid(True, alpha=0.3)
         plt.legend()
         
@@ -296,7 +296,7 @@ class Visualizer:
                 
                 plt.xticks(x, instances, rotation=45, ha='right')
                 plt.ylabel('Number of Violations')
-                plt.title(f'Constraint Compliance\nFor Instances {instances[0]} - {instances[-1]}')
+                plt.title(f'Constraint Compliance')
                 plt.legend()
             else:
                 plt.text(0.5, 0.5, 'No solutions found (all UNSAT)',
@@ -352,7 +352,7 @@ class Visualizer:
         else:
             plt.xlabel('Instances')
             plt.ylabel('Constraint Status')
-            plt.title(f'Constraint Distribution\nFor Instances {instances[0]} - {instances[-1]}')
+            plt.title(f'Constraint Distribution')
             plt.xticks(x, instances, rotation=45, ha='right')
             plt.legend(legend_handles, legend_labels, 
                     bbox_to_anchor=(1.05, 1), loc='upper left')
@@ -360,7 +360,7 @@ class Visualizer:
         plt.tight_layout()
         self.save_plot(output_file)
 
-    def plot_constraint_activation(self, data: Dict[str, List], output_file: str = "constraint_comparison.png"):
+    def plot_constraint_activation(self, data: Dict[str, List], output_file: str = "constraint_activation.png"):
         """Plot activated and inactivated constraints across instances"""
         plt.figure(figsize=(12, 6))
         instances = [Path(f).stem for f in data['filenames']]
@@ -395,7 +395,7 @@ class Visualizer:
             
             plt.yticks(y_pos, [ct.replace('_', ' ').title() for ct in constraint_types])
             plt.xlabel('Number of Instances')
-            plt.title('Constraint Type Usage Across Instances')
+            plt.title('Active / Inactive Constraint Computed Across Instances')
             
             for i, (a, p) in enumerate(zip(active, inactive)):
                 if a + p > 0:
@@ -432,7 +432,7 @@ class Visualizer:
         ax1.set_xlabel('Instances')
         ax1.set_ylabel('Solution Status')
         ax2.set_ylabel('Solving Time (seconds)')
-        plt.title(f'Solution Statistics\nFor Instances {instances[0]} - {instances[-1]}')
+        plt.title(f'Solution Statistics')
         
         # Set x-axis ticks
         ax1.set_xticks(x)
@@ -483,7 +483,7 @@ class Visualizer:
         
         plt.xlabel('Instances')
         plt.ylabel('Values')
-        plt.title(f'Solution Statistics\nFor Instances {instances[0]} - {instances[-1]}')
+        plt.title(f'Solution Statistics')
         plt.xticks(x, instances, rotation=45, ha='right')
         plt.legend()
         plt.grid(True, alpha=0.3)
@@ -602,7 +602,7 @@ class Visualizer:
             
             plt.xticks(x, instances, rotation=45, ha='right')
             plt.ylabel('Authorization Density (%)')
-            plt.title(f'Authorization Density\nFor Instances {instances[0]} - {instances[-1]}')
+            plt.title(f'Authorization Density')
             plt.grid(True, alpha=0.3)
             plt.legend()
         else:
@@ -634,7 +634,7 @@ class Visualizer:
             
             plt.xticks(x, instances, rotation=45, ha='right')
             plt.ylabel('Ratio/Percentage')
-            plt.title(f'Constraint Complexity Metrics\nFor Instances {instances[0]} - {instances[-1]}')
+            plt.title(f'Constraint Complexity Metrics')
             plt.legend()
         else:
             plt.text(0.5, 0.5, 'Insufficient data for complexity metrics',

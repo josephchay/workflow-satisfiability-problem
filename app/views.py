@@ -359,7 +359,7 @@ class AppView(customtkinter.CTk):
             desc_label = customtkinter.CTkLabel(
                 frame,
                 text=description,
-                wraplength=300
+                wraplength=500
             )
             desc_label.pack(side="left", padx=5)
 
