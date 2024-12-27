@@ -184,13 +184,14 @@ For the entire list of options, check out the `parse_arguments` method in `main_
 ### Solver Type Selection
 
 Available solver types:
-- `OR-Tools (CS)`
-- `OR-Tools (PBPB)`
-- `OR-Tools (UDPB)`
-- `Z3 (PBPB)`
-- `Z3 (UDPB)`
-- `SAT4J (PBPB)`
-- `SAT4J (UDPB)`
+1. OR-Tools (Boolean-based)
+2. Z3 (Theorem-Constraint-based)
+3. Gurobi (Integer-based & Array-based)
+4. PuLP (Integer-based)
+5. SAT4J (Boolean-based & Encoding to solve Pigeon-hold Problem / Principle)
+6. Simulated Annealing (Metaheuristic algorithm)
+7. DEAP (Genetic evolutionary algorithm & Array-based)
+8. Bayesian Network (Array-based)
 
 ## Input File Format
 
