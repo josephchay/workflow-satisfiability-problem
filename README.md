@@ -6,6 +6,9 @@ A powerful WSP tooling system that optimizes complex multi-user task allocations
 
 Designed for researchers and practitioners in workflow management, access control, and optimization, this solver leverages state-of-the-art algorithms to tackle challenging resource allocation problems.
 
+## COMMENTS
+Note that this codebase has multiple important comment blocks and lines to which we do not randomly insert comments anywhere we think we can. Comments have been properly made use to only describe code sections which are novel and seem new. Common elements are intentionally not commented to maintain clean code. 
+
 ## Features
 
 - Multiple solver implementations
