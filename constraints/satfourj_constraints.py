@@ -524,3 +524,36 @@ class SAT4JAssignmentDependentConstraint(SAT4JConstraint):
                         
         return True
     
+
+class SAT4JConstraintManager:
+    def __init__(self, solver, instance, var_manager):
+        self.solver = solver
+        self.instance = instance
+        self.var_manager = var_manager
+        self.constraints = []
+
+    def add_constraints(self, active_constraints: Set[str]) -> Tuple[bool, List[str]]:
+        """Add active constraints to the solver"""
+        self.constraints.clear()
+        
+        if "auth" in active_constraints:
+            self.constraints.append(SAT4JAuthorizationConstraint(self.solver, self.instance, self.var_manager))
+        if "sod" in active_constraints:
+            self.constraints.append(SAT4JSeparationOfDutyConstraint(self.solver, self.instance, self.var_manager))
+        if "bod" in active_constraints:
+            self.constraints.append(SAT4JBindingOfDutyConstraint(self.solver, self.instance, self.var_manager))
+        if "at-most-k" in active_constraints:
+            self.constraints.append(SAT4JAtMostKConstraint(self.solver, self.instance, self.var_manager))
+        if "one-team" in active_constraints:
+            self.constraints.append(SAT4JOneTeamConstraint(self.solver, self.instance, self.var_manager))
+        if "sual" in active_constraints:
+            self.constraints.append(SAT4JSUALConstraint(self.solver, self.instance, self.var_manager))
+        if "wang-li" in active_constraints:
+            self.constraints.append(SAT4JWangLiConstraint(self.solver, self.instance, self.var_manager))
+        if "ada" in active_constraints:
+            self.constraints.append(SAT4JAssignmentDependentConstraint(self.solver, self.instance, self.var_manager))
+            
+        # Add clauses for each constraint
+        for constraint in self.constraints:
+            if not constraint.add_clauses():
+                return False, [f"Failed to add clauses for {constraint.__class__.__name__} constraint"]
