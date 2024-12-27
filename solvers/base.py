@@ -243,7 +243,7 @@ class BaseSolver:
         # Solution Status section
         self.statistics["solution_status"] = {
             "Status": "SAT" if result.is_sat else "UNSAT",
-            "Solver Used": "OR-Tools (CP)",
+            # "Solver Used": self.SOLVER_TYPE.value,
             "Solution Time": f"{self.solve_time:.2f} seconds",
             "Solution Uniqueness": "Unique" if result.is_sat and hasattr(self, 'solution_unique') and self.solution_unique else
                                  "Not Unique" if result.is_sat and hasattr(self, 'solution_unique') else "N/A"

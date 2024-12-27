@@ -7,4 +7,6 @@ class SolverType(Enum):
     SAT4J = "SAT4J"
     GUROBI = "Gurobi"
     DEAP = "DEAP"
-    HYPEROPT = "Hyperopt"
+    SA = "Simulated Annealing"
+    PULP = "PuLP"
+    BAYESIAN_NETWORK = "Bayesian Network"

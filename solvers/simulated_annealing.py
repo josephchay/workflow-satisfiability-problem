@@ -23,6 +23,9 @@ class SAState:
 
 
 class SimulatedAnnealingSolver:
+    """Simulated Annealing solver implementation for WSP instances"""   
+    SOLVER_TYPE = SolverType.SA
+
     def __init__(self, instance, active_constraints: Dict[str, bool], gui_mode: bool = False):
         self.instance = instance
         self.active_constraints = active_constraints

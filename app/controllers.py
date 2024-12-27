@@ -47,9 +47,12 @@ class AppController:
         descriptions = {
             SolverType.ORTOOLS_CP: "OR-Tools",
             SolverType.Z_THREE: "Z3 Theorem Prover",
-            SolverType.SAT4J: "SAT4J",
+            SolverType.SAT4J: "SAT4J - Pigeon-hole principle",
             SolverType.GUROBI: "Gurobi",
-            SolverType.DEAP: "DEAP",
+            SolverType.PULP: "PuLP CBC",
+            SolverType.SA: "Simulated Annealing",
+            SolverType.DEAP: "DEAP - GA",
+            SolverType.BAYESIAN_NETWORK: "Bayesian Network PGM",
         }
         description = descriptions.get(self.current_solver_type, "")
         self.view.update_solver_description(description)
