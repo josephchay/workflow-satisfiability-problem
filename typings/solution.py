@@ -53,7 +53,7 @@ class Solution:
             if solver_instance:
                 solver_type = getattr(solver_instance, 'SOLVER_TYPE', 'Unknown').value
 
-            f.write(f"Solver: {solver_type}\n")
+            # f.write(f"Solver: {solver_type}\n")
             f.write("=" * 120 + "\n\n")
 
             # If solution is satisfiable
@@ -235,13 +235,13 @@ class Solution:
                 f.write("\n" + "=" * 40 + "\n")
                 f.write("CONSTRAINT CONFLICT ANALYSIS\n")
                 f.write("=" * 40 + "\n")
-                conflicts = solver_instance.analyze_constraint_conflicts()
-                if conflicts:
-                    f.write("Potential Conflicts Detected:\n")
-                    for conflict in conflicts:
-                        f.write(f"\t- {conflict['Type']}: {conflict['Description']}\n")
-                else:
-                    f.write("\tNo constraint conflicts detected.\n")
+                # conflicts = solver_instance.analyze_constraint_conflicts()
+                # if conflicts:
+                #     f.write("Potential Conflicts Detected:\n")
+                #     for conflict in conflicts:
+                #         f.write(f"\t- {conflict['Type']}: {conflict['Description']}\n")
+                # else:
+                #     f.write("\tNo constraint conflicts detected.\n")
 
                 # Violations (if any)
                 if self.violations:

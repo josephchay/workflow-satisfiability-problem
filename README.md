@@ -165,7 +165,7 @@ python main_cli.py assets/instances/example17.txt results/solution17.txt
 
 - `-s, --solver`: Select solver type
 ```bash
-python main_cli.py assets/instances/example17.txt results/solution17.txt -s "OR-Tools (PBPB)"
+python main_cli.py assets/instances/example17.txt results/solution17.txt -s "OR-Tools"
 ```
 
 - Constraint toggles:

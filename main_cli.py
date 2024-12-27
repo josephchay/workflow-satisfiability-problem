@@ -52,6 +52,7 @@ def parse_arguments():
                         help='Path to save the solution output')
     
     # Optional solver type argument
+    # Note: SolverType enum values are used as choices. Checkout `constants/solver_type.py` for more details.
     solver_choices = [st.value for st in SolverType]
     parser.add_argument('-s', '--solver', 
                         choices=solver_choices, 
