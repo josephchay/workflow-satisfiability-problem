@@ -52,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Store value for `parse_arg` for SUAL, WangLi, and ADA arguments in `main_cli.py`.
 - ADA constraint name display for activation / deactivation panel in GUI.
 - Made OR-Tools CP solver use a more specific variable manager dedicated to it.
+- Imports `networkx` as `nx` for `bayesian_network_constraints.py`
 
 ### Improvement
 - Modified metric information in `metadata.py` and how its handled in the `controllers.py`.
@@ -69,6 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Better constraint distribution tracking in the OR-Tools CP solver.
 - Include metadata for constraint distribution and comparison in the saving of Metada handlings.
 - Made `plot_constraint_distribution` to be able to handle larger instances.
+- Changed solver type for Bayesian network from `PGM_PY` to `BAYESIAN_NETWORK` to better reflect on implementation.
 
 ### Removed
 - Removed unnecessary title header description for each instance.

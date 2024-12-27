@@ -2,7 +2,7 @@ from typing import Dict, List, Set, Tuple, Any
 from collections import defaultdict
 from abc import ABC, abstractmethod
 import numpy as np
-import nx
+import networkx as nx
 from pgmpy.models import BayesianNetwork
 from pgmpy.factors.discrete import TabularCPD
 

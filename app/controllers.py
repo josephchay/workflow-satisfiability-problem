@@ -45,14 +45,14 @@ class AppController:
     def _update_solver_description(self):
         """Update the solver description based on current type"""
         descriptions = {
-            SolverType.ORTOOLS_CP: "OR-Tools",
-            SolverType.Z_THREE: "Z3 Theorem Prover",
-            SolverType.SAT4J: "SAT4J - Pigeon-hole principle",
-            SolverType.GUROBI: "Gurobi",
-            SolverType.PULP: "PuLP CBC",
-            SolverType.SA: "Simulated Annealing",
-            SolverType.DEAP: "DEAP - GA",
-            SolverType.BAYESIAN_NETWORK: "Bayesian Network PGM",
+            SolverType.ORTOOLS_CP: "OR-Tools (Boolean-based)",
+            SolverType.Z_THREE: "Z3 Theorem Prover (Constraint-based)",
+            SolverType.SAT4J: "SAT4J - Boolean-based & Pigeon-hole principle",
+            SolverType.GUROBI: "Gurobi (Integer-based & Array-based & MIP-based)",
+            SolverType.PULP: "PuLP (Integer-based & LP-based & CBC-based)",
+            SolverType.SA: "Simulated Annealing (Stochastic Metaheuristic algorithm)",
+            SolverType.DEAP: "DEAP (Evolutionary Genetic algorithm)",
+            SolverType.BAYESIAN_NETWORK: "Bayesian Network (Probabilistic Graphical Model-based)",
         }
         description = descriptions.get(self.current_solver_type, "")
         self.view.update_solver_description(description)

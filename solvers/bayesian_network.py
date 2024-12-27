@@ -17,7 +17,7 @@ from typings import Solution, Verifier
 
 class BayesianNetworkSolver(BaseSolver):
     """PGMPY Bayesian Network solver for WSP instances"""
-    SOLVER_TYPE = SolverType.PGMPY
+    SOLVER_TYPE = SolverType.BAYESIAN_NETWORK
 
     def __init__(self, instance, active_constraints: Dict[str, bool], gui_mode: bool = False):
         super().__init__(instance, active_constraints, gui_mode)

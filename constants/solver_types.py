@@ -8,5 +8,5 @@ class SolverType(Enum):
     GUROBI = "Gurobi"
     DEAP = "DEAP"
     SA = "Simulated Annealing"
-    PULP = "PuLP"
+    PULP = "PuLP CBC"
     BAYESIAN_NETWORK = "Bayesian Network"
