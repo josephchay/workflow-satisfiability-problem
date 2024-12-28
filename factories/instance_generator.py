@@ -24,6 +24,11 @@ class InstanceGenerator:
         """Generate random authorizations with given density
         
         density: probability of a user being authorized for a step
+
+        Process:
+        1. For each user, there's an 80% chance they get authorizations
+        2. For each step, there's a 'density' chance the user is authorized
+        3. Special handling ensures minimum coverage for each user and step
         """
         self.authorizations.clear()
         
@@ -54,7 +59,12 @@ class InstanceGenerator:
                 self.authorizations[step].add(user)
             
     def _add_binding_of_duty(self, num_constraints: int, used_steps: set):
-        """Add binding of duty constraints with exact format"""
+        """
+        Add binding of duty constraints with exact format
+        
+        Crucial function for BOD constraints.
+        Ensures steps have enough common users for constraint to be satisfiable.
+        """
         if num_constraints <= 0:
             return
         
@@ -79,7 +89,12 @@ class InstanceGenerator:
                 used_steps.update([s1, s2])
 
     def _add_separation_of_duty(self, num_constraints: int, used_steps: set):
-        """Add separation of duty constraints with exact format"""
+        """
+        Add separation of duty constraints with exact format
+        
+        Complex constraint ensuring limited user assignments.
+        Carefully calculates k value based on available authorizations.
+        """
         if num_constraints <= 0:
             return
         
@@ -103,7 +118,12 @@ class InstanceGenerator:
                 used_steps.update([s1, s2])
 
     def _add_at_most_k_constraints(self, num_constraints: int, used_steps: set):
-        """Add at-most-k constraints"""
+        """
+        Add at-most-k constraints
+        
+        Complex organizational constraint ensuring departmental assignments.
+        Creates balanced departments with sufficient authorizations.
+        """
         if num_constraints <= 0:
             return
             
@@ -135,7 +155,12 @@ class InstanceGenerator:
             used_steps.update(scope)
 
     def _add_one_team_constraints(self, num_constraints: int, used_steps: set):
-        """Add one-team constraints"""
+        """
+        Add one-team constraints
+        
+        Teams-based constraint system.
+        Creates teams and ensures steps are performed by same team members.
+        """
         if num_constraints <= 0:
             return
             
@@ -192,7 +217,25 @@ class InstanceGenerator:
                 used_steps.update(scope)
 
     def _add_sual_constraints(self, num_constraints: int):
-        """Add Super-User-At-Least constraints"""
+        """
+        Add Super-User-At-Least constraints
+
+        Purpose: Enforces minimum super user involvement in critical steps
+        Sophisticated Process:
+
+        Super User Selection:
+        Takes ~20% of total users as super users
+        Random selection for fairness
+
+        Step Validation:
+        Only considers steps where at least one super user is authorized
+
+        Threshold Calculation:
+        h value (2-4) based on minimum authorizations
+        Must be less than total authorized users
+
+        Key Consideration: Balance between security (higher h) and feasibility
+        """
         if num_constraints <= 0:
             return
             
@@ -224,7 +267,41 @@ class InstanceGenerator:
             self.constraints.append(('SUAL', (h, scope, super_users)))
 
     def _add_wang_li_constraints(self, num_constraints: int, users_per_dept: int):
-        """Add Wang-Li constraints"""
+        """
+        Add Wang-Li constraints
+
+        Purpose: Enforces departmental structure and organizational boundaries in workflows
+
+        Department Formation:
+        Default size = total_users/4 per department
+        Each department member must have ≥2 step authorizations
+        Departments must be balanced in size
+        Must create at least 2 departments
+
+        Step Validation:
+        Valid steps must be performable by at least one department
+        Each step checked against all departments
+        Step is valid if any department member is authorized
+        Scope of 2-5 steps selected for each constraint
+
+        Department Selection:
+        All users randomly shuffled to avoid bias
+        Users checked for authorization count
+        Users with <2 authorizations are skipped
+        Departments built until target size or no more qualified users
+
+        Constraint Creation:
+        Format: Wang-li s1 s2 (u1 u2) (u3 u4 u5)
+        All steps must be assigned to users from same department
+        Each department listed as tuple of users
+        Steps must have sufficient authorized users across departments
+
+        Critical for:
+        Organizational structure enforcement
+        Departmental expertise maintenance
+        Security boundary implementation
+        Specialized workflow management
+        """
         if num_constraints <= 0:
             return
             
@@ -272,7 +349,26 @@ class InstanceGenerator:
             self.constraints.append(('WANG-LI', (scope, departments)))
 
     def _add_ada_constraints(self, num_constraints: int):
-        """Add Assignment-Dependent Authorization constraints"""
+        """
+        Add Assignment-Dependent Authorization constraints
+
+        Purpose: Creates conditional dependencies between step assignments
+        Complex Logic:
+
+        Valid Step Selection:
+        Needs steps with ≥3 authorized users
+        Source and target steps must be different
+
+        User Group Formation:
+        Source users: subset of s1's authorized users
+        Target users: subset of s2's authorized users
+        Group sizes limited to n/4 for manageability
+
+        Constraint Creation:
+        Links source step assignments to target step requirements
+
+        Critical for: Workflow sequencing and conditional access control
+        """
         if num_constraints <= 0:
             return
             
